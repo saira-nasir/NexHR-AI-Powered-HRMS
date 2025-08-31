@@ -7,7 +7,17 @@ const EmployeeCard: React.FC = () => {
 
   if (!user) return <div>Loading...</div>;
 
-  const fullName = [user.fname, user.lname].filter(Boolean).join(' ');
+  const firstName = user.firstName || user.fname || '';
+  const lastName = user.lastName || user.lname || '';
+  const fullName = [firstName, lastName].filter(Boolean).join(' ');
+  const isVerified = Boolean((user as any).is_verified);
+  const department = (user as any).department || 'No department';
+  const phone = user.phone || (user as any).mobile || '';
+  const email = user.email || '';
+  const rawStatus = (user as any).status || 'active';
+  const statusText = typeof rawStatus === 'string' && rawStatus.length > 0
+    ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)
+    : 'Active';
 
   // Hardcode the avatar URL for every user
   const employee = {
@@ -26,21 +36,21 @@ const EmployeeCard: React.FC = () => {
           className="h-full w-full object-cover opacity-90 transition-transform duration-500 hover:scale-105"
         />
         <div className="absolute bottom-4 left-4 rounded-lg bg-black/20 backdrop-blur-sm px-3 py-1 text-white text-sm font-medium">
-          <span>{user.is_verified ? 'Verified' : 'Not Verified'}</span>
+          <span>{isVerified ? 'Verified' : 'Not Verified'}</span>
         </div>
       </div>
 
       <div className="p-5 flex-1 flex flex-col">
         <div className="text-center mb-6">
           <h3 className="text-xl font-bold">{employee.name}</h3>
-          <p className="text-muted-foreground text-sm">{user.department || 'No department'}</p>
+          <p className="text-muted-foreground text-sm">{department}</p>
         </div>
 
         <div className="flex space-x-3 justify-center mb-6">
-          <a href={`tel:${user.phone}`} className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors p-2">
+          <a href={`tel:${phone}`} className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors p-2">
             <Phone className="h-5 w-5" />
           </a>
-          <a href={`mailto:${user.email}`} className="rounded-full bg-muted hover:bg-muted/80 transition-colors p-2">
+          <a href={`mailto:${email}`} className="rounded-full bg-muted hover:bg-muted/80 transition-colors p-2">
             <Mail className="h-5 w-5" />
           </a>
         </div>
@@ -49,8 +59,8 @@ const EmployeeCard: React.FC = () => {
           <div>
             <div className="text-sm text-muted-foreground mb-1">Account Status</div>
             <div className="flex items-baseline">
-              <span className={`text-2xl font-bold ${user.status === 'active' ? 'text-green-600' : 'text-red-600'}`}>
-                {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+              <span className={`text-2xl font-bold ${rawStatus === 'active' ? 'text-green-600' : 'text-red-600'}`}>
+                {statusText}
               </span>
             </div>
 

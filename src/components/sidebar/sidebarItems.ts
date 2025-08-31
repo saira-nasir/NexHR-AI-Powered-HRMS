@@ -17,6 +17,11 @@ export const sidebarItems: SidebarMenuItem[] = [
     icon: Home,
   },
   {
+    title: 'Employee Dashboard',
+    path: '/employee-dashboard',
+    icon: Home,
+  },
+  {
     title: 'Teams',
     path: '/teams',
     icon: Users,
@@ -42,6 +47,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/finance',
     icon: DollarSign,
     submenu: [
+      { title: 'Finance Dashboard', path: '/finance' },
       { title: 'Payroll', path: '/payroll' },
       { title: 'Expenses', path: '/expenses' },
       { title: 'Invoices', path: '/invoices' },

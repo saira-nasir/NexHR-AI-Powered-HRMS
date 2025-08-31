@@ -21,6 +21,10 @@ import CompanyInfoForm from "@/pages/CompanyInfo";
 import ResetPassword from "@/pages/ResetPassword";
 import Employees from "@/pages/Employees";
 import JobApplicationForm from "@/pages/JobApplicationForm";
+import EmployeeDashboard from "@/pages/EmployeeDashboard";
+import PayrollPage from "@/pages/Payroll";
+import FinanceDashboard from "@/pages/FinanceDashboard";
+import HiringHandbook from "@/pages/HiringHandbook";
 
 // Create a placeholder component for routes that don't have dedicated pages yet
 // eslint-disable-next-line react-refresh/only-export-components
@@ -109,6 +113,10 @@ export const routes: RouteObject[] = [
             element: <Documents />,
           },
           {
+            path: "employee-dashboard",
+            element: <EmployeeDashboard />,
+          },
+          {
             path: "teams",
             element: <PlaceholderPage title="Teams" />,
           },
@@ -138,15 +146,15 @@ export const routes: RouteObject[] = [
           },
           {
             path: "hiring-handbook",
-            element: <PlaceholderPage title="Hiring Handbook" />,
+            element: <HiringHandbook />,
           },
           {
             path: "finance",
-            element: <PlaceholderPage title="Finance" />,
+            element: <FinanceDashboard />,
           },
           {
             path: "payroll",
-            element: <PlaceholderPage title="Payroll" />,
+            element: <PayrollPage />,
           },
           {
             path: "expenses",
