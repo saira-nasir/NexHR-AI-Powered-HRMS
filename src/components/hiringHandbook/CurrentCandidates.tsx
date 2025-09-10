@@ -30,7 +30,7 @@ import {
   Users
 } from 'lucide-react';
 import { Candidate, mockApi } from '@/data/hiringHandbookData';
-// @ts-expect-error: CandidateDetailDrawer type declarations missing
+
 import CandidateDetailDrawer from './CandidateDetailDrawer';
 
 const CurrentCandidates: React.FC = () => {

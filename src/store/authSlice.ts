@@ -8,11 +8,19 @@ interface Company {
   phone: string;
 }
 
+interface Role {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 interface User {
   email: string;
   firstName?: string;
   lastName?: string;
   company: Company | null;
+  roles?: Role[];
+  role?: string; // Fallback for single role
 }
 
 interface AuthState {

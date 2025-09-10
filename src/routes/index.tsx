@@ -13,6 +13,8 @@ import NotFound from "@/pages/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import PublicRoute from "@/components/PublicRoute";
 import CompanyRegistrationGuard from "@/components/CompanyRegistrationGuard";
+import RoleBasedRoute from "@/components/RoleBasedRoute";
+import RoleBasedDashboard from "@/components/RoleBasedDashboard";
 import JobPortal from "@/pages/JobPortal";
 import JobDetail from "@/components/jobPortal/job-detail";
 import TestModal from "@/pages/TestModal";
@@ -88,86 +90,175 @@ export const routes: RouteObject[] = [
       {
         element: <CompanyRegistrationGuard />,
         children: [
+          // Role-based dashboard redirection
+          {
+            path: "dashboard-redirect",
+            element: <RoleBasedDashboard />,
+          },
+          // HR/Admin Dashboard Routes
           {
             path: "dashboard",
-            element: <Dashboard />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <Dashboard />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "/jobs/create",
-            element: <JobPostForm />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <JobPostForm />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "calendar",
-            element: <Calendar />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <Calendar />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "team",
-            element: <Team />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <Team />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "projects",
-            element: <Projects />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <Projects />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "documents",
-            element: <Documents />,
-          },
-          {
-            path: "employee-dashboard",
-            element: <EmployeeDashboard />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <Documents />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "teams",
-            element: <PlaceholderPage title="Teams" />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <PlaceholderPage title="Teams" />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "employees",
-            element: <Employees />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <Employees />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "attendance",
-            element: <PlaceholderPage title="Attendance" />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <PlaceholderPage title="Attendance" />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "checklist",
-            element: <PlaceholderPage title="Checklist" />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <PlaceholderPage title="Checklist" />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "time-off",
-            element: <PlaceholderPage title="Time Off" />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <PlaceholderPage title="Time Off" />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "hiring",
-            element: <PlaceholderPage title="Hiring" />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <PlaceholderPage title="Hiring" />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "onboarding",
-            element: <PlaceholderPage title="Onboarding" />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <PlaceholderPage title="Onboarding" />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "hiring-handbook",
-            element: <HiringHandbook />,
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <HiringHandbook />
+              </RoleBasedRoute>
+            ),
           },
+          // Finance Manager Routes
           {
             path: "finance",
-            element: <FinanceDashboard />,
+            element: (
+              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+                <FinanceDashboard />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "payroll",
-            element: <PayrollPage />,
+            element: (
+              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+                <PayrollPage />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "expenses",
-            element: <PlaceholderPage title="Expenses" />,
+            element: (
+              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+                <PlaceholderPage title="Expenses" />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "invoices",
-            element: <PlaceholderPage title="Invoices" />,
+            element: (
+              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+                <PlaceholderPage title="Invoices" />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "payment-information",
-            element: <PlaceholderPage title="Payment Information" />,
+            element: (
+              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+                <PlaceholderPage title="Payment Information" />
+              </RoleBasedRoute>
+            ),
           },
+          // Employee Dashboard Route
+          {
+            path: "employee-dashboard",
+            element: (
+              <RoleBasedRoute allowedRoles={["Employee"]}>
+                <EmployeeDashboard />
+              </RoleBasedRoute>
+            ),
+          },
+          // Common routes accessible by all roles
           {
             path: "settings",
             element: <PlaceholderPage title="Settings" />,
