@@ -3,7 +3,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
 import { useEffect, useState } from 'react';
-import { getDashboardPath, getUserRole } from '@/utils/roleUtils';
+import { getUserRole, ROLES } from '@/utils/roleUtils';
+import Dashboard from '@/pages/Dasboard';
+import FinanceDashboard from '@/pages/FinanceDashboard';
+import EmployeeDashboard from '@/pages/EmployeeDashboard';
 
 const RoleBasedDashboard: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -38,10 +41,22 @@ const RoleBasedDashboard: React.FC = () => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Get dashboard path based on user's role
-  const redirectPath = getDashboardPath(user);
+  // Get user's role and render appropriate dashboard component
+  const userRole = getUserRole(user);
   
-  return <Navigate to={redirectPath} replace />;
+  // Render different dashboard components based on role
+  switch (userRole) {
+    case ROLES.HR:
+    case ROLES.ADMIN:
+      return <Dashboard />;
+    case ROLES.FINANCE_MANAGER:
+      return <FinanceDashboard />;
+    case ROLES.EMPLOYEE:
+      return <EmployeeDashboard />;
+    default:
+      // Fallback to employee dashboard for unknown roles
+      return <EmployeeDashboard />;
+  }
 };
 
 export default RoleBasedDashboard;

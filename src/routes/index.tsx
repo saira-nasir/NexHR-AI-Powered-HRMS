@@ -1,4 +1,4 @@
-import { RouteObject } from "react-router-dom";
+import { RouteObject, Navigate } from "react-router-dom";
 import LoginPage from "@/pages/Login";
 import RegisterPage from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
@@ -90,19 +90,10 @@ export const routes: RouteObject[] = [
       {
         element: <CompanyRegistrationGuard />,
         children: [
-          // Role-based dashboard redirection
-          {
-            path: "dashboard-redirect",
-            element: <RoleBasedDashboard />,
-          },
-          // HR/Admin Dashboard Routes
+          // Role-based dashboard - single route for all roles
           {
             path: "dashboard",
-            element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
-                <Dashboard />
-              </RoleBasedRoute>
-            ),
+            element: <RoleBasedDashboard />,
           },
           {
             path: "/jobs/create",
@@ -208,14 +199,10 @@ export const routes: RouteObject[] = [
               </RoleBasedRoute>
             ),
           },
-          // Finance Manager Routes
+          // Finance Manager Routes (keeping finance-specific routes)
           {
             path: "finance",
-            element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
-                <FinanceDashboard />
-              </RoleBasedRoute>
-            ),
+            element: <Navigate to="/dashboard" replace />,
           },
           {
             path: "payroll",
@@ -249,14 +236,10 @@ export const routes: RouteObject[] = [
               </RoleBasedRoute>
             ),
           },
-          // Employee Dashboard Route
+          // Employee Dashboard Route - redirects to /dashboard
           {
             path: "employee-dashboard",
-            element: (
-              <RoleBasedRoute allowedRoles={["Employee"]}>
-                <EmployeeDashboard />
-              </RoleBasedRoute>
-            ),
+            element: <Navigate to="/dashboard" replace />,
           },
           // Common routes accessible by all roles
           {

@@ -9,12 +9,12 @@ export const ROLES = {
 
 export type UserRole = typeof ROLES[keyof typeof ROLES];
 
-// Role-based dashboard mapping
+// Role-based dashboard mapping - all roles now use /dashboard
 export const ROLE_DASHBOARD_MAP: Record<UserRole, string> = {
   [ROLES.HR]: '/dashboard',
   [ROLES.ADMIN]: '/dashboard',
-  [ROLES.FINANCE_MANAGER]: '/finance',
-  [ROLES.EMPLOYEE]: '/employee-dashboard'
+  [ROLES.FINANCE_MANAGER]: '/dashboard',
+  [ROLES.EMPLOYEE]: '/dashboard'
 };
 
 // Get user's primary role from user data
@@ -41,10 +41,9 @@ export const getUserRole = (user: any): UserRole => {
   return ROLES.EMPLOYEE;
 };
 
-// Get dashboard path for user role
+// Get dashboard path for user role - now always returns /dashboard
 export const getDashboardPath = (user: any): string => {
-  const role = getUserRole(user);
-  return ROLE_DASHBOARD_MAP[role] || ROLE_DASHBOARD_MAP[ROLES.EMPLOYEE];
+  return '/dashboard';
 };
 
 // Check if user has required role
