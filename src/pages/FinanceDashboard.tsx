@@ -19,27 +19,50 @@ import PayrollTable from '@/components/financeDashboard/PayrollTable';
 import { employeeService, Employee } from '@/services/employeeService';
 import payrollService, { Payroll, Payslip } from '@/services/payrollService';
 import { useToast } from '@/hooks/use-toast';
+import { usePaymentConfirmation } from '@/hooks/usePaymentConfirmation';
 
 const FinanceDashboard: React.FC = () => {
   const { toast } = useToast();
+  const { isConfirming } = usePaymentConfirmation();
 
   const [payrolls, setPayrolls] = React.useState<Payroll[]>([]);
   const [payslips, setPayslips] = React.useState<Payslip[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
-  const [employeeMap, setEmployeeMap] = React.useState<Record<number, { name: string; email?: string }>>({});
+  const [employeeMap, setEmployeeMap] = React.useState<Record<number, { name: string; email?: string; department?: string }>>({});
 
   const loadData = React.useCallback(async () => {
     try {
       setIsLoading(true);
       const [pr, ps, emps] = await Promise.all([
-        payrollService.listPayrolls(),
+        payrollService.listPayrollsWithEmployees().catch(() => payrollService.listPayrolls()),
         payrollService.listPayslips(),
         employeeService.getEmployees().catch(() => [] as Employee[]),
       ]);
       setPayrolls(pr);
       setPayslips(ps);
+      
+      // Build employee map with proper name resolution (same as Payroll page)
+      const map: Record<number, { name: string; email?: string; department?: string }> = {};
+      
+      // First, try to extract employee details from payroll data if available
+      pr.forEach(payroll => {
+        if (payroll.employee_details) {
+          const emp = payroll.employee_details;
+          const firstName = emp.fname || emp.first_name || '';
+          const lastName = emp.lname || emp.last_name || '';
+          const fullName = `${firstName} ${lastName}`.trim();
+          const displayName = emp.name || fullName || emp.email || `Employee ${emp.id}`;
+          
+          map[emp.id] = {
+            name: displayName,
+            email: emp.email || '',
+            department: emp.company || emp.department || 'Unknown',
+          };
+        }
+      });
+      
+      // Then add employees from the employee service
       if (Array.isArray(emps)) {
-        const map: Record<number, { name: string; email?: string }> = {};
         for (const e of emps) {
           // Try different field name combinations for names
           const firstName = e.fname || e.first_name || e.firstName || '';
@@ -51,12 +74,14 @@ const FinanceDashboard: React.FC = () => {
           
           map[e.id] = { 
             name: displayName, 
-            email: e.email 
+            email: e.email,
+            department: e.company || e.department || 'Unknown',
           };
         }
-        setEmployeeMap(map);
-        console.log('Employee map created:', map);
       }
+      
+      setEmployeeMap(map);
+      console.log('Finance Dashboard - Employee map created:', map);
     } catch (e: any) {
       toast({ title: 'Failed to load finance data', description: e?.message || 'Please try again.', variant: 'destructive' });
     } finally {
@@ -67,6 +92,17 @@ const FinanceDashboard: React.FC = () => {
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Refresh data when payment confirmation is happening
+  React.useEffect(() => {
+    if (isConfirming) {
+      // Refresh data after a short delay to allow backend processing
+      const timer = setTimeout(() => {
+        loadData();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isConfirming, loadData]);
 
   // Derived UI data
   const totalNet = payrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0);
@@ -122,7 +158,10 @@ const FinanceDashboard: React.FC = () => {
       if (!firstPending) return;
       const session = await payrollService.createCheckoutSession(firstPending.id);
       if (session?.url) {
-        window.location.href = session.url;
+        // Add payroll_id to the success URL for confirmation
+        const url = new URL(session.url);
+        url.searchParams.set('payroll_id', firstPending.id.toString());
+        window.location.href = url.toString();
       }
     } catch (e: any) {
       toast({ title: 'Checkout failed', description: e?.message || 'Please try again.', variant: 'destructive' });

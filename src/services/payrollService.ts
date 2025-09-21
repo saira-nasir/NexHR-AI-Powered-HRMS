@@ -198,6 +198,41 @@ const payrollService = {
     return data;
   },
 
+  // Payment confirmation and status update
+  confirmPayment: async (payrollId: number, sessionId: string) => {
+    const { data } = await api.post<Payroll>(`${BASE}/payrolls/${payrollId}/confirm-payment/`, { session_id: sessionId });
+    return data;
+  },
+
+  // Mark payroll as paid (for manual confirmation if needed)
+  markAsPaid: async (payrollId: number) => {
+    const { data } = await api.patch<Payroll>(`${BASE}/payrolls/${payrollId}/`, { 
+      payment_status: 'PAID',
+      paid_on: new Date().toISOString()
+    });
+    return data;
+  },
+
+  // Generate payslip
+  generatePayslip: async (payrollId: number) => {
+    try {
+      console.log('Generating payslip for payroll ID:', payrollId);
+      const payload = {
+        payroll: payrollId,
+        issued_on: new Date().toISOString().split('T')[0]
+      };
+      console.log('Payslip generation payload:', payload);
+      
+      const { data } = await api.post<Payslip>(`${BASE}/payslips/`, payload);
+      console.log('Payslip generation response:', data);
+      return data;
+    } catch (error) {
+      console.error('Payslip generation error:', error);
+      console.error('Error response:', error.response?.data);
+      throw error;
+    }
+  },
+
   // Download payslip as PDF stream (uses action on PayrollViewSet)
   downloadPayslip: async (payrollId: number) => {
     const response = await api.get(`${BASE}/payrolls/${payrollId}/download-payslip/`, {

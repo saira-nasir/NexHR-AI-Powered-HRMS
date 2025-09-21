@@ -9,6 +9,27 @@ export const ROLES = {
 
 export type UserRole = typeof ROLES[keyof typeof ROLES];
 
+// Normalizes a raw role string into one of the app's canonical role constants
+export const normalizeRoleName = (raw?: string | null): UserRole | undefined => {
+  if (!raw) return undefined;
+  const v = String(raw).trim();
+
+  // Exact matches first (case sensitive)
+  if (v === 'HR') return ROLES.HR;
+  if (v === 'Admin') return ROLES.ADMIN;
+  if (v === 'Finance Manager') return ROLES.FINANCE_MANAGER;
+  if (v === 'Employee') return ROLES.EMPLOYEE;
+
+  // Case insensitive matches
+  const lower = v.toLowerCase();
+  if (lower === 'hr' || lower === 'human resources' || lower === 'hr manager' || lower === 'hr admin') return ROLES.HR;
+  if (lower === 'admin' || lower === 'administrator' || lower === 'superadmin' || lower === 'super admin') return ROLES.ADMIN;
+  if (lower === 'finance manager' || lower === 'finance' || lower === 'accounting' || lower === 'accounts') return ROLES.FINANCE_MANAGER;
+  if (lower === 'employee' || lower === 'staff' || lower === 'user' || lower === 'member') return ROLES.EMPLOYEE;
+
+  return undefined;
+};
+
 // Role-based dashboard mapping - all roles now use /dashboard
 export const ROLE_DASHBOARD_MAP: Record<UserRole, string> = {
   [ROLES.HR]: '/dashboard',
