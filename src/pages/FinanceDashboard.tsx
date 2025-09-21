@@ -11,31 +11,123 @@ import {
   PayrollTrendsChart,
   TaxComplianceChart,
   RecentDisbursementsCard,
+  SalaryStructureTable,
+  TaxManagementTable,
+  NotificationsCard,
 } from '@/components/financeDashboard';
+import PayrollTable from '@/components/financeDashboard/PayrollTable';
+import { employeeService, Employee } from '@/services/employeeService';
+import payrollService, { Payroll, Payslip } from '@/services/payrollService';
+import { useToast } from '@/hooks/use-toast';
 
 const FinanceDashboard: React.FC = () => {
-  // Mock data
-  const payrollData = [
-    { month: "Jan", amount: 125000, employees: 45 },
-    { month: "Feb", amount: 132000, employees: 48 },
-    { month: "Mar", amount: 128000, employees: 47 },
-    { month: "Apr", amount: 145000, employees: 52 },
-    { month: "May", amount: 158000, employees: 55 },
-    { month: "Jun", amount: 162000, employees: 58 },
-  ];
+  const { toast } = useToast();
+
+  const [payrolls, setPayrolls] = React.useState<Payroll[]>([]);
+  const [payslips, setPayslips] = React.useState<Payslip[]>([]);
+  const [isLoading, setIsLoading] = React.useState<boolean>(true);
+  const [employeeMap, setEmployeeMap] = React.useState<Record<number, { name: string; email?: string }>>({});
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [pr, ps, emps] = await Promise.all([
+        payrollService.listPayrolls(),
+        payrollService.listPayslips(),
+        employeeService.getEmployees().catch(() => [] as Employee[]),
+      ]);
+      setPayrolls(pr);
+      setPayslips(ps);
+      if (Array.isArray(emps)) {
+        const map: Record<number, { name: string; email?: string }> = {};
+        for (const e of emps) {
+          // Try different field name combinations for names
+          const firstName = e.fname || e.first_name || e.firstName || '';
+          const lastName = e.lname || e.last_name || e.lastName || '';
+          const fullName = `${firstName} ${lastName}`.trim();
+          
+          // Use name field if available, otherwise construct from parts
+          const displayName = e.name || fullName || e.email || `Employee ${e.id}`;
+          
+          map[e.id] = { 
+            name: displayName, 
+            email: e.email 
+          };
+        }
+        setEmployeeMap(map);
+        console.log('Employee map created:', map);
+      }
+    } catch (e: any) {
+      toast({ title: 'Failed to load finance data', description: e?.message || 'Please try again.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Derived UI data
+  const totalNet = payrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0);
+  const paidCount = payrolls.filter(p => p.payment_status === 'PAID').length;
+  const pending = payrolls.filter(p => p.payment_status === 'PENDING');
+  const recentDisbursements = payrolls
+    .filter(p => p.payment_status === 'PAID')
+    .slice(0, 6)
+    .map(p => {
+      const emp = employeeMap[p.employee];
+      const employeeName = emp ? emp.name : `Employee ${p.employee}`;
+      return {
+        employee: employeeName,
+        employeeId: p.employee,
+        amount: Number(p.net_salary || 0),
+        status: 'Completed' as const,
+        date: p.paid_on || p.period_end,
+      };
+    });
 
   const taxCompliance = [
-    { name: "Compliant", value: 85, color: "#10b981" },
-    { name: "Pending", value: 12, color: "#f59e0b" },
-    { name: "Issues", value: 3, color: "#ef4444" },
+    { name: 'Compliant', value: Math.min(100, Math.max(0, Math.round((paidCount / (payrolls.length || 1)) * 100))), color: '#10b981' },
+    { name: 'Pending', value: Math.min(100, Math.max(0, Math.round(((payrolls.length - paidCount) / (payrolls.length || 1)) * 100))), color: '#f59e0b' },
+    { name: 'Issues', value: 0, color: '#ef4444' },
   ];
 
-  const recentDisbursements = [
-    { employee: "John Smith", amount: 5500, status: "Completed" as const, date: "2024-01-15" },
-    { employee: "Sarah Johnson", amount: 6200, status: "Completed" as const, date: "2024-01-15" },
-    { employee: "Mike Chen", amount: 1200, status: "Pending" as const, date: "2024-01-16" },
-    { employee: "Emily Davis", amount: 4800, status: "Processing" as const, date: "2024-01-16" },
-  ];
+  const handleCalculate = async () => {
+    if (payrolls.length === 0) return;
+    try {
+      // Calculate for all pending payrolls sequentially
+      for (const pr of pending) {
+        await payrollService.calculatePayroll(pr.id);
+      }
+      toast({ title: 'Salary calculation complete' });
+      await loadData();
+    } catch (e: any) {
+      const errorMessage = e?.response?.data?.detail || e?.message || 'Please try again.';
+      if (errorMessage.includes('No SalaryStructure linked')) {
+        toast({ 
+          title: 'Calculation failed', 
+          description: 'Some employees need salary structures before calculation. Please create them first.', 
+          variant: 'destructive' 
+        });
+      } else {
+        toast({ title: 'Calculation failed', description: errorMessage, variant: 'destructive' });
+      }
+    }
+  };
+
+  const handleCheckout = async () => {
+    try {
+      const firstPending = pending[0];
+      if (!firstPending) return;
+      const session = await payrollService.createCheckoutSession(firstPending.id);
+      if (session?.url) {
+        window.location.href = session.url;
+      }
+    } catch (e: any) {
+      toast({ title: 'Checkout failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -58,27 +150,33 @@ const FinanceDashboard: React.FC = () => {
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <TotalPayrollCard amount="$162,000" percentageChange="+12.5%" />
-          <ActiveEmployeesCard count={58} newHires={3} />
-          <TaxComplianceCard percentage={85} pendingReview={15} />
-          <PendingDisbursementsCard count={12} totalAmount="$45,200" />
+          <TotalPayrollCard amount={`$${totalNet.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} percentageChange={"—"} />
+          <ActiveEmployeesCard count={payrolls.length} newHires={0} />
+          <TaxComplianceCard percentage={taxCompliance[0].value} pendingReview={taxCompliance[1].value} />
+          <PendingDisbursementsCard count={pending.length} totalAmount={`$${pending.reduce((s, p) => s + Number(p.net_salary || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`} />
         </div>
 
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList>
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
+            <TabsTrigger value="salary-structures">Salary Structures</TabsTrigger>
+            <TabsTrigger value="tax-management">Tax Management</TabsTrigger>
             <TabsTrigger value="disbursement">Disbursement</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
-              <PayrollTrendsChart data={payrollData} />
+              <PayrollTrendsChart data={[] /* can be built from payrolls when periods available */} />
               <TaxComplianceChart data={taxCompliance} />
             </div>
 
-            <RecentDisbursementsCard disbursements={recentDisbursements} />
+            <div className="grid gap-6 md:grid-cols-2">
+              <RecentDisbursementsCard disbursements={recentDisbursements} />
+              <NotificationsCard />
+            </div>
+
           </TabsContent>
 
           <TabsContent value="payroll" className="space-y-4">
@@ -89,8 +187,8 @@ const FinanceDashboard: React.FC = () => {
                     <h3 className="text-xl font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Salary Calculation</h3>
                     <p className="text-muted-foreground mb-6 leading-relaxed">Calculate monthly wages based on attendance and leave records for all employees</p>
                   </div>
-                  <Button className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md">
-                    Calculate Salary
+                  <Button onClick={handleCalculate} disabled={isLoading} className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md">
+                    {isLoading ? 'Loading…' : 'Calculate Salary'}
                   </Button>
                 </div>
               </div>
@@ -100,12 +198,51 @@ const FinanceDashboard: React.FC = () => {
                     <h3 className="text-xl font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Payslip Generation</h3>
                     <p className="text-muted-foreground mb-6 leading-relaxed">Generate and download employee payslips with detailed breakdown</p>
                   </div>
-                  <Button className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md">
-                    Generate Payslips
+                  <Button onClick={handleCheckout} disabled={pending.length === 0 || isLoading} className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md">
+                    {pending.length === 0 ? 'No Pending Payments' : 'Pay Now (Stripe)'}
                   </Button>
                 </div>
               </div>
             </div>
+            <PayrollTable
+              payrolls={payrolls}
+              payslips={payslips}
+              employees={employeeMap}
+              onCalculate={async (id) => { 
+                try {
+                  await payrollService.calculatePayroll(id); 
+                  await loadData(); 
+                } catch (e: any) {
+                  const errorMessage = e?.response?.data?.detail || e?.message || 'Please try again.';
+                  if (errorMessage.includes('No SalaryStructure linked')) {
+                    toast({ 
+                      title: 'Calculation failed', 
+                      description: 'This employee needs a salary structure before calculation.', 
+                      variant: 'destructive' 
+                    });
+                  } else {
+                    toast({ title: 'Calculation failed', description: errorMessage, variant: 'destructive' });
+                  }
+                }
+              }}
+              onPay={async (id) => { 
+                try {
+                  const s = await payrollService.createCheckoutSession(id); 
+                  if (s.url) window.location.href = s.url; 
+                } catch (e: any) {
+                  const errorMessage = e?.response?.data?.detail || e?.message || 'Please try again.';
+                  toast({ title: 'Checkout failed', description: errorMessage, variant: 'destructive' });
+                }
+              }}
+            />
+          </TabsContent>
+
+          <TabsContent value="salary-structures" className="space-y-4">
+            <SalaryStructureTable />
+          </TabsContent>
+
+          <TabsContent value="tax-management" className="space-y-4">
+            <TaxManagementTable />
           </TabsContent>
 
           <TabsContent value="disbursement" className="space-y-4">

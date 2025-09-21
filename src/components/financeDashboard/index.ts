@@ -5,3 +5,10 @@ export { default as PendingDisbursementsCard } from './PendingDisbursementsCard'
 export { default as PayrollTrendsChart } from './PayrollTrendsChart';
 export { default as TaxComplianceChart } from './TaxComplianceChart';
 export { default as RecentDisbursementsCard } from './RecentDisbursementsCard';
+export { default as PayrollTable } from './PayrollTable';
+export { default as SalaryStructureTable } from './SalaryStructureTable';
+export { default as TaxManagementTable } from './TaxManagementTable';
+export { default as NotificationsCard } from './NotificationsCard';
+export { default as SalaryStructureModal } from './SalaryStructureModal';
+export { default as TaxBracketModal } from './TaxBracketModal';
+export { default as StatutoryDeductionModal } from './StatutoryDeductionModal';

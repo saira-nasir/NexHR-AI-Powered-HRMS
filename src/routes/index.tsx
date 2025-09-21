@@ -35,7 +35,11 @@ const PlaceholderPage = ({ title }: { title: string }) => (
     <h1 className="text-2xl font-bold mb-4">{title}</h1>
     <p className="text-muted-foreground">This page is under construction</p>
   </div>
+
 );
+
+
+
 
 export const routes: RouteObject[] = [
   {
@@ -96,7 +100,7 @@ export const routes: RouteObject[] = [
             element: <RoleBasedDashboard />,
           },
           {
-            path: "/jobs/create",
+            path: "jobs/create",
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <JobPostForm />

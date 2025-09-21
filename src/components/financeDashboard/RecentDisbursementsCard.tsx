@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 
 interface Disbursement {
   employee: string;
+  employeeId?: number;
   amount: number;
   status: 'Completed' | 'Pending' | 'Processing';
   date: string;
@@ -39,7 +40,9 @@ const RecentDisbursementsCard: React.FC<RecentDisbursementsCardProps> = ({ disbu
             <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors duration-200">
               <div>
                 <p className="font-medium text-gray-900">{transaction.employee}</p>
-                <p className="text-sm text-muted-foreground">{transaction.date}</p>
+                <p className="text-sm text-muted-foreground">
+                  {transaction.employeeId && `ID: ${transaction.employeeId} • `}{transaction.date}
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <Badge variant={getStatusVariant(transaction.status)}>

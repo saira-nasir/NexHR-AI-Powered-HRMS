@@ -70,6 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (response.status === 200) {
         dispatch(setUser(response.data));
+        console.log("response data in /profile",response.data)
       }
     } catch (error) {
       console.error('Error fetching user data:', error);

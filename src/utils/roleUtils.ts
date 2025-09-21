@@ -17,39 +17,72 @@ export const ROLE_DASHBOARD_MAP: Record<UserRole, string> = {
   [ROLES.EMPLOYEE]: '/dashboard'
 };
 
+// Normalize arbitrary role strings to known constants
+const normalizeRoleName = (rawRole: string | undefined | null): UserRole | null => {
+  if (!rawRole) return null;
+  const value = String(rawRole).trim().toLowerCase();
+  if (value === 'hr' || value === 'human resources' || value === 'hr manager' || value === 'hr admin') return ROLES.HR;
+  if (value === 'admin' || value === 'administrator' || value === 'superadmin' || value === 'super admin') return ROLES.ADMIN;
+  if (value === 'finance manager' || value === 'finance' || value === 'accounting' || value === 'accounts') return ROLES.FINANCE_MANAGER;
+  if (value === 'employee' || value === 'staff' || value === 'user' || value === 'member') return ROLES.EMPLOYEE;
+  return null;
+};
+
 // Get user's primary role from user data
 export const getUserRole = (user: any): UserRole => {
   if (!user) return ROLES.EMPLOYEE;
   
-  // Check if user has roles array
-  if (user.roles && Array.isArray(user.roles) && user.roles.length > 0) {
-    // Handle both string array and object array formats
+  // Common shapes to check in order of likelihood
+  // 1) roles: string[] | { name?: string; title?: string; role?: string }[]
+  if (Array.isArray(user.roles) && user.roles.length > 0) {
     const firstRole = user.roles[0];
     if (typeof firstRole === 'string') {
-      return firstRole as UserRole;
-    } else if (firstRole && firstRole.name) {
-      return firstRole.name as UserRole;
+      return normalizeRoleName(firstRole) || (firstRole as UserRole);
+    }
+    if (firstRole && typeof firstRole === 'object') {
+      const normalized = normalizeRoleName(firstRole.name || firstRole.title || firstRole.role);
+      if (normalized) return normalized;
+      // Fallback to any string-ish value inside
+      const arbitrary = (firstRole.name || firstRole.title || firstRole.role) as string | undefined;
+      if (arbitrary) return arbitrary as UserRole;
     }
   }
   
-  // Check if user has single role property
+  // 2) role object or string on user (trust backend default here)
   if (user.role) {
-    return user.role as UserRole;
+    if (typeof user.role === 'string') {
+      return normalizeRoleName(user.role) || (user.role as UserRole);
+    }
+    if (typeof user.role === 'object') {
+      const normalized = normalizeRoleName(user.role.name || user.role.title || user.role.role);
+      if (normalized) return normalized;
+    }
+  }
+
+  // 3) alternate single-role fields often seen from APIs
+  const altSingleRole = user.user_role || user.primaryRole || user.primary_role || user.group || user.group_name;
+  if (altSingleRole) {
+    const normalized = normalizeRoleName(altSingleRole);
+    if (normalized) return normalized;
+    return altSingleRole as UserRole;
   }
   
-  // Default fallback
-  return ROLES.EMPLOYEE;
+  // Default fallback: align with backend default (Finance)
+  return ROLES.FINANCE_MANAGER;
 };
 
 // Get dashboard path for user role - now always returns /dashboard
 export const getDashboardPath = (user: any): string => {
-  return '/dashboard';
+  const role = getUserRole(user);
+  const path = ROLE_DASHBOARD_MAP[role] || ROLE_DASHBOARD_MAP[ROLES.EMPLOYEE];
+  return path;
 };
 
 // Check if user has required role
 export const hasRole = (user: any, requiredRoles: string[]): boolean => {
   const userRole = getUserRole(user);
-  return requiredRoles.includes(userRole);
+  const hasAccess = requiredRoles.includes(userRole);
+  return hasAccess;
 };
 
 // Check if user is HR or Admin (they have similar permissions)
