@@ -11,11 +11,9 @@ import {
   PayrollTrendsChart,
   TaxComplianceChart,
   RecentDisbursementsCard,
-  SalaryStructureTable,
-  TaxManagementTable,
+  // SalaryStructureTable and TaxManagementTable moved to dedicated pages
   NotificationsCard,
 } from '@/components/financeDashboard';
-import PayrollTable from '@/components/financeDashboard/PayrollTable';
 import { employeeService, Employee } from '@/services/employeeService';
 import payrollService, { Payroll, Payslip } from '@/services/payrollService';
 import { useToast } from '@/hooks/use-toast';
@@ -168,6 +166,159 @@ const FinanceDashboard: React.FC = () => {
     }
   };
 
+  const handleExportData = async () => {
+    try {
+      const exportData = {
+        payrolls: payrolls.map(p => ({
+          id: p.id,
+          employee: p.employee,
+          employeeName: employeeMap[p.employee]?.name || `Employee ${p.employee}`,
+          period: `${p.period_start} to ${p.period_end}`,
+          grossSalary: Number(p.gross_salary || 0),
+          taxAmount: Number(p.tax_amount || 0),
+          statutoryDeductions: Number(p.statutory_deductions || 0),
+          netSalary: Number(p.net_salary || 0),
+          status: p.payment_status,
+          paidOn: p.paid_on
+        })),
+        summary: {
+          totalEmployees: payrolls.length,
+          totalGrossSalary: payrolls.reduce((sum, p) => sum + Number(p.gross_salary || 0), 0),
+          totalTaxAmount: payrolls.reduce((sum, p) => sum + Number(p.tax_amount || 0), 0),
+          totalNetSalary: payrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0),
+          paidCount: payrolls.filter(p => p.payment_status === 'PAID').length,
+          pendingCount: payrolls.filter(p => p.payment_status === 'PENDING').length
+        },
+        exportedAt: new Date().toISOString()
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finance_export_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast({ title: 'Data exported', description: 'Finance data exported successfully.' });
+    } catch (e: any) {
+      toast({ title: 'Export failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    try {
+      const reportData = {
+        title: 'Finance Dashboard Report',
+        generatedAt: new Date().toISOString(),
+        period: 'Current Period',
+        summary: {
+          totalPayroll: totalNet,
+          activeEmployees: payrolls.length,
+          taxCompliance: taxCompliance[0].value,
+          pendingDisbursements: pending.length,
+          pendingAmount: pending.reduce((s, p) => s + Number(p.net_salary || 0), 0)
+        },
+        breakdown: {
+          byStatus: {
+            paid: payrolls.filter(p => p.payment_status === 'PAID').length,
+            pending: payrolls.filter(p => p.payment_status === 'PENDING').length,
+            failed: payrolls.filter(p => p.payment_status === 'FAILED').length
+          },
+          byDepartment: Object.entries(employeeMap).reduce((acc, [id, emp]) => {
+            const dept = emp.department || 'Unknown';
+            if (!acc[dept]) acc[dept] = { count: 0, total: 0 };
+            acc[dept].count++;
+            const payroll = payrolls.find(p => p.employee === Number(id));
+            if (payroll) acc[dept].total += Number(payroll.net_salary || 0);
+            return acc;
+          }, {} as Record<string, { count: number; total: number }>)
+        },
+        recentDisbursements: recentDisbursements.slice(0, 10)
+      };
+
+      const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finance_report_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast({ title: 'Report generated', description: 'Finance report generated successfully.' });
+    } catch (e: any) {
+      toast({ title: 'Report generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handleProcessAllPending = async () => {
+    try {
+      if (pending.length === 0) {
+        toast({ title: 'No pending disbursements', description: 'All payrolls are already processed.' });
+        return;
+      }
+
+      // Process all pending payrolls
+      for (const p of pending) {
+        try {
+          await payrollService.calculatePayroll(p.id);
+        } catch (error) {
+          console.error(`Failed to calculate payroll ${p.id}:`, error);
+        }
+      }
+      
+      toast({ title: 'Processing started', description: `${pending.length} payroll(s) are being processed.` });
+      await loadData();
+    } catch (e: any) {
+      toast({ title: 'Processing failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handleViewDetails = async () => {
+    try {
+      const paidPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
+      if (paidPayrolls.length === 0) {
+        toast({ title: 'No completed payments', description: 'No completed payments to view.' });
+        return;
+      }
+      
+      toast({ 
+        title: 'Completed Payments', 
+        description: `${paidPayrolls.length} payment(s) completed. Total amount: $${paidPayrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0).toLocaleString()}` 
+      });
+    } catch (e: any) {
+      toast({ title: 'Failed to load details', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handleRetryFailed = async () => {
+    try {
+      const failedPayrolls = payrolls.filter(p => p.payment_status === 'FAILED');
+      if (failedPayrolls.length === 0) {
+        toast({ title: 'No failed payments', description: 'No failed payments to retry.' });
+        return;
+      }
+
+      // Retry failed payrolls by recalculating them
+      for (const p of failedPayrolls) {
+        try {
+          await payrollService.calculatePayroll(p.id);
+        } catch (error) {
+          console.error(`Failed to retry payroll ${p.id}:`, error);
+        }
+      }
+      
+      toast({ title: 'Retry initiated', description: `${failedPayrolls.length} failed payroll(s) are being retried.` });
+      await loadData();
+    } catch (e: any) {
+      toast({ title: 'Retry failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="flex-1 space-y-6 p-6">
@@ -177,11 +328,19 @@ const FinanceDashboard: React.FC = () => {
             <p className="text-muted-foreground">Manage payroll, budgets, and financial compliance for NexHR</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExportData}
+              disabled={isLoading}
+            >
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            <Button>
+            <Button 
+              onClick={handleGenerateReport}
+              disabled={isLoading}
+            >
               <FileText className="h-4 w-4 mr-2" />
               Generate Report
             </Button>
@@ -196,14 +355,21 @@ const FinanceDashboard: React.FC = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="payroll">Payroll</TabsTrigger>
-            <TabsTrigger value="salary-structures">Salary Structures</TabsTrigger>
-            <TabsTrigger value="tax-management">Tax Management</TabsTrigger>
-            <TabsTrigger value="disbursement">Disbursement</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-          </TabsList>
+          <TabsList className="grid w-full grid-cols-2 gap-2 bg-[#F3F4F6] rounded-full p-1">
+              <TabsTrigger
+                value="overview"
+                className="rounded-full px-6 py-2 text-sm font-semibold text-[#6C63FF] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-[#6C63FF] hover:bg-white/60 hover:shadow-sm transition-all duration-200"
+              >
+                Overview
+              </TabsTrigger>
+              {/* Salary Structures and Tax Management moved to dedicated pages */}
+              <TabsTrigger
+                value="reports"
+                className="rounded-full px-6 py-2 text-sm font-semibold text-gray-600 data-[state=active]:bg-white data-[state=active]:text-[#6C63FF] hover:bg-white/60 hover:shadow-sm transition-all duration-200"
+              >
+                Reports
+              </TabsTrigger>
+            </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
@@ -218,112 +384,13 @@ const FinanceDashboard: React.FC = () => {
 
           </TabsContent>
 
-          <TabsContent value="payroll" className="space-y-4">
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-primary/20 group">
-                <div className="flex flex-col h-full">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Salary Calculation</h3>
-                    <p className="text-muted-foreground mb-6 leading-relaxed">Calculate monthly wages based on attendance and leave records for all employees</p>
-                  </div>
-                  <Button onClick={handleCalculate} disabled={isLoading} className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md">
-                    {isLoading ? 'Loading…' : 'Calculate Salary'}
-                  </Button>
-                </div>
-              </div>
-              <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-primary/20 group">
-                <div className="flex flex-col h-full">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Payslip Generation</h3>
-                    <p className="text-muted-foreground mb-6 leading-relaxed">Generate and download employee payslips with detailed breakdown</p>
-                  </div>
-                  <Button onClick={handleCheckout} disabled={pending.length === 0 || isLoading} className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md">
-                    {pending.length === 0 ? 'No Pending Payments' : 'Pay Now (Stripe)'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <PayrollTable
-              payrolls={payrolls}
-              payslips={payslips}
-              employees={employeeMap}
-              onCalculate={async (id) => { 
-                try {
-                  await payrollService.calculatePayroll(id); 
-                  await loadData(); 
-                } catch (e: any) {
-                  const errorMessage = e?.response?.data?.detail || e?.message || 'Please try again.';
-                  if (errorMessage.includes('No SalaryStructure linked')) {
-                    toast({ 
-                      title: 'Calculation failed', 
-                      description: 'This employee needs a salary structure before calculation.', 
-                      variant: 'destructive' 
-                    });
-                  } else {
-                    toast({ title: 'Calculation failed', description: errorMessage, variant: 'destructive' });
-                  }
-                }
-              }}
-              onPay={async (id) => { 
-                try {
-                  const s = await payrollService.createCheckoutSession(id); 
-                  if (s.url) window.location.href = s.url; 
-                } catch (e: any) {
-                  const errorMessage = e?.response?.data?.detail || e?.message || 'Please try again.';
-                  toast({ title: 'Checkout failed', description: errorMessage, variant: 'destructive' });
-                }
-              }}
-            />
-          </TabsContent>
+          {/* Payroll tab removed - payroll management is handled on the dedicated Payrolls page */}
 
-          <TabsContent value="salary-structures" className="space-y-4">
-            <SalaryStructureTable />
-          </TabsContent>
+          {/* salary-structures and tax-management content removed from dashboard
+              They are available under Finance > Salary Structures and Finance > Tax Management
+          */}
 
-          <TabsContent value="tax-management" className="space-y-4">
-            <TaxManagementTable />
-          </TabsContent>
-
-          <TabsContent value="disbursement" className="space-y-4">
-            <div className="grid gap-6 md:grid-cols-3">
-              <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-orange-200 group">
-                <div className="flex flex-col h-full">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-orange-600 transition-colors">Pending</h3>
-                    <div className="text-3xl font-bold text-orange-600 mb-2">12</div>
-                    <p className="text-sm text-muted-foreground mb-6">$45,200 total amount</p>
-                  </div>
-                  <Button className="w-full bg-orange-500 hover:bg-orange-600 transition-colors duration-200 shadow-sm hover:shadow-md">
-                    Process All
-                  </Button>
-                </div>
-              </div>
-              <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-green-200 group">
-                <div className="flex flex-col h-full">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-green-600 transition-colors">Completed</h3>
-                    <div className="text-3xl font-bold text-green-600 mb-2">46</div>
-                    <p className="text-sm text-muted-foreground mb-6">$116,800 disbursed</p>
-                  </div>
-                  <Button variant="outline" className="w-full border-green-500 text-green-600 hover:bg-green-50 transition-colors duration-200">
-                    View Details
-                  </Button>
-                </div>
-              </div>
-              <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-red-200 group">
-                <div className="flex flex-col h-full">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-red-600 transition-colors">Failed</h3>
-                    <div className="text-3xl font-bold text-red-600 mb-2">3</div>
-                    <p className="text-sm text-muted-foreground mb-6">Requires attention</p>
-                  </div>
-                  <Button variant="destructive" className="w-full bg-red-500 hover:bg-red-600 transition-colors duration-200 shadow-sm hover:shadow-md">
-                    Retry Failed
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
+          {/* Disbursement tab removed per design change - only Overview and Reports remain */}
 
           <TabsContent value="reports" className="space-y-4">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -333,7 +400,11 @@ const FinanceDashboard: React.FC = () => {
                     <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Payroll Reports</h3>
                     <p className="text-muted-foreground mb-6 leading-relaxed">Monthly and quarterly payroll summaries with detailed analytics</p>
                   </div>
-                  <Button className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md">
+                  <Button 
+                    className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md"
+                    onClick={handleGenerateReport}
+                    disabled={isLoading}
+                  >
                     <Download className="h-4 w-4 mr-2" />
                     Generate Report
                   </Button>
@@ -345,7 +416,11 @@ const FinanceDashboard: React.FC = () => {
                     <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Tax Reports</h3>
                     <p className="text-muted-foreground mb-6 leading-relaxed">Tax deduction and compliance reports for regulatory filing</p>
                   </div>
-                  <Button className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md">
+                  <Button 
+                    className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md"
+                    onClick={handleGenerateReport}
+                    disabled={isLoading}
+                  >
                     <Download className="h-4 w-4 mr-2" />
                     Generate Report
                   </Button>
@@ -357,7 +432,11 @@ const FinanceDashboard: React.FC = () => {
                     <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Financial Reports</h3>
                     <p className="text-muted-foreground mb-6 leading-relaxed">Audit and financial analysis reports for stakeholders</p>
                   </div>
-                  <Button className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md">
+                  <Button 
+                    className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md"
+                    onClick={handleGenerateReport}
+                    disabled={isLoading}
+                  >
                     <Download className="h-4 w-4 mr-2" />
                     Generate Report
                   </Button>

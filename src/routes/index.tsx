@@ -1,4 +1,6 @@
-import { RouteObject, Navigate } from "react-router-dom";
+import React from 'react';
+
+import { RouteObject, Navigate, useLocation, useNavigate } from "react-router-dom";
 import LoginPage from "@/pages/Login";
 import RegisterPage from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
@@ -19,6 +21,7 @@ import JobPortal from "@/pages/JobPortal";
 import JobDetail from "@/components/jobPortal/job-detail";
 import TestModal from "@/pages/TestModal";
 import LinkedInAuth from '@/pages/LinkedInAuth';
+import PaymentSuccess from '@/pages/PaymentSuccess';
 import CompanyInfoForm from "@/pages/CompanyInfo";
 import ResetPassword from "@/pages/ResetPassword";
 import Employees from "@/pages/Employees";
@@ -27,6 +30,11 @@ import EmployeeDashboard from "@/pages/EmployeeDashboard";
 import PayrollPage from "@/pages/Payroll";
 import FinanceDashboard from "@/pages/FinanceDashboard";
 import HiringHandbook from "@/pages/HiringHandbook";
+import Expenses from '@/pages/Expenses';
+import Loans from '@/pages/Loans';
+import BulkPayments from '@/pages/BulkPayments';
+import SalaryStructures from '@/pages/SalaryStructures';
+import TaxManagement from '@/pages/TaxManagement';
 
 // Create a placeholder component for routes that don't have dedicated pages yet
 // eslint-disable-next-line react-refresh/only-export-components
@@ -37,6 +45,31 @@ const PlaceholderPage = ({ title }: { title: string }) => (
   </div>
 
 );
+
+// Component to handle Stripe return URLs like /success?session_id=...&payroll_id=...
+// It preserves the query params and redirects the user into the Payroll page so
+// the `usePaymentConfirmation` hook (which reads search params) can run in the
+// context of the Payroll page and poll the backend for payment status.
+// eslint-disable-next-line react-refresh/only-export-components
+const PaymentReturn = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    // Preserve query params when redirecting to /payroll
+    const search = location.search || '';
+    navigate(`/payroll${search}`, { replace: true });
+  }, [location, navigate]);
+
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="text-center">
+        <h2 className="text-lg font-medium">Finishing payment...</h2>
+        <p className="text-sm text-muted-foreground">Redirecting to payrolls to confirm payment status.</p>
+      </div>
+    </div>
+  );
+};
 
 
 
@@ -208,6 +241,13 @@ export const routes: RouteObject[] = [
             path: "finance",
             element: <Navigate to="/dashboard" replace />,
           },
+          // Stripe return handler: render a friendly success page which will
+          // attempt to confirm payment and rely on webhook polling to update
+          // the payroll status across the app.
+          {
+            path: "success",
+            element: <PaymentSuccess />,
+          },
           {
             path: "payroll",
             element: (
@@ -220,23 +260,44 @@ export const routes: RouteObject[] = [
             path: "expenses",
             element: (
               <RoleBasedRoute allowedRoles={["Finance Manager"]}>
-                <PlaceholderPage title="Expenses" />
+                <Expenses />
               </RoleBasedRoute>
             ),
           },
+          // Redirect legacy /invoices to /loans to avoid breaking bookmarks
           {
             path: "invoices",
+            element: <Navigate to="/loans" replace />,
+          },
+          {
+            path: "loans",
             element: (
               <RoleBasedRoute allowedRoles={["Finance Manager"]}>
-                <PlaceholderPage title="Invoices" />
+                <Loans />
               </RoleBasedRoute>
             ),
           },
           {
-            path: "payment-information",
+            path: "bulk-payments",
             element: (
               <RoleBasedRoute allowedRoles={["Finance Manager"]}>
-                <PlaceholderPage title="Payment Information" />
+                <BulkPayments />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "salary-structures",
+            element: (
+              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+                <SalaryStructures />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "tax-management",
+            element: (
+              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+                <TaxManagement />
               </RoleBasedRoute>
             ),
           },

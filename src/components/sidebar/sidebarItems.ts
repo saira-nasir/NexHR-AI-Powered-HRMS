@@ -42,10 +42,12 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/finance',
     icon: DollarSign,
     submenu: [
-      { title: 'Payroll', path: '/payroll' },
-      { title: 'Expenses', path: '/expenses' },
-      { title: 'Invoices', path: '/invoices' },
-      { title: 'Payment information', path: '/payment-information' },
+    { title: 'Payroll', path: '/payroll' },
+    { title: 'Expenses', path: '/expenses' },
+    { title: 'Salary Structures', path: '/salary-structures' },
+    { title: 'Tax Management', path: '/tax-management' },
+    { title: 'Loans', path: '/loans' },
+    { title: 'Bulk Payments', path: '/bulk-payments' },
     ],
   },
   {

@@ -52,7 +52,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // Log detailed error information
+    // Log detailed error information (also stringify response data so it's easy to read in console)
     console.error('API Response Error:', {
       url: originalRequest?.url,
       method: originalRequest?.method,
@@ -61,6 +61,11 @@ api.interceptors.response.use(
       statusText: error.response?.statusText,
       responseData: error.response?.data
     });
+    try {
+      console.error('API Response Error (stringified):', JSON.stringify(error.response?.data, null, 2));
+    } catch (e) {
+      // ignore stringify errors
+    }
     
     // Network error handling
     if (!error.response) {

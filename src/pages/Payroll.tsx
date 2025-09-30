@@ -24,10 +24,11 @@ import {
 } from 'lucide-react';
 
 import payrollService, { Payroll, Payslip, SalaryStructure } from '@/services/payrollService';
+// Dialog inspector removed - not required
 import { employeeService, Employee } from '@/services/employeeService';
 import { useToast } from '@/hooks/use-toast';
+import { usePaymentConfirmation } from '@/hooks/usePaymentConfirmation';
 import PayrollPreviewModal from '@/components/financeDashboard/PayrollPreviewModal';
-import { NotificationsCard } from '@/components/financeDashboard';
 
 type EmployeeMap = Record<number, { name: string; email?: string; department?: string }>;
 
@@ -40,8 +41,10 @@ const PayrollPage: React.FC = () => {
   const [employees, setEmployees] = useState<EmployeeMap>({});
   const [loading, setLoading] = useState<boolean>(true);
   const { toast } = useToast();
+  const { isConfirming } = usePaymentConfirmation();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewPayrollId, setPreviewPayrollId] = useState<number | null>(null);
+  // Inspect JSON UI removed per UX decision
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'ALL' | 'PENDING' | 'PAID' | 'FAILED'>('ALL');
   const [month, setMonth] = useState<string>(''); // yyyy-MM
@@ -91,7 +94,18 @@ const PayrollPage: React.FC = () => {
   const handlePayPayroll = async (payrollId: number) => {
     try {
       const session = await payrollService.createCheckoutSession(payrollId);
-      if (session.url) window.location.href = session.url;
+      if (session.url) {
+        // Persist payroll id locally before redirecting to Stripe so we can
+        // recover it after Stripe redirects back (useful when success_url
+        // isn't set to include payroll_id).
+        try {
+          localStorage.setItem('nexhr.pending_payroll', payrollId.toString());
+        } catch (err) {
+          // ignore storage errors
+        }
+        // Redirect to Stripe-hosted checkout
+        window.location.href = session.url;
+      }
     } catch (e: any) {
       toast({ title: 'Checkout failed', description: e?.message || 'Please try again.', variant: 'destructive' });
     }
@@ -123,7 +137,10 @@ const PayrollPage: React.FC = () => {
       if (pendingPayrolls.length === 0) return;
       const first = pendingPayrolls[0];
       const session = await payrollService.createCheckoutSession(first.id);
-      if (session.url) window.location.href = session.url;
+      if (session.url) {
+        try { localStorage.setItem('nexhr.pending_payroll', first.id.toString()); } catch {};
+        window.location.href = session.url;
+      }
     } catch (e: any) {
       toast({ title: 'Checkout failed', description: e?.message || 'Please try again.', variant: 'destructive' });
     }
@@ -135,36 +152,204 @@ const PayrollPage: React.FC = () => {
 
   const handleGeneratePayslips = async () => {
     try {
-      const targetPayrolls = payrolls.filter(p => selectedEmployees.includes(p.employee));
-      if (targetPayrolls.length === 0) {
+      const selected = payrolls.filter(p => selectedEmployees.includes(p.employee));
+      if (selected.length === 0) {
         toast({ title: 'Select employees first', description: 'Choose one or more employees to generate payslips for.' });
         return;
       }
-      for (const p of targetPayrolls) {
-        const blob = await payrollService.downloadPayslip(p.id);
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `payslip_${p.id}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+
+      const paidTargets = selected.filter(p => p.payment_status === 'PAID');
+      const skipped = selected.filter(p => p.payment_status !== 'PAID');
+
+      if (paidTargets.length === 0) {
+        toast({ title: 'No paid payrolls selected', description: 'Payslips can only be generated for payrolls with status Paid.' });
+        return;
       }
-      toast({ title: 'Payslips generated', description: `${targetPayrolls.length} file(s) downloaded.` });
+
+      if (skipped.length > 0) {
+        toast({ title: 'Some payrolls were skipped', description: `${skipped.length} selected payroll(s) are not paid and were skipped.` });
+      }
+
+      // Generate payslips for all paid selected employees
+      for (const p of paidTargets) {
+        try {
+          // First generate the payslip record if it doesn't exist and get its data
+          const payslip = await payrollService.generatePayslip(p.id);
+
+          // Prefer direct file URL if backend returned one; otherwise fall back to Download action
+          let blob: Blob;
+          if (payslip?.payslip_pdf_url) {
+            blob = await payrollService.downloadByUrl(payslip.payslip_pdf_url as string);
+          } else {
+            blob = await payrollService.downloadPayslip(p.id);
+          }
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `payslip_${p.id}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        } catch (error) {
+          console.error(`Failed to generate payslip for payroll ${p.id}:`, error);
+        }
+      }
+      toast({ title: 'Payslips generated', description: `${paidTargets.length} file(s) downloaded.` });
+      await loadData(); // Refresh data to show updated payslips
     } catch (e: any) {
       toast({ title: 'Generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
     }
   };
 
+  const handleDownloadAllPayslips = async () => {
+    try {
+      const paidPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
+      if (paidPayrolls.length === 0) {
+        toast({ title: 'No paid payrolls', description: 'No paid payrolls available for download.' });
+        return;
+      }
+      
+      for (const p of paidPayrolls) {
+        try {
+          // First generate the payslip record if it doesn't exist and get its data
+          const payslip = await payrollService.generatePayslip(p.id);
+
+          // Prefer direct file URL if backend returned one; otherwise fall back to Download action
+          let blob: Blob;
+          if (payslip?.payslip_pdf_url) {
+            blob = await payrollService.downloadByUrl(payslip.payslip_pdf_url as string);
+          } else {
+            blob = await payrollService.downloadPayslip(p.id);
+          }
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `payslip_${p.id}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        } catch (error) {
+          console.error(`Failed to download payslip for payroll ${p.id}:`, error);
+        }
+      }
+      toast({ title: 'All payslips downloaded', description: `${paidPayrolls.length} file(s) downloaded.` });
+      await loadData(); // Refresh data to show updated payslips
+    } catch (e: any) {
+      toast({ title: 'Download failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handleBulkGeneratePayslips = async () => {
+    try {
+      const allPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
+      if (allPayrolls.length === 0) {
+        toast({ title: 'No paid payrolls', description: 'No paid payrolls available for bulk generation.' });
+        return;
+      }
+      
+      toast({ title: 'Bulk generation started', description: `Generating payslips for ${allPayrolls.length} employees...` });
+      
+      for (const p of allPayrolls) {
+        try {
+          // Generate payslip record
+          await payrollService.generatePayslip(p.id);
+        } catch (error) {
+          console.error(`Failed to generate payslip for payroll ${p.id}:`, error);
+        }
+      }
+      
+      toast({ title: 'Bulk generation completed', description: `Payslips generated for ${allPayrolls.length} employees.` });
+      await loadData(); // Refresh data to show updated payslips
+    } catch (e: any) {
+      toast({ title: 'Bulk generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handlePreviewPayrollRun = async () => {
+    try {
+      const pendingPayrolls = payrolls.filter(p => p.payment_status === 'PENDING');
+      if (pendingPayrolls.length === 0) {
+        toast({ title: 'No pending payrolls', description: 'No pending payrolls to preview.' });
+        return;
+      }
+      
+      // Show preview modal for the first pending payroll
+      setPreviewPayrollId(pendingPayrolls[0].id);
+      setPreviewOpen(true);
+    } catch (e: any) {
+      toast({ title: 'Preview failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handleGenerateReports = async () => {
+    try {
+      // Generate comprehensive payroll report
+      const reportData = {
+        totalEmployees: payrolls.length,
+        totalGrossSalary: payrolls.reduce((sum, p) => sum + Number(p.gross_salary || 0), 0),
+        totalTaxAmount: payrolls.reduce((sum, p) => sum + Number(p.tax_amount || 0), 0),
+        totalStatutoryDeductions: payrolls.reduce((sum, p) => sum + Number(p.statutory_deductions || 0), 0),
+        totalNetSalary: payrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0),
+        paidCount: payrolls.filter(p => p.payment_status === 'PAID').length,
+        pendingCount: payrolls.filter(p => p.payment_status === 'PENDING').length,
+        failedCount: payrolls.filter(p => p.payment_status === 'FAILED').length,
+        period: selectedMonth
+      };
+
+      // Create and download report as JSON
+      const reportBlob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(reportBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `payroll_report_${selectedMonth.replace(' ', '_').toLowerCase()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast({ title: 'Report generated', description: 'Payroll report downloaded successfully.' });
+    } catch (e: any) {
+      toast({ title: 'Report generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handleViewDiscrepancies = async () => {
+    try {
+      const discrepancies = payrolls.filter(p => 
+        p.payment_status === 'FAILED' || 
+        (p.payment_status === 'PENDING' && Number(p.net_salary || 0) <= 0)
+      );
+      
+      if (discrepancies.length === 0) {
+        toast({ title: 'No discrepancies found', description: 'All payroll records appear to be in order.' });
+        return;
+      }
+      
+      toast({ 
+        title: 'Discrepancies found', 
+        description: `${discrepancies.length} payroll record(s) require attention. Check the payroll table for details.`,
+        variant: 'destructive'
+      });
+    } catch (e: any) {
+      toast({ title: 'Discrepancy check failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
+    // Normalize and map backend statuses to UI labels
+    const s = (status || '').toString().toUpperCase();
+    switch (s) {
+      case 'PENDING':
         return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Pending</Badge>;
-      case 'approved':
+      case 'PAID':
+        return <Badge variant="secondary" className="bg-green-100 text-green-800">Paid</Badge>;
+      case 'FAILED':
+        return <Badge variant="secondary" className="bg-red-100 text-red-800">Failed</Badge>;
+      case 'AWAITING':
+      case 'APPROVED':
         return <Badge variant="secondary" className="bg-green-100 text-green-800">Approved</Badge>;
-      case 'disbursed':
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Disbursed</Badge>;
       default:
         return <Badge variant="secondary">Unknown</Badge>;
     }
@@ -202,7 +387,40 @@ const PayrollPage: React.FC = () => {
         console.log('Employee 8 has no employee_details in payroll data');
       }
       
-      setPayrolls(pr);
+      // Deduplicate payrolls by employee + period (start/end).
+      // Backends sometimes return multiple payroll records per employee/period (different ids).
+      // Group them and pick the best candidate per group to avoid duplicate rows in the UI.
+      const groups: Record<string, Payroll[]> = {};
+      pr.forEach((p: Payroll) => {
+        const key = `${p.employee}-${p.period_start}-${p.period_end}`;
+        groups[key] = groups[key] || [];
+        groups[key].push(p);
+      });
+
+      const statusPriority: Record<string, number> = { 'PAID': 3, 'PENDING': 2, 'FAILED': 1 };
+
+      const uniquePayrolls: Payroll[] = Object.values(groups).map(group => {
+        if (group.length === 1) return group[0];
+        // pick by highest status priority
+        group.sort((a, b) => {
+          const pa = statusPriority[a.payment_status] || 0;
+          const pb = statusPriority[b.payment_status] || 0;
+          if (pa !== pb) return pb - pa; // descending
+          // prefer higher net_salary
+          const na = Number(a.net_salary || 0);
+          const nb = Number(b.net_salary || 0);
+          if (na !== nb) return nb - na;
+          // prefer latest paid_on (if available)
+          const da = a.paid_on ? new Date(a.paid_on).getTime() : 0;
+          const db = b.paid_on ? new Date(b.paid_on).getTime() : 0;
+          if (da !== db) return db - da;
+          // fallback to highest id
+          return b.id - a.id;
+        });
+        return group[0];
+      });
+
+      setPayrolls(uniquePayrolls);
       setPayslips(ps);
       setSalaryStructures(ss);
 
@@ -331,6 +549,17 @@ const PayrollPage: React.FC = () => {
     loadData();
   }, []);
 
+  // Refresh data when payment confirmation is happening
+  useEffect(() => {
+    if (isConfirming) {
+      // Refresh data after a short delay to allow backend processing
+      const timer = setTimeout(() => {
+        loadData();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isConfirming]);
+
   const filtered = useMemo(() => {
     const lower = search.trim().toLowerCase();
     return payrolls.filter(p => {
@@ -346,22 +575,22 @@ const PayrollPage: React.FC = () => {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Payrolls</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Payrolls</h1>
             <p className="text-muted-foreground">Manage salary calculations and disbursements</p>
           </div>
           <div className="flex items-center gap-3">
             <select 
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
               <option>December 2024</option>
               <option>November 2024</option>
               <option>October 2024</option>
             </select>
-            <Button onClick={handlePreparePayroll} disabled={loading}>
+            <Button onClick={handlePreparePayroll} disabled={loading} className="cursor-pointer">
               <RefreshCw className="w-4 h-4 mr-2" />
               Prepare Payroll
             </Button>
@@ -370,48 +599,68 @@ const PayrollPage: React.FC = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalEmployees}</div>
-              <p className="text-xs text-muted-foreground">Active employees</p>
-            </CardContent>
+          <Card className="transition-transform transform hover:-translate-y-1 hover:shadow-xl rounded-lg overflow-hidden border border-gray-100">
+            <div className="flex">
+              <div className="w-1 bg-gradient-to-b from-[#6C63FF] to-[#FF6B6B]" />
+              <div className="flex-1">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 px-4 py-3">
+                  <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-2">
+                  <div className="text-xl font-semibold">{totalEmployees}</div>
+                  <p className="text-xs text-muted-foreground">Active employees</p>
+                </CardContent>
+              </div>
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Payroll</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalPayroll.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">This month</p>
-            </CardContent>
+          <Card className="transition-transform transform hover:-translate-y-1 hover:shadow-xl rounded-lg overflow-hidden border border-gray-100">
+            <div className="flex">
+              <div className="w-1 bg-gradient-to-b from-[#6C63FF] to-[#FF6B6B]" />
+              <div className="flex-1">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 px-4 py-3">
+                  <CardTitle className="text-sm font-medium">Total Payroll</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-2">
+                  <div className="text-xl font-semibold">${totalPayroll.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">This month</p>
+                </CardContent>
+              </div>
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{pendingEmployees}</div>
-              <p className="text-xs text-muted-foreground">Awaiting review</p>
-            </CardContent>
+          <Card className="transition-transform transform hover:-translate-y-1 hover:shadow-xl rounded-lg overflow-hidden border border-gray-100">
+            <div className="flex">
+              <div className="w-1 bg-gradient-to-b from-[#6C63FF] to-[#FF6B6B]" />
+              <div className="flex-1">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 px-4 py-3">
+                  <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-2">
+                  <div className="text-xl font-semibold">{pendingEmployees}</div>
+                  <p className="text-xs text-muted-foreground">Awaiting review</p>
+                </CardContent>
+              </div>
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Approved</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{approvedEmployees}</div>
-              <p className="text-xs text-muted-foreground">Ready for disbursement</p>
-            </CardContent>
+          <Card className="transition-transform transform hover:-translate-y-1 hover:shadow-xl rounded-lg overflow-hidden border border-gray-100">
+            <div className="flex">
+              <div className="w-1 bg-gradient-to-b from-[#6C63FF] to-[#FF6B6B]" />
+              <div className="flex-1">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 px-4 py-3">
+                  <CardTitle className="text-sm font-medium">Approved</CardTitle>
+                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-2">
+                  <div className="text-xl font-semibold">{approvedEmployees}</div>
+                  <p className="text-xs text-muted-foreground">Ready for disbursement</p>
+                </CardContent>
+              </div>
+            </div>
           </Card>
         </div>
 
@@ -428,80 +677,110 @@ const PayrollPage: React.FC = () => {
           <TabsContent value="overview" className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Payroll Progress */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calculator className="w-5 h-5" />
-                    Payroll Progress
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span>Salary Calculation</span>
-                      <span className="text-green-600 font-medium">Completed</span>
-                    </div>
-                    <Progress value={100} className="h-2" />
-                    
-                    <div className="flex justify-between text-sm">
-                      <span>Tax Deductions</span>
-                      <span className="text-green-600 font-medium">Completed</span>
-                    </div>
-                    <Progress value={100} className="h-2" />
-                    
-                    <div className="flex justify-between text-sm">
-                      <span>Approval Process</span>
-                      <span className="text-yellow-600 font-medium">{approvedEmployees}/{totalEmployees}</span>
-                    </div>
-                    <Progress value={(approvedEmployees / totalEmployees) * 100} className="h-2" />
-                    
-                    <div className="flex justify-between text-sm">
-                      <span>Disbursement</span>
-                      <span className="text-gray-600 font-medium">Pending</span>
-                    </div>
-                    <Progress value={0} className="h-2" />
+              <Card className="transition-transform transform hover:-translate-y-0.5 hover:shadow-lg overflow-hidden rounded-lg border border-gray-50">
+                <div className="flex">
+                  <div className="w-0.5 bg-gradient-to-b from-[#6C63FF]/60 to-[#FF6B6B]/60" />
+                  <div className="flex-1">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Calculator className="w-5 h-5" />
+                        Payroll Progress
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 px-4 py-2">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-sm">Salary Calculation</span>
+                          <span className="text-green-600 font-medium">Completed</span>
+                        </div>
+                        <Progress value={100} className="h-2" />
+
+                        <div className="flex justify-between text-sm">
+                          <span className="text-sm">Tax Deductions</span>
+                          <span className="text-green-600 font-medium">Completed</span>
+                        </div>
+                        <Progress value={100} className="h-2" />
+
+                        <div className="flex justify-between text-sm">
+                          <span className="text-sm">Approval Process</span>
+                          <span className="text-yellow-600 font-medium">{approvedEmployees}/{totalEmployees}</span>
+                        </div>
+                        <Progress value={(approvedEmployees / totalEmployees) * 100 || 0} className="h-2" />
+
+                        <div className="flex justify-between text-sm">
+                          <span className="text-sm">Disbursement</span>
+                          <span className="text-gray-600 font-medium">Pending</span>
+                        </div>
+                        <Progress value={0} className="h-2" />
+                      </div>
+                    </CardContent>
                   </div>
-                </CardContent>
+                </div>
               </Card>
 
               {/* Quick Actions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Banknote className="w-5 h-5" />
-                    Quick Actions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button className="w-full justify-start" variant="outline">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download All Payslips
-                  </Button>
-                  <Button className="w-full justify-start" variant="outline">
-                    <Eye className="w-4 h-4 mr-2" />
-                    Preview Payroll Run
-                  </Button>
-                  <Button className="w-full justify-start" variant="outline">
-                    <TrendingUp className="w-4 h-4 mr-2" />
-                    Generate Reports
-                  </Button>
-                  <Button className="w-full justify-start" variant="outline">
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    View Discrepancies
-                  </Button>
-                </CardContent>
+              <Card className="transition-transform transform hover:-translate-y-0.5 hover:shadow-lg overflow-hidden rounded-lg border border-gray-50">
+                <div className="flex">
+                  <div className="w-0.5 bg-gradient-to-b from-[#6C63FF]/60 to-[#FF6B6B]/60" />
+                  <div className="flex-1">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Banknote className="w-5 h-5" />
+                        Quick Actions
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 px-4 py-2">
+                      <Button 
+                        className="w-full justify-start" 
+                        variant="outline"
+                        onClick={handleDownloadAllPayslips}
+                        disabled={loading}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download All Payslips
+                      </Button>
+                      <Button 
+                        className="w-full justify-start" 
+                        variant="outline"
+                        onClick={handlePreviewPayrollRun}
+                        disabled={loading}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Preview Payroll Run
+                      </Button>
+                      <Button 
+                        className="w-full justify-start" 
+                        variant="outline"
+                        onClick={handleGenerateReports}
+                        disabled={loading}
+                      >
+                        <TrendingUp className="w-4 h-4 mr-2" />
+                        Generate Reports
+                      </Button>
+                      <Button 
+                        className="w-full justify-start" 
+                        variant="outline"
+                        onClick={handleViewDiscrepancies}
+                        disabled={loading}
+                      >
+                        <AlertCircle className="w-4 h-4 mr-2" />
+                        View Discrepancies
+                      </Button>
+                    </CardContent>
+                  </div>
+                </div>
               </Card>
             </div>
           </TabsContent>
 
           <TabsContent value="employees" className="space-y-4">
             <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <CardTitle>Payrolls</CardTitle>
-                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <CardHeader className="pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+                  <CardTitle className="text-xl">Payrolls</CardTitle>
+                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                     <div className="relative flex-1 sm:w-72">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 cursor-pointer" />
                       <input
                         placeholder="Search by employee name"
                         className="w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -509,7 +788,7 @@ const PayrollPage: React.FC = () => {
                       />
                     </div>
                     <select
-                      className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
                       value={status}
                       onChange={(e) => setStatus(e.target.value as any)}
                     >
@@ -520,135 +799,178 @@ const PayrollPage: React.FC = () => {
                     </select>
                     <input
                       type="month"
-                      className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
                       value={month}
                       onChange={(e) => setMonth(e.target.value)}
                     />
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+              <CardContent className="pt-0">
+                <div className="space-y-6">
                   {/* Select All */}
-                  <div className="flex items-center gap-2 pb-2 border-b">
+                  <div className="flex items-center gap-2 pb-3 border-b border-gray-200">
                     <input
                       type="checkbox"
                       checked={selectedEmployees.length === totalEmployees && totalEmployees > 0}
                       onChange={handleSelectAll}
-                      className="rounded"
+                      className="rounded cursor-pointer"
                     />
                     <span className="text-sm font-medium">Select All</span>
                   </div>
 
-              <div className="rounded-xl border overflow-hidden shadow-sm">
-                {/* Table Header with gradient background */}
-                <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white">
-                  <div className="grid grid-cols-12 gap-4 px-6 py-4 text-sm font-semibold items-center">
-                    <div className="col-span-1 flex justify-center">
-                      <input type="checkbox" className="rounded border-white/30 text-white focus:ring-white/50" disabled />
-                    </div>
-                      <div className="col-span-2">Employee</div>
-                    <div className="col-span-2">Period</div>
-                    <div className="col-span-1 text-right">Gross</div>
-                      <div className="col-span-1 text-right">Tax</div>
-                      <div className="col-span-1 text-right">Deductions</div>
-                      <div className="col-span-2 text-right">Net</div>
-                    <div className="col-span-2 text-center">Actions</div>
-                  </div>
-                </div>
-
-                {/* Table Body */}
-                <div className="divide-y divide-gray-100 bg-white">
-                      {loading ? (
-                        <div className="px-6 py-12 text-center text-gray-500">
+              <div className="overflow-x-auto rounded-xl border shadow-sm">
+                <table className="w-full min-w-[1400px] table-fixed">
+                  <thead className="sticky top-0 z-10 text-white">
+                    <tr className="bg-gradient-to-r from-purple-600 to-purple-700">
+                      <th className="w-12 px-2 py-4">
+                        <input type="checkbox" className="rounded border-white/30 text-white focus:ring-white/50 cursor-pointer" disabled />
+                      </th>
+                      <th className="w-[260px] text-left px-4 py-4 text-sm font-semibold">Employee</th>
+                      <th className="w-[220px] text-left px-4 py-4 text-sm font-semibold">Period</th>
+                      <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Gross</th>
+                      <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Tax</th>
+                      <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Statutory</th>
+                      <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Deductions</th>
+                      <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Net</th>
+                      <th className="w-[140px] text-center px-4 py-4 text-sm font-semibold">Status</th>
+                      <th className="w-[160px] text-center px-4 py-4 text-sm font-semibold">Paid On</th>
+                      <th className="w-[180px] text-center px-4 py-4 text-sm font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={11} className="px-6 py-12 text-center text-gray-500">
                           <div className="animate-spin w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full mx-auto mb-2"></div>
                           Loading payroll data...
-                    </div>
-                      ) : filtered.length === 0 ? (
-                        <div className="px-6 py-12 text-center text-gray-500">No payroll records found</div>
-                      ) : (
-                        filtered.map((p, idx) => {
+                        </td>
+                      </tr>
+                    ) : filtered.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="px-6 py-12 text-center text-gray-500">No payroll records found</td>
+                      </tr>
+                    ) : (
+                      filtered.map((p, idx) => {
                         const emp = employees[p.employee];
-                          const name = emp?.name || `Employee ${p.employee}`;
-                          const dept = emp?.department || 'Unknown';
-                          const slip = payslips.find(ps => ps.payroll === p.id);
-                          const isSelected = selectedEmployees.includes(p.employee);
+                        const name = emp?.name || `Employee ${p.employee}`;
+                        const dept = emp?.department || 'Unknown';
+                        const slip = payslips.find(ps => ps.payroll === p.id);
+                        const isSelected = selectedEmployees.includes(p.employee);
 
                         return (
-                            <div
-                              key={p.id}
-                              className={`grid grid-cols-12 gap-4 px-6 py-4 text-sm items-center transition-all duration-200 hover:bg-purple-50 ${
-                                idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                              } ${isSelected ? 'ring-2 ring-purple-200 bg-purple-25' : ''}`}
-                            >
-                              {/* Checkbox */}
-                              <div className="col-span-1 flex justify-center">
-                        <input
-                          type="checkbox"
+                          <tr
+                            key={p.id}
+                            className={`transition-all duration-200 hover:bg-purple-50 ${
+                              idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                            } ${isSelected ? 'ring-2 ring-purple-200 bg-purple-25' : ''}`}
+                          >
+                            {/* Checkbox */}
+                            <td className="px-2 py-3">
+                              <div className="flex justify-center">
+                                <input
+                                  type="checkbox"
                                   checked={isSelected}
-                                onChange={() => handleEmployeeSelect(p.employee)}
-                                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 focus:ring-offset-0"
+                                  onChange={() => handleEmployeeSelect(p.employee)}
+                                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 focus:ring-offset-0 cursor-pointer"
                                 />
                               </div>
+                            </td>
 
-                              {/* Employee Info */}
-                              <div className="col-span-2 min-w-0">
-                                <div className="font-semibold text-gray-900 truncate text-base">{name}</div>
-                                <div className="text-xs text-gray-500 mt-0.5">
+                            {/* Employee Info */}
+                            <td className="px-4 py-3">
+                              <div className="min-w-0">
+                                <div className="font-semibold text-gray-900 truncate text-sm">{name}</div>
+                                <div className="text-xs text-gray-500 truncate">
                                   ID: {p.employee} • {dept}
                                 </div>
                               </div>
+                            </td>
 
-                              {/* Period */}
-                              <div className="col-span-2 text-gray-700">
-                                <div className="font-medium">
+                            {/* Period */}
+                            <td className="px-4 py-3">
+                              <div className="text-gray-700 min-w-0">
+                                <div className="font-medium text-xs truncate">
                                   {p.period_start} → {p.period_end}
                                 </div>
-                                <div className="text-xs text-gray-500 mt-0.5">
+                                <div className="text-xs text-gray-500 truncate">
                                   {p.period_end
                                     ? new Date(p.period_end).toLocaleDateString("en-US", {
                                         month: "short",
                                         year: "numeric",
                                       })
                                     : "—"}
-                            </div>
-                          </div>
-
-                              {/* Gross Salary */}
-                              <div className="col-span-1 text-right">
-                                <div className="font-semibold text-green-700">${Number(p.gross_salary || 0).toLocaleString()}</div>
+                                </div>
                               </div>
+                            </td>
 
-                              {/* Tax */}
-                              <div className="col-span-1 text-right">
-                                <div className="font-medium text-red-600">${Number(p.tax_amount || 0).toLocaleString()}</div>
+                            {/* Gross Salary */}
+                            <td className="px-4 py-3 text-right">
+                              <div className="font-semibold text-green-700 text-xs">${Number(p.gross_salary || 0).toLocaleString()}</div>
+                            </td>
+
+                            {/* Tax */}
+                            <td className="px-4 py-3 text-right">
+                              <div className="font-medium text-red-600 text-xs">${Number(p.tax_amount || 0).toLocaleString()}</div>
+                            </td>
+
+                            {/* Statutory Deductions */}
+                            <td className="px-4 py-3 text-right">
+                              <div className="font-medium text-orange-500 text-xs">${Number(p.statutory_deductions || 0).toLocaleString()}</div>
+                            </td>
+
+                            {/* Deductions */}
+                            <td className="px-4 py-3 text-right">
+                              <div className="font-medium text-orange-600 text-xs">${Number(p.total_deductions || 0).toLocaleString()}</div>
+                            </td>
+
+                            {/* Net Salary */}
+                            {/** Net salary - highlight if negative and compute numeric value once */}
+                            {(() => {
+                              const netNum = Number(p.net_salary || 0);
+                              const netClass = netNum < 0 ? 'text-red-600' : 'text-blue-700';
+                              return (
+                                <td className="px-4 py-3 text-right">
+                                  <div className={`font-bold ${netClass} text-xs whitespace-nowrap`}>${netNum.toLocaleString()}</div>
+                                  {netNum < 0 && (
+                                    <div className="text-xs text-red-600 mt-1">Negative net — check salary structure</div>
+                                  )}
+                                </td>
+                              );
+                            })()}
+
+                            {/* Status */}
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center">
+                                {getStatusBadge(p.payment_status)}
                               </div>
+                            </td>
 
-                              {/* Deductions */}
-                              <div className="col-span-1 text-right">
-                                <div className="font-medium text-orange-600">${Number(p.total_deductions || 0).toLocaleString()}</div>
+                            {/* Paid On */}
+                            <td className="px-4 py-3 text-center">
+                              <div className="text-xs text-gray-600">
+                                {p.paid_on ? new Date(p.paid_on).toLocaleDateString() : '—'}
                               </div>
+                            </td>
 
-                              {/* Net Salary */}
-                              <div className="col-span-2 text-right">
-                                <div className="font-bold text-blue-700 text-base whitespace-nowrap">${Number(p.net_salary || 0).toLocaleString()}</div>
-                            </div>
-
-                              {/* Actions */}
-                              <div className="col-span-2 flex justify-center items-center gap-2">
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                  className="h-8 w-8 p-0 hover:bg-gray-100 border-gray-200 bg-transparent"
-                                onClick={() => handlePreviewPayroll(p.id)}
+                            {/* Actions */}
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex justify-center items-center gap-1 whitespace-nowrap">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="h-7 w-7 p-0 hover:bg-gray-100 border-gray-200 bg-transparent flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105"
+                                  onClick={() => handlePreviewPayroll(p.id)}
                                   title="Preview Payroll"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
+                                >
+                                  <Eye className="w-3 h-3" />
+                                </Button>
+
+                                {/* Inspect JSON button removed */}
 
                                 <Button 
                                   size="sm" 
-                                  className="h-8 px-3 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium"
+                                  className="h-7 px-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
                                   onClick={() => handleCalculatePayroll(p.id)}
                                 >
                                   <Calculator className="w-3 h-3 mr-1" />
@@ -656,18 +978,30 @@ const PayrollPage: React.FC = () => {
                                 </Button>
 
                                 {p.payment_status === 'PENDING' ? (
-                                <Button 
-                                  size="sm" 
-                                    className="h-8 px-3 bg-green-600 hover:bg-green-700 text-white text-xs font-medium"
-                                  onClick={() => handlePayPayroll(p.id)}
-                                >
-                                  Pay
-                                </Button>
+                                  (() => {
+                                    const netNum = Number(p.net_salary || 0);
+                                    const disabled = netNum <= 0;
+                                    return (
+                                      <Button 
+                                        size="sm" 
+                                        className={`h-7 px-2 ${disabled ? 'bg-gray-300 text-gray-700 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'} text-xs font-medium flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95`}
+                                        onClick={() => {
+                                          if (disabled) {
+                                            toast({ title: 'Cannot pay', description: 'Net salary is non-positive. Fix salary structure or deductions before paying.', variant: 'destructive' });
+                                            return;
+                                          }
+                                          handlePayPayroll(p.id);
+                                        }}
+                                      >
+                                        Pay
+                                      </Button>
+                                    );
+                                  })()
                                 ) : slip?.payslip_pdf_url ? (
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 px-3 text-blue-600 hover:text-blue-700 border-blue-200 text-xs font-medium bg-transparent"
+                                    className="h-7 px-2 text-blue-600 hover:text-blue-700 border-blue-200 text-xs font-medium bg-transparent flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
                                     onClick={() => window.open(slip.payslip_pdf_url, '_blank')}
                                   >
                                     PDF
@@ -675,37 +1009,54 @@ const PayrollPage: React.FC = () => {
                                 ) : (
                                   <Badge
                                     variant="secondary"
-                                    className="h-8 px-3 bg-green-100 text-green-800 text-xs font-medium"
+                                    className="h-7 px-2 bg-green-100 text-green-800 text-xs font-medium flex-shrink-0"
                                   >
                                     Paid
                                   </Badge>
-                              )}
-                            </div>
-                          </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
                         );
-                        })
-                      )}
-                        </div>
-                  </div>
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
                   {/* Action Buttons */}
-                  <div className="flex flex-wrap gap-3 pt-4 border-t">
+                  <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-200">
                     <Button
                       onClick={handleApprovePayroll}
                       disabled={selectedEmployees.length === 0}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-md transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     >
                       <CheckCircle className="w-4 h-4 mr-2" />
                       Approve Selected ({selectedEmployees.length})
                     </Button>
-                    <Button variant="outline" className="hover:bg-gray-50 bg-transparent">
+                    <Button 
+                      variant="outline" 
+                      className="hover:bg-gray-50 bg-transparent border-gray-300 text-gray-700 font-medium px-6 py-3 rounded-md transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+                    >
                       <Eye className="w-4 h-4 mr-2" />
                       Preview Selected
                     </Button>
-                    <Button variant="outline" onClick={handleGeneratePayslips} className="hover:bg-gray-50 bg-transparent">
-                      <Download className="w-4 h-4 mr-2" />
-                      Generate Payslips
-                    </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleGeneratePayslips} 
+                    className="hover:bg-gray-50 bg-transparent border-gray-300 text-gray-700 font-medium px-6 py-3 rounded-md transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Generate Selected Payslips
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleBulkGeneratePayslips} 
+                    className="hover:bg-gray-50 bg-transparent border-gray-300 text-gray-700 font-medium px-6 py-3 rounded-md transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Generate All Payslips
+                  </Button>
                   </div>
                 </div>
               </CardContent>
@@ -830,56 +1181,70 @@ const PayrollPage: React.FC = () => {
                     const status = p.payment_status === 'PAID' ? 'approved' : 'pending';
                     const slip = payslips.find(ps => ps.payroll === p.id);
                     return (
-                    <Card key={p.id} className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <h3 className="font-medium">{name}</h3>
-                          <p className="text-sm text-muted-foreground">ID: {p.employee}</p>
-                        </div>
-                        {getStatusBadge(status)}
-                      </div>
-                      <div className="space-y-2 mb-4">
-                        <div className="flex justify-between text-sm">
-                          <span>Net Salary:</span>
-                          <span className="font-medium">${Number(p.net_salary || 0).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Month:</span>
-                          <span>{new Date(p.period_end).toLocaleString(undefined, { month: 'long', year: 'numeric' })}</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        {slip?.payslip_pdf_url ? (
-                          <a href={slip.payslip_pdf_url} target="_blank" rel="noreferrer" className="flex-1">
-                            <Button size="sm" className="w-full">
-                          <Download className="w-4 h-4 mr-1" />
-                          Download
-                        </Button>
-                          </a>
-                        ) : (
-                          <Button
-                            size="sm"
-                            className="flex-1"
-                            onClick={async () => {
-                              const blob = await payrollService.downloadPayslip(p.id);
-                              const url = window.URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = `payslip_${p.id}.pdf`;
-                              a.click();
-                              window.URL.revokeObjectURL(url);
-                            }}
-                          >
-                            <Download className="w-4 h-4 mr-1" />
-                            Generate & Download
-                          </Button>
-                        )}
-                        <Button size="sm" variant="outline" onClick={() => { setPreviewPayrollId(p.id); setPreviewOpen(true); }}>
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </Card>
-                  );})}
+                        <Card key={p.id} className="transition-transform transform hover:-translate-y-0.5 hover:shadow-md rounded-lg overflow-hidden border border-gray-100">
+                          <div className="flex">
+                            <div className="w-1 bg-gradient-to-b from-[#6C63FF] to-[#FF6B6B] opacity-80" />
+                            <div className="flex-1 p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <div>
+                                  <h3 className="font-medium text-sm">{name}</h3>
+                                  <p className="text-xs text-muted-foreground">ID: {p.employee}</p>
+                                </div>
+                                {getStatusBadge(status)}
+                              </div>
+                              <div className="space-y-1 mb-3 text-sm">
+                                <div className="flex justify-between">
+                                  <span>Net Salary:</span>
+                                  <span className="font-medium">${Number(p.net_salary || 0).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Month:</span>
+                                  <span className="text-sm">{new Date(p.period_end).toLocaleString(undefined, { month: 'long', year: 'numeric' })}</span>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                {slip?.payslip_pdf_url ? (
+                                  <a href={slip.payslip_pdf_url} target="_blank" rel="noreferrer" className="flex-1">
+                                    <Button size="sm" className="w-full text-sm py-2">
+                                      <Download className="w-4 h-4 mr-2" />
+                                      Download
+                                    </Button>
+                                  </a>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    className="flex-1 text-sm py-2"
+                                    onClick={async () => {
+                                      if (p.payment_status !== 'PAID') {
+                                        toast({ title: 'Cannot generate payslip', description: 'Payslips can only be generated for payrolls with status Paid.' });
+                                        return;
+                                      }
+                                      try {
+                                        const blob = await payrollService.downloadPayslip(p.id);
+                                        const url = window.URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `payslip_${p.id}.pdf`;
+                                        a.click();
+                                        window.URL.revokeObjectURL(url);
+                                      } catch (err) {
+                                        console.error('Failed to download payslip:', err);
+                                        toast({ title: 'Download failed', description: 'Could not download payslip. Please try again.', variant: 'destructive' });
+                                      }
+                                    }}
+                                  >
+                                    <Download className="w-4 h-4 mr-2" />
+                                    Generate & Download
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="outline" onClick={() => { setPreviewPayrollId(p.id); setPreviewOpen(true); }} className="py-2">
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      );})}
                 </div>
               </CardContent>
             </Card>
@@ -887,58 +1252,68 @@ const PayrollPage: React.FC = () => {
 
           <TabsContent value="reports" className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Payroll Summary Report</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between">
-                      <span>Total Gross Salary</span>
-                      <span className="font-medium">${payrolls.reduce((s, p) => s + Number(p.gross_salary || 0), 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Total Tax Amount</span>
-                      <span className="font-medium">${payrolls.reduce((s, p) => s + Number(p.tax_amount || 0), 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Total Statutory Deductions</span>
-                      <span className="font-medium">${payrolls.reduce((s, p) => s + Number(p.statutory_deductions || 0), 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Total Deductions</span>
-                      <span className="font-medium">${payrolls.reduce((s, p) => s + Number(p.total_deductions || 0), 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2">
-                      <span className="font-medium">Net Payroll</span>
-                      <span className="font-bold">${totalPayroll.toLocaleString()}</span>
-                    </div>
+              <Card className="transition-transform transform hover:-translate-y-0.5 hover:shadow-md rounded-lg overflow-hidden border border-gray-100">
+                <div className="flex">
+                  <div className="w-1 bg-gradient-to-b from-[#6C63FF] to-[#FF6B6B] opacity-80" />
+                  <div className="flex-1 p-4">
+                    <CardHeader className="p-0 mb-2">
+                      <CardTitle className="text-base">Payroll Summary Report</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between">
+                          <span>Total Gross Salary</span>
+                          <span className="font-medium">${payrolls.reduce((s, p) => s + Number(p.gross_salary || 0), 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Total Tax Amount</span>
+                          <span className="font-medium">${payrolls.reduce((s, p) => s + Number(p.tax_amount || 0), 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Total Statutory Deductions</span>
+                          <span className="font-medium">${payrolls.reduce((s, p) => s + Number(p.statutory_deductions || 0), 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Total Deductions</span>
+                          <span className="font-medium">${payrolls.reduce((s, p) => s + Number(p.total_deductions || 0), 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-2">
+                          <span className="font-medium">Net Payroll</span>
+                          <span className="font-bold">${totalPayroll.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </CardContent>
                   </div>
-                </CardContent>
+                </div>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Department Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {Array.from(new Set(Object.values(employees).map(e => e.department || 'Unknown'))).map(dept => {
-                      const ids = Object.entries(employees).filter(([, v]) => (v.department || 'Unknown') === dept).map(([k]) => Number(k));
-                      const deptTotal = payrolls.filter(p => ids.includes(p.employee)).reduce((s, p) => s + Number(p.net_salary || 0), 0);
-                      const deptCount = payrolls.filter(p => ids.includes(p.employee)).length;
-                      return (
-                        <div key={dept} className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
-                          <div>
-                            <span className="font-medium">{dept}</span>
-                            <span className="text-sm text-gray-500 ml-2">({deptCount} employees)</span>
-                          </div>
-                          <span className="font-medium">${deptTotal.toLocaleString()}</span>
-                        </div>
-                      );
-                    })}
+              <Card className="transition-transform transform hover:-translate-y-0.5 hover:shadow-md rounded-lg overflow-hidden border border-gray-100">
+                <div className="flex">
+                  <div className="w-1 bg-gradient-to-b from-[#6C63FF] to-[#FF6B6B] opacity-80" />
+                  <div className="flex-1 p-4">
+                    <CardHeader className="p-0 mb-2">
+                      <CardTitle className="text-base">Department Breakdown</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="space-y-3 text-sm">
+                        {Array.from(new Set(Object.values(employees).map(e => e.department || 'Unknown'))).map(dept => {
+                          const ids = Object.entries(employees).filter(([, v]) => (v.department || 'Unknown') === dept).map(([k]) => Number(k));
+                          const deptTotal = payrolls.filter(p => ids.includes(p.employee)).reduce((s, p) => s + Number(p.net_salary || 0), 0);
+                          const deptCount = payrolls.filter(p => ids.includes(p.employee)).length;
+                          return (
+                            <div key={dept} className="flex justify-between items-center p-2 rounded-lg bg-gray-50">
+                              <div>
+                                <span className="font-medium">{dept}</span>
+                                <span className="text-sm text-gray-500 ml-2">({deptCount} employees)</span>
+                              </div>
+                              <span className="font-medium">${deptTotal.toLocaleString()}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
                   </div>
-                </CardContent>
+                </div>
               </Card>
             </div>
 
@@ -965,7 +1340,7 @@ const PayrollPage: React.FC = () => {
                 </CardContent>
               </Card>
 
-              <NotificationsCard />
+              {/* Notifications dropdown moved to topbar; card removed per design */}
             </div>
           </TabsContent>
         </Tabs>
@@ -977,6 +1352,8 @@ const PayrollPage: React.FC = () => {
         payrollData={previewPayrollId ? getPayrollData(previewPayrollId) : null}
         onRecalculate={async () => { await loadData(); }}
       />
+
+      {/* Inspect dialog removed per UX decision */}
     </DashboardLayout>
   );
 };

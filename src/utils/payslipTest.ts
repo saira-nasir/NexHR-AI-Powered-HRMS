@@ -44,3 +44,4 @@ export const testPayslipGeneration = async () => {
 
 // Make it available globally for testing
 (window as any).testPayslipGeneration = testPayslipGeneration;
+

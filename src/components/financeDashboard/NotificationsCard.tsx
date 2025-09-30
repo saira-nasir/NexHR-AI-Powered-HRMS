@@ -67,9 +67,9 @@ const NotificationsCard: React.FC = () => {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
-    <Card className="hover:shadow-lg transition-all duration-300 hover:border-primary/20 group">
+    <Card className="rounded-lg border border-gray-100 bg-white hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 group border-l-4 border-[#6C63FF]/20 overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium group-hover:text-primary transition-colors flex items-center gap-2">
+        <CardTitle className="text-sm font-medium group-hover:text-[#6C63FF] transition-colors flex items-center gap-2">
           <Bell className="h-4 w-4" />
           Notifications
           {unreadCount > 0 && (
@@ -90,57 +90,55 @@ const NotificationsCard: React.FC = () => {
         )}
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[300px]">
+        <ScrollArea className="h-[260px]">
           {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full"></div>
+            <div className="flex items-center justify-center h-28">
+              <div className="animate-spin w-6 h-6 border-2" style={{borderColor: '#6C63FF', borderTopColor: 'transparent', borderRightColor: '#6C63FF'}}></div>
             </div>
           ) : notifications.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
+            <div className="text-center text-muted-foreground py-6">
               No notifications
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-3 rounded-lg border transition-all duration-200 hover:shadow-sm ${
+                  className={`p-3 rounded-lg border transition-all duration-200 hover:shadow-sm flex items-start gap-3 ${
                     notification.is_read 
-                      ? 'bg-gray-50 border-gray-200' 
-                      : 'bg-blue-50 border-blue-200'
+                      ? 'bg-white border-gray-100' 
+                      : 'bg-[#F3F4F6] border-[#E9E7FF]'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm ${
-                        notification.is_read ? 'text-gray-600' : 'text-gray-900 font-medium'
-                      }`}>
-                        {notification.message}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(notification.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {!notification.is_read && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleMarkAsRead(notification.id)}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Check className="h-3 w-3" />
-                        </Button>
-                      )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${
+                      notification.is_read ? 'text-gray-600' : 'text-gray-900 font-medium'
+                    }`}>
+                      {notification.message}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(notification.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {!notification.is_read && (
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDelete(notification.id)}
-                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                        onClick={() => handleMarkAsRead(notification.id)}
+                        className="h-6 w-6 p-0"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Check className="h-3 w-3 text-green-500" />
                       </Button>
-                    </div>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDelete(notification.id)}
+                      className="h-6 w-6 p-0 text-red-500 hover:text-[#FF6B6B] transition-colors"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               ))}
