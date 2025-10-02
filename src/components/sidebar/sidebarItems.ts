@@ -20,34 +20,40 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Teams',
     path: '/teams',
     icon: Users,
+    // Visible to HR and Admin
+    allowedRoles: ['HR', 'Admin'],
     submenu: [
-      { title: 'Employees', path: '/employees' },
-      { title: 'Attendance', path: '/attendance' },
-      { title: 'Checklist', path: '/checklist' },
-      { title: 'Time off', path: '/time-off' },
+      { title: 'Employees', path: '/employees', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Attendance', path: '/attendance', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Checklist', path: '/checklist', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Time off', path: '/time-off', allowedRoles: ['HR', 'Admin'] },
     ],
   },
   {
     title: 'Hiring',
     path: '/hiring',
     icon: Briefcase,
+    // Visible to HR and Admin
+    allowedRoles: ['HR', 'Admin'],
     submenu: [
-      { title: 'Onboarding', path: '/onboarding' },
-      { title: 'Hiring handbook', path: '/hiring-handbook' },
-      { title: 'Post job', path: '/jobs/create' },
+      { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Hiring handbook', path: '/hiring-handbook', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'] },
     ],
   },
   {
     title: 'Finance',
     path: '/finance',
     icon: DollarSign,
+    // Visible to Finance Manager and Admin
+    allowedRoles: ['Finance Manager', 'Admin'],
     submenu: [
-    { title: 'Payroll', path: '/payroll' },
-    { title: 'Expenses', path: '/expenses' },
-    { title: 'Salary Structures', path: '/salary-structures' },
-    { title: 'Tax Management', path: '/tax-management' },
-    { title: 'Loans', path: '/loans' },
-    { title: 'Bulk Payments', path: '/bulk-payments' },
+      { title: 'Payroll', path: '/payroll', allowedRoles: ['Finance Manager', 'Admin'] },
+      { title: 'Expenses', path: '/expenses', allowedRoles: ['Finance Manager', 'Admin'] },
+      { title: 'Salary Structures', path: '/salary-structures', allowedRoles: ['Finance Manager', 'Admin'] },
+      { title: 'Tax Management', path: '/tax-management', allowedRoles: ['Finance Manager', 'Admin'] },
+      { title: 'Loans', path: '/loans', allowedRoles: ['Finance Manager', 'Admin'] },
+      { title: 'Bulk Payments', path: '/bulk-payments', allowedRoles: ['Finance Manager', 'Admin'] },
     ],
   },
   {
@@ -59,6 +65,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Integrations',
     path: '/integrations',
     icon: PanelRight,
+    allowedRoles: ['Admin', 'Finance Manager'],
   },
   {
     title: 'Help and support',

@@ -8,10 +8,39 @@ import SidebarHeader from './SidebarHeader';
 import SidebarSearch from './SidebarSearch';
 import SidebarItem from './SidebarItem';
 import SidebarFooter from './SidebarFooter';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/store';
+import { getUserRole } from '@/utils/roleUtils';
 
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  const user = useSelector((state: RootState) => state.auth.user);
+
+  // Filter sidebar items according to user role. If no user, default to showing only items without allowedRoles
+  const getVisibleItems = () => {
+    const role = getUserRole(user);
+    return sidebarItems
+      .map(item => {
+        // If item has allowedRoles and user role not included -> skip
+        if (item.allowedRoles && (!role || !item.allowedRoles.includes(role))) return null;
+
+        // Filter submenu if present
+        let submenu = item.submenu;
+        if (submenu && submenu.length > 0) {
+          const filteredSub = submenu.filter(sub => {
+            if (!sub.allowedRoles) return true;
+            return role && sub.allowedRoles.includes(role);
+          });
+          submenu = filteredSub;
+        }
+
+        return { ...item, submenu };
+      })
+      .filter(Boolean) as typeof sidebarItems;
+  };
+
+  const visibleItems = getVisibleItems();
   
   // Initialize open menus based on current route
   useEffect(() => {
@@ -58,7 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
         "flex-1 px-2 py-2 space-y-1",
         collapsed && "px-1"
       )}>
-        {sidebarItems.map((item) => (
+        {visibleItems.map((item) => (
           <SidebarItem
             key={item.title}
             item={item}

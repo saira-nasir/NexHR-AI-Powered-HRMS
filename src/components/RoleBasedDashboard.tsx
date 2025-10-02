@@ -46,11 +46,11 @@ const RoleBasedDashboard: React.FC = () => {
   
   // Render different dashboard components based on role
   switch (userRole) {
-    case ROLES.HR:
-    case ROLES.ADMIN:
-      return <Dashboard />;
     case ROLES.FINANCE_MANAGER:
+    case ROLES.ADMIN:
       return <FinanceDashboard />;
+    case ROLES.HR:
+      return <Dashboard />;
     case ROLES.EMPLOYEE:
       return <EmployeeDashboard />;
     default:
