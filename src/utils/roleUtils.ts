@@ -1,5 +1,16 @@
 // Role utility functions for role-based access control
 
+// User interface for type safety
+export interface User {
+  roles?: Array<string | { name?: string; title?: string; role?: string }>;
+  role?: string | { name?: string; title?: string; role?: string };
+  user_role?: string;
+  primaryRole?: string;
+  primary_role?: string;
+  group?: string;
+  group_name?: string;
+}
+
 export const ROLES = {
   HR: 'HR',
   ADMIN: 'Admin',
@@ -38,19 +49,10 @@ export const ROLE_DASHBOARD_MAP: Record<UserRole, string> = {
   [ROLES.EMPLOYEE]: '/dashboard'
 };
 
-// Normalize arbitrary role strings to known constants
-const normalizeRoleName = (rawRole: string | undefined | null): UserRole | null => {
-  if (!rawRole) return null;
-  const value = String(rawRole).trim().toLowerCase();
-  if (value === 'hr' || value === 'human resources' || value === 'hr manager' || value === 'hr admin') return ROLES.HR;
-  if (value === 'admin' || value === 'administrator' || value === 'superadmin' || value === 'super admin') return ROLES.ADMIN;
-  if (value === 'finance manager' || value === 'finance' || value === 'accounting' || value === 'accounts') return ROLES.FINANCE_MANAGER;
-  if (value === 'employee' || value === 'staff' || value === 'user' || value === 'member') return ROLES.EMPLOYEE;
-  return null;
-};
+// Note: Using the exported normalizeRoleName function defined above
 
 // Get user's primary role from user data
-export const getUserRole = (user: any): UserRole => {
+export const getUserRole = (user?: User | null): UserRole => {
   if (!user) return ROLES.EMPLOYEE;
   
   // Common shapes to check in order of likelihood
@@ -93,33 +95,33 @@ export const getUserRole = (user: any): UserRole => {
 };
 
 // Get dashboard path for user role - now always returns /dashboard
-export const getDashboardPath = (user: any): string => {
+export const getDashboardPath = (user?: User | null): string => {
   const role = getUserRole(user);
   const path = ROLE_DASHBOARD_MAP[role] || ROLE_DASHBOARD_MAP[ROLES.EMPLOYEE];
   return path;
 };
 
 // Check if user has required role
-export const hasRole = (user: any, requiredRoles: string[]): boolean => {
+export const hasRole = (user: User | null | undefined, requiredRoles: string[]): boolean => {
   const userRole = getUserRole(user);
   const hasAccess = requiredRoles.includes(userRole);
   return hasAccess;
 };
 
 // Check if user is HR or Admin (they have similar permissions)
-export const isHRorAdmin = (user: any): boolean => {
+export const isHRorAdmin = (user: User | null | undefined): boolean => {
   const userRole = getUserRole(user);
   return userRole === ROLES.HR || userRole === ROLES.ADMIN;
 };
 
 // Check if user is Finance Manager
-export const isFinanceManager = (user: any): boolean => {
+export const isFinanceManager = (user: User | null | undefined): boolean => {
   const userRole = getUserRole(user);
   return userRole === ROLES.FINANCE_MANAGER;
 };
 
 // Check if user is Employee
-export const isEmployee = (user: any): boolean => {
+export const isEmployee = (user: User | null | undefined): boolean => {
   const userRole = getUserRole(user);
   return userRole === ROLES.EMPLOYEE;
 };
