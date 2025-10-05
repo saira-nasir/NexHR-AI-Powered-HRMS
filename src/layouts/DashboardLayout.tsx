@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/sidebar/Sidebar';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Calendar, Bell, Menu, PanelLeft, PanelRight, LogOut } from 'lucide-react';
+import { Search, Calendar, Menu, PanelLeft, PanelRight, LogOut } from 'lucide-react';
+import NotificationsDropdown from '@/components/notifications/NotificationsDropdown';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
@@ -102,10 +103,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <Calendar className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
               </button>
 
-              <button className="rounded-full p-1.5 sm:p-2 text-gray-500 hover:bg-lavender hover:text-english-violet transition-colors relative">
-                <Bell className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
-                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500"></span>
-              </button>
+              <NotificationsDropdown />
 
               {/* Logout button */}
               <button 

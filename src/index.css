@@ -169,3 +169,35 @@
     @apply text-sidebar-foreground hover:bg-sidebar-accent;
   }
 }
+
+@layer utilities {
+  /* Interactive element cursor styles */
+  .cursor-pointer {
+    cursor: pointer;
+  }
+
+  /* Button hover and active states */
+  .btn-hover {
+    transition: all 0.2s ease-in-out;
+  }
+
+  .btn-hover:hover {
+    transform: scale(1.05);
+  }
+
+  .btn-hover:active {
+    transform: scale(0.95);
+  }
+
+  /* Table sticky header */
+  .table-sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  /* Table fixed layout for consistent column widths */
+  .table-fixed {
+    table-layout: fixed;
+  }
+}

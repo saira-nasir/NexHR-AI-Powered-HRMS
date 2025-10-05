@@ -4,6 +4,7 @@ import { ElementType } from 'react';
 export type SidebarSubmenu = {
   title: string;
   path: string;
+  allowedRoles?: string[];
 };
 
 export type SidebarMenuItem = {
@@ -11,6 +12,7 @@ export type SidebarMenuItem = {
   path: string;
   icon: ElementType;
   submenu?: SidebarSubmenu[];
+  allowedRoles?: string[];
 };
 
 export interface SidebarProps {
