@@ -11,8 +11,8 @@ import SalaryStructureModal from './SalaryStructureModal';
 import { useToast } from '@/hooks/use-toast';
 
 const SalaryStructureTable: React.FC = () => {
-  const [salaryStructures, setSalaryStructures] = useState<SalaryStructure[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [salaryStructures, setSalaryStructures] = useState<SalaryStructure[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -26,12 +26,13 @@ const SalaryStructureTable: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [structures, empData] = await Promise.all([
-        payrollService.listSalaryStructures(),
-        employeeService.getEmployees().catch(() => [])
+      const [employeesData, structuresData] = await Promise.all([
+        employeeService.getEmployees(),
+        payrollService.listSalaryStructures()
       ]);
-      setSalaryStructures(structures);
-      setEmployees(empData);
+      
+      setEmployees(employeesData);
+      setSalaryStructures(structuresData);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({ title: 'Error', description: 'Failed to load salary structures', variant: 'destructive' });
@@ -49,8 +50,8 @@ const SalaryStructureTable: React.FC = () => {
     if (window.confirm('Are you sure you want to delete this salary structure?')) {
       try {
         await payrollService.deleteSalaryStructure(id);
-        setSalaryStructures(prev => prev.filter(s => s.id !== id));
         toast({ title: 'Salary structure deleted successfully' });
+        loadData(); // Refresh local data
       } catch (error) {
         toast({ title: 'Error', description: 'Failed to delete salary structure', variant: 'destructive' });
       }
@@ -77,8 +78,9 @@ const SalaryStructureTable: React.FC = () => {
     setEditingStructure(null);
   };
 
-  const handleSuccess = () => {
-    loadData();
+  const handleSuccess = async () => {
+    // Refresh local data when salary structure is created/updated
+    await loadData();
   };
 
   return (

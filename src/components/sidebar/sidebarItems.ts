@@ -6,7 +6,12 @@ import {
   Settings,
   PanelRight,
   LifeBuoy,
-  PlusCircle
+  PlusCircle,
+  Calendar,
+  CreditCard,
+  Building2,
+  Receipt,
+  FileText
 } from 'lucide-react';
 import { SidebarMenuItem } from '../../types/sidebar/types';
 
@@ -15,6 +20,36 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Dashboard',
     path: '/dashboard',
     icon: Home,
+  },
+  {
+    title: 'Attendance & Leave',
+    path: '/attendance-leave',
+    icon: Calendar,
+    allowedRoles: ['Employee'],
+  },
+  {
+    title: 'Loan & Expense',
+    path: '/loan-expense',
+    icon: CreditCard,
+    allowedRoles: ['Employee'],
+  },
+  {
+    title: 'Bank Info',
+    path: '/bank-info',
+    icon: Building2,
+    allowedRoles: ['Employee'],
+  },
+  {
+    title: 'Salary Structure',
+    path: '/employee-salary-structure',
+    icon: Receipt,
+    allowedRoles: ['Employee'],
+  },
+  {
+    title: 'Payslips',
+    path: '/payslips',
+    icon: FileText,
+    allowedRoles: ['Employee'],
   },
   {
     title: 'Teams',

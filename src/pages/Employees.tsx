@@ -109,10 +109,10 @@ const Employees = () => {
     };
 
     const filteredEmployees = employees.filter(employee =>
-        employee.fname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        employee.lname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        employee.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        employee.phone.includes(searchQuery)
+        (employee.fname || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (employee.lname || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (employee.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (employee.phone || '').includes(searchQuery)
     );
 
     const getStatusColor = (status: string) => {
@@ -343,28 +343,30 @@ const Employees = () => {
                                                     <TableCell className="px-6 py-4">
                                                         <div className="flex items-center space-x-3">
                                                             <div className="w-10 h-10 bg-gradient-to-br from-[#5C5470] to-[#352F44] rounded-full flex items-center justify-center text-white font-semibold">
-                                                                {employee.fname.charAt(0)}{employee.lname.charAt(0)}
+                                                                {(employee.fname || 'U').charAt(0)}{(employee.lname || 'N').charAt(0)}
                                                             </div>
                                                             <div>
-                                                                <p className="font-semibold text-gray-900">{`${employee.fname} ${employee.lname}`}</p>
+                                                                <p className="font-semibold text-gray-900">
+                                                                    {`${employee.fname || 'Unknown'} ${employee.lname || 'User'}`}
+                                                                </p>
                                                                 <p className="text-sm text-gray-500">Employee</p>
                                                             </div>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="px-6 py-4">
                                                         <div>
-                                                            <p className="font-medium text-gray-900">{employee.email}</p>
-                                                            <p className="text-sm text-gray-500">{employee.phone}</p>
+                                                            <p className="font-medium text-gray-900">{employee.email || 'No email'}</p>
+                                                            <p className="text-sm text-gray-500">{employee.phone || 'No phone'}</p>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="px-6 py-4">
                                                         <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                                            {employee.company}
+                                                            {employee.company || 'No company'}
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className="px-6 py-4">
                                                         <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                                            {employee.branch}
+                                                            {employee.branch || 'No branch'}
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className="px-6 py-4">

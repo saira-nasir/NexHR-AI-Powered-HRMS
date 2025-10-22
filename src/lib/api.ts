@@ -1,5 +1,5 @@
-
-import axios from 'axios';
+// src/lib/api.ts
+import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { toast } from "@/components/ui/use-toast";
 
 // Use environment variable or fallback with full URL for development
@@ -11,29 +11,34 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  // Add timeout to prevent long hanging requests
+  // Added from File 1 for explicitness
+  withCredentials: false, 
+  // Add timeout to prevent long hanging requests (from File 2)
   timeout: 15000, // Increased timeout for slower connections
 });
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
-  (config) => {
+  (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token');
     if (token) {
+      // ✅ Safer header assignment (inspired by File 1's check)
+      if (!config.headers) {
+        config.headers = {} as any;
+      }
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Log all outgoing requests for debugging
-    console.log(`API Request to ${config.url}:`, { 
-      method: config.method, 
+    // ✅ Improved logging (combines File 1's full URL + File 2's data)
+    const fullUrl = `${config.baseURL}${config.url}`;
+    console.log(`➡️ API Request: ${config.method?.toUpperCase()} ${fullUrl}`, {
       data: config.data,
       headers: config.headers,
-      baseURL: config.baseURL
     });
     
     return config;
   },
-  (error) => {
+  (error: AxiosError) => {
     console.error('API Request Error:', error);
     return Promise.reject(error);
   }
@@ -41,7 +46,7 @@ api.interceptors.request.use(
 
 // Response interceptor to handle token refresh
 api.interceptors.response.use(
-  (response) => {
+  (response: AxiosResponse) => {
     console.log(`API Response from ${response.config.url}:`, {
       status: response.status,
       data: response.data
@@ -49,14 +54,13 @@ api.interceptors.response.use(
     
     return response;
   },
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
     
-    // Log detailed error information (also stringify response data so it's easy to read in console)
-    console.error('API Response Error:', {
+    // Log detailed error information
+    console.error('❌ API Response Error:', {
       url: originalRequest?.url,
       method: originalRequest?.method,
-      data: originalRequest?.data,
       status: error.response?.status,
       statusText: error.response?.statusText,
       responseData: error.response?.data
@@ -73,17 +77,14 @@ api.interceptors.response.use(
       
       // Special handling for CORS errors
       if (error.message === 'Network Error' && originalRequest?.url) {
-        const requestUrl = originalRequest.baseURL + originalRequest.url;
+        const requestUrl = (originalRequest.baseURL || '') + originalRequest.url;
         if (requestUrl.includes('127.0.0.1') || requestUrl.includes('localhost')) {
           toast({
             title: "Local Server Connection Error",
             description: "Cannot connect to your local development server. Make sure your Django server is running and CORS is configured correctly.",
             variant: "destructive",
           });
-          console.error('CORS ERROR HELP: Make sure your Django server has django-cors-headers installed and properly configured with:');
-          console.error('1. CORS_ALLOW_ALL_ORIGINS = True or CORS_ALLOWED_ORIGINS = ["https://preview--hr-hub-navigator.lovable.app"]');
-          console.error('2. CORS_ALLOW_CREDENTIALS = True');
-          console.error('3. corsheaders.middleware.CorsMiddleware added to MIDDLEWARE (before other middleware)');
+          console.error('CORS ERROR HELP: Make sure your Django server has django-cors-headers installed and properly configured.');
           return Promise.reject(error);
         }
       }
@@ -120,7 +121,10 @@ api.interceptors.response.use(
         
         // Update header and retry
         api.defaults.headers.common['Authorization'] = `Bearer ${access}`;
-        originalRequest.headers['Authorization'] = `Bearer ${access}`;
+        if (originalRequest.headers) {
+          originalRequest.headers['Authorization'] = `Bearer ${access}`;
+        }
+        
         return api(originalRequest);
       } catch (refreshError) {
         // If refresh fails, redirect to login
@@ -178,6 +182,27 @@ export const handleApiError = (error: any, defaultMessage = "An unexpected error
     success: false,
     message: defaultMessage
   };
+};
+
+// Helper functions for common API operations
+export const apiGet = async (url: string) => {
+  const response = await api.get(url);
+  return response.data;
+};
+
+export const apiPost = async (url: string, data: any) => {
+  const response = await api.post(url, data);
+  return response.data;
+};
+
+export const apiPut = async (url: string, data: any) => {
+  const response = await api.put(url, data);
+  return response.data;
+};
+
+export const apiDelete = async (url: string) => {
+  const response = await api.delete(url);
+  return response.data;
 };
 
 export default api;
