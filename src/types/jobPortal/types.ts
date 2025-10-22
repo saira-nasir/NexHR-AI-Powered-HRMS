@@ -7,4 +7,6 @@ export interface JobListing {
   location: string;
   salary_period: string;
   tags: string[];
+  // Backend job status (optional) - e.g. "scheduled", "screening", "screened"
+  status?: string;
 }

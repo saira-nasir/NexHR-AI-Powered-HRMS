@@ -37,8 +37,8 @@ export const sidebarItems: SidebarMenuItem[] = [
     allowedRoles: ['HR', 'Admin'],
     submenu: [
       { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'] },
-      { title: 'Hiring handbook', path: '/hiring-handbook', allowedRoles: ['HR', 'Admin'] },
       { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR', 'Admin'] },
     ],
   },
   {

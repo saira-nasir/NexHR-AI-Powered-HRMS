@@ -4,7 +4,7 @@ import CreatableSelect from 'react-select/creatable';
 import { OptionType } from "../../data/formData";
 import RequiredSkillsField from './RequiredSkillsField';
 import { RequiredSkill } from '../../services/JobService';
-import SkillsTest from './SkillsTest';
+// SkillsTest removed — debug code cleaned up
 
 interface GeneralInfoTabProps {
   formData: {
@@ -161,12 +161,13 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
             <Select<OptionType>
               id="Department"
               name="Department"
-              options={DepartmentOptions}
+              options={DepartmentOptions && DepartmentOptions.length > 0 ? DepartmentOptions : [{ value: '', label: 'No departments found — register departments first', isDisabled: true } as any]}
               value={formData.Department}
               onChange={(option) => handleSelectChange("Department", option)}
               classNamePrefix="select"
               placeholder="Select Department..."
               isClearable
+              isDisabled={!(DepartmentOptions && DepartmentOptions.length > 0)}
               required
               styles={{
                 ...selectStyles,

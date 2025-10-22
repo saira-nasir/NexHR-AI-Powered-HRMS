@@ -30,6 +30,7 @@ import EmployeeDashboard from "@/pages/EmployeeDashboard";
 import PayrollPage from "@/pages/Payroll";
 import FinanceDashboard from "@/pages/FinanceDashboard";
 import HiringHandbook from "@/pages/HiringHandbook";
+import JobScreening from "@/pages/JobScreening";
 import Expenses from '@/pages/Expenses';
 import Loans from '@/pages/Loans';
 import BulkPayments from '@/pages/BulkPayments';
@@ -233,6 +234,14 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <HiringHandbook />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "hiring/job-screening",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <JobScreening />
               </RoleBasedRoute>
             ),
           },

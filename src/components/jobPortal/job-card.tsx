@@ -9,9 +9,10 @@ interface JobCardProps {
   job: JobListing
   isSaved: boolean
   onToggleSave: () => void
+  onView?: (job: JobListing) => void
 }
 
-export default function JobCard({ job, isSaved, onToggleSave }: JobCardProps) {
+export default function JobCard({ job, isSaved, onToggleSave, onView }: JobCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const navigate = useNavigate();
 
@@ -97,13 +98,14 @@ export default function JobCard({ job, isSaved, onToggleSave }: JobCardProps) {
   }
 
   return (
-    <div
-      className={`rounded-xl overflow-hidden ${getBgColor()} transition-all duration-200 ${
-        isHovered ? "shadow-lg transform translate-y-[-4px]" : "shadow"
-      } flex flex-col h-[280px]`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
+    <div className="relative">
+      <div
+        className={`rounded-xl overflow-hidden ${getBgColor()} transition-all duration-300 ${
+          isHovered ? "shadow-lg" : "shadow"
+        } flex flex-col h-[280px]`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
       {/* Main content area */}
       <div className="p-4 flex flex-col flex-grow">
         {/* Date and Bookmark */}
@@ -134,16 +136,18 @@ export default function JobCard({ job, isSaved, onToggleSave }: JobCardProps) {
         </div>
 
         {/* Tags */}
-        <div className="flex flex-wrap gap-1 mb-4">
-          {job.tags.map((tag, index) => (
-            <span
-              key={index}
-              className="text-xs px-3 py-1 rounded-full bg-white text-[#5C5470] border border-[#DBD8E3] mb-1 mr-1"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
+        {Array.isArray(job.tags) && job.tags.filter(Boolean).length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-4">
+            {job.tags.filter(Boolean).map((tag, index) => (
+              <span
+                key={index}
+                className="text-xs px-3 py-1 rounded-full bg-white text-[#5C5470] border border-[#DBD8E3] mb-1 mr-1"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Spacer to push salary and details to bottom */}
         <div className="flex-grow"></div>
@@ -152,14 +156,21 @@ export default function JobCard({ job, isSaved, onToggleSave }: JobCardProps) {
         <div className="flex justify-between items-center mt-auto">
           <div>
             <div className="text-base font-bold text-[#2A2438]">{formatSalary()}</div>
-            <div className="text-xs text-[#5C5470]">{job.location}</div>
+            {job.location ? (
+              <div className="text-xs text-[#5C5470]">{job.location}</div>
+            ) : null}
           </div>
 
-          <button onClick={()=> navigate("/job-detail")} className="bg-[#2A2438] hover:bg-[#352F44] text-white text-sm font-medium px-5 py-2 rounded-full transition-colors">
-            Details
+              <button onClick={(e)=> {
+              e.stopPropagation();
+              if (onView) onView(job);
+              else navigate("/job-detail");
+            }} className="bg-[#2A2438] hover:bg-[#352F44] text-white text-sm font-medium px-5 py-2 rounded-full transition-all duration-200 hover:scale-105">
+            View
           </button>
         </div>
       </div>
+    </div>
     </div>
   )
 }

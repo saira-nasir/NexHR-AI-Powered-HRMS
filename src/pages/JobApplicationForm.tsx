@@ -6,13 +6,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
 import { Plus, X, Trash2, Upload, FileText } from 'lucide-react';
 import { applicationService } from '@/services/jobPortalservice';
+import RequiredSkillsField from '@/components/job-post/RequiredSkillsField';
+import { RequiredSkill } from '@/services/JobService';
+import type { StylesConfig } from 'react-select';
 
 interface Skill {
   name: string;
 }
 
 interface Experience {
-  years_of_experience: number;
+  years_of_experience: number | '';
   previous_job_titles: string;
   company_name: string;
 }
@@ -40,9 +43,9 @@ const JobApplicationForm = () => {
         address: '',
         dob: '',
         resume_file: null as File | null,
-        skills: [{ name: '' }] as Skill[],
+    skills: [] as RequiredSkill[],
         experiences: [{
-            years_of_experience: 0,
+            years_of_experience: '',
             previous_job_titles: '',
             company_name: ''
         }] as Experience[],
@@ -97,6 +100,15 @@ const JobApplicationForm = () => {
         if (dob > today) {
             newErrors.dob = 'Date of birth cannot be in the future';
         }
+        // Age check: must be at least 18 years old
+        if (formData.dob) {
+            const ageDiffMs = today.getTime() - dob.getTime();
+            const ageDate = new Date(ageDiffMs); // miliseconds from epoch
+            const age = Math.abs(ageDate.getUTCFullYear() - 1970);
+            if (age < 18) {
+                newErrors.dob = 'You must be at least 18 years old to apply';
+            }
+        }
 
         // File validation
         if (formData.resume_file) {
@@ -117,7 +129,7 @@ const JobApplicationForm = () => {
 
         // Experiences validation
         const validExperiences = formData.experiences.filter(exp => 
-            exp.years_of_experience > 0 && exp.previous_job_titles.trim() && exp.company_name.trim()
+            typeof exp.years_of_experience === 'number' && exp.years_of_experience > 0 && exp.previous_job_titles.trim() && exp.company_name.trim()
         );
         if (validExperiences.length === 0) {
             newErrors.experiences = 'At least one experience is required with valid details';
@@ -130,6 +142,17 @@ const JobApplicationForm = () => {
         if (validEducations.length === 0) {
             newErrors.educations = 'At least one education is required with valid details';
         }
+
+        // Education date validation - start must be before end
+        formData.educations.forEach((edu, index) => {
+            if (edu.start_date && edu.end_date) {
+                const startDate = new Date(edu.start_date);
+                const endDate = new Date(edu.end_date);
+                if (startDate >= endDate) {
+                    newErrors[`education_${index}_dates`] = `Education ${index + 1}: Start date must be earlier than end date`;
+                }
+            }
+        });
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -149,6 +172,16 @@ const JobApplicationForm = () => {
 
         setIsSubmitting(true);
         try {
+            const normalizedSkills = formData.skills
+                .filter(s => s && (s.name?.toString().trim?.() || s.id))
+                .map(s => {
+                    // If backend-provided id exists, send object with id & name
+                    if ((s as RequiredSkill).id) return { id: (s as RequiredSkill).id, name: (s as RequiredSkill).name };
+                    // If name provided, send name (backend accepts object {name} or plain string)
+                    if ((s as RequiredSkill).name) return { name: (s as RequiredSkill).name };
+                    return String(s);
+                });
+
             const payload = {
                 job: parseInt(formData.job_id || '0'), // Use form's job_id field
                 candidate_fname: formData.candidate_fname,
@@ -158,14 +191,20 @@ const JobApplicationForm = () => {
                 status: formData.status,
                 gender: formData.gender,
                 address: formData.address,
-                dob: formData.dob,
-                skills: formData.skills.filter(skill => skill.name.trim()),
+                // Normalize date of birth to YYYY-MM-DD (ensure no time component)
+                dob: formData.dob ? String(formData.dob).split('T')[0] : '',
+                skills: normalizedSkills,
                 experiences: formData.experiences.filter(exp => 
-                    exp.years_of_experience > 0 && exp.previous_job_titles.trim() && exp.company_name.trim()
+                    typeof exp.years_of_experience === 'number' && exp.years_of_experience > 0 && exp.previous_job_titles.trim() && exp.company_name.trim()
                 ),
-                educations: formData.educations.filter(edu => 
-                    edu.education_level.trim() && edu.institution_name.trim() && edu.degree_detail.trim()
-                )
+                // Ensure education dates are formatted to YYYY-MM-DD or omitted when empty
+                educations: formData.educations
+                    .filter(edu => edu.education_level.trim() && edu.institution_name.trim() && edu.degree_detail.trim())
+                    .map(edu => ({
+                        ...edu,
+                        start_date: edu.start_date ? String(edu.start_date).split('T')[0] : null,
+                        end_date: edu.end_date ? String(edu.end_date).split('T')[0] : null
+                    }))
             };
 
             // Create FormData with correct structure for backend
@@ -219,9 +258,9 @@ const JobApplicationForm = () => {
                     address: '',
                     dob: '',
                     resume_file: null,
-                    skills: [{ name: '' }],
+                    skills: [],
                     experiences: [{
-                        years_of_experience: 0,
+                        years_of_experience: '',
                         previous_job_titles: '',
                         company_name: ''
                     }],
@@ -236,16 +275,55 @@ const JobApplicationForm = () => {
                     }]
                 });
             } else {
-                toast({
-                    title: "Error",
-                    description: response.message || "Failed to submit application",
-                    variant: "destructive",
-                });
+                // If backend provided structured validation errors, map them to the form
+                if (response.errorData && typeof response.errorData === 'object') {
+                    const newErrors: Record<string, string> = {};
+
+                    // Common pattern: { field_name: ["error msg"], other_field: [{...}] }
+                    const errData = response.errorData;
+                    if (Array.isArray(errData)) {
+                        // Sometimes errors are returned as a list
+                        newErrors['non_field_errors'] = errData.join(', ');
+                    } else {
+                        for (const key of Object.keys(errData)) {
+                            const val = errData[key];
+                            if (Array.isArray(val)) {
+                                newErrors[key] = val.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join(' ');
+                            } else if (typeof val === 'object') {
+                                // For nested errors like educations: [{end_date: ['error']}]
+                                if (Array.isArray(val) && val.length > 0) {
+                                    newErrors[key] = JSON.stringify(val);
+                                } else {
+                                    newErrors[key] = JSON.stringify(val);
+                                }
+                            } else {
+                                newErrors[key] = String(val);
+                            }
+                        }
+                    }
+
+                    setErrors(prev => ({ ...prev, ...newErrors }));
+
+                    toast({
+                        title: "Submission failed",
+                        description: response.message || 'Validation failed. See form for details.',
+                        variant: "destructive",
+                    });
+                } else {
+                    toast({
+                        title: "Error",
+                        description: response.message || "Failed to submit application",
+                        variant: "destructive",
+                    });
+                }
             }
         } catch (error) {
+            // Catch any unexpected errors and show a readable message instead of crashing UI
+            console.error('Unhandled error while submitting application:', error);
+            const message = (error as any)?.message || 'Failed to submit application';
             toast({
                 title: "Error",
-                description: "Failed to submit application",
+                description: String(message),
                 variant: "destructive",
             });
         } finally {
@@ -305,30 +383,13 @@ const JobApplicationForm = () => {
         e.preventDefault();
     };
 
-    // Skills handlers
-    const addSkill = () => {
-        setFormData(prev => ({
-            ...prev,
-            skills: [...prev.skills, { name: '' }]
-        }));
-    };
-
-    const removeSkill = (index: number) => {
-        if (formData.skills.length > 1) {
-            setFormData(prev => ({
-                ...prev,
-                skills: prev.skills.filter((_, i) => i !== index)
-            }));
+    // Skills handlers - reuse the RequiredSkillsField component (supports search + create)
+    const selectStyles: StylesConfig<any, boolean> = {} as any;
+    const handleSkillsChange = (skills: RequiredSkill[]) => {
+        setFormData(prev => ({ ...prev, skills }));
+        if (errors.skills) {
+            setErrors(prev => ({ ...prev, skills: '' }));
         }
-    };
-
-    const updateSkill = (index: number, value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            skills: prev.skills.map((skill, i) => 
-                i === index ? { ...skill, name: value } : skill
-            )
-        }));
     };
 
     // Experiences handlers
@@ -336,7 +397,7 @@ const JobApplicationForm = () => {
         setFormData(prev => ({
             ...prev,
             experiences: [...prev.experiences, {
-                years_of_experience: 0,
+                years_of_experience: '',
                 previous_job_titles: '',
                 company_name: ''
             }]
@@ -352,7 +413,7 @@ const JobApplicationForm = () => {
         }
     };
 
-    const updateExperience = (index: number, field: keyof Experience, value: string | number) => {
+    const updateExperience = (index: number, field: keyof Experience, value: string | number | '') => {
         setFormData(prev => ({
             ...prev,
             experiences: prev.experiences.map((exp, i) => 
@@ -486,7 +547,8 @@ const JobApplicationForm = () => {
                                     name="gender"
                                     value={formData.gender}
                                     onChange={handleChange}
-                                    className={`mt-1 block w-full rounded-md shadow-sm ${errors.gender ? "border-red-500" : "border-gray-300"}`}
+                                    className={`mt-1 block w-full rounded-md shadow-sm h-[42px] px-3 py-2 ${errors.gender ? "border-red-500" : "border-gray-300"}`}
+                                    style={{ backgroundColor: '#FFFFFF', color: '#2A2438' }}
                                 >
                                     <option value="">Select gender</option>
                                     <option value="male">Male</option>
@@ -532,40 +594,14 @@ const JobApplicationForm = () => {
                                 <h2 className="text-xl font-semibold text-gray-900">Skills</h2>
                                 <p className="text-sm text-gray-600 mt-1">Add your technical and professional skills</p>
                             </div>
-                            <Button
-                                type="button"
-                                onClick={addSkill}
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center gap-2"
-                            >
-                                <Plus size={16} />
-                                Add Skill
-                            </Button>
                         </div>
-                        
-                        {formData.skills.map((skill, index) => (
-                            <div key={index} className="flex items-center gap-3 mb-3">
-                                <Input
-                                    value={skill.name}
-                                    onChange={(e) => updateSkill(index, e.target.value)}
-                                    placeholder="e.g., Python, React, Project Management"
-                                    className="flex-1"
-                                />
-                                {formData.skills.length > 1 && (
-                                    <Button
-                                        type="button"
-                                        onClick={() => removeSkill(index)}
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-red-600 hover:text-red-700"
-                                    >
-                                        <Trash2 size={16} />
-                                    </Button>
-                                )}
-                            </div>
-                        ))}
-                        {errors.skills && <p className="mt-1 text-sm text-red-600">{errors.skills}</p>}
+
+                        <RequiredSkillsField
+                            value={formData.skills}
+                            onChange={handleSkillsChange}
+                            validationError={errors.skills}
+                            selectStyles={selectStyles}
+                        />
                     </div>
 
                     {/* Experience Section */}
@@ -611,8 +647,18 @@ const JobApplicationForm = () => {
                                             type="number"
                                             step="0.5"
                                             min="0"
-                                            value={exp.years_of_experience}
-                                            onChange={(e) => updateExperience(index, 'years_of_experience', parseFloat(e.target.value) || 0)}
+                                            value={exp.years_of_experience === '' ? '' : exp.years_of_experience}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val === '') {
+                                                    updateExperience(index, 'years_of_experience', '');
+                                                } else {
+                                                    const numVal = parseFloat(val);
+                                                    if (!isNaN(numVal) && numVal >= 0) {
+                                                        updateExperience(index, 'years_of_experience', numVal);
+                                                    }
+                                                }
+                                            }}
                                             className="mt-1"
                                             placeholder="e.g., 3.5"
                                         />
@@ -744,6 +790,9 @@ const JobApplicationForm = () => {
                                         placeholder="Describe your education experience, relevant coursework, achievements, etc."
                                     />
                                 </div>
+                                {errors[`education_${index}_dates`] && (
+                                    <p className="mt-2 text-sm text-red-600">{errors[`education_${index}_dates`]}</p>
+                                )}
                             </div>
                         ))}
                         {errors.educations && <p className="mt-1 text-sm text-red-600">{errors.educations}</p>}

@@ -145,12 +145,16 @@ const JobPostForm: React.FC = () => {
   const [states, setStates] = useState<OptionType[]>([]);
   const [cities, setCities] = useState<OptionType[]>([]);
   const [isClient, setIsClient] = useState(false);
+  const [apiDepartments, setApiDepartments] = useState<OptionType[]>([]);
   const navigate = useNavigate();
 
   // --- State to Trigger Modal and Mark Review as Completed ---
   const [jobPostedModal, setJobPostedModal] = useState(false);
   
   const [reviewCompleted, setReviewCompleted] = useState(false);
+
+  // Loading state to prevent double submit and show loader
+  const [isPosting, setIsPosting] = useState(false);
 
   // --- Custom Form Builder State ---
   const [showCustomForm, setShowCustomForm] = useState(false);
@@ -324,6 +328,8 @@ const JobPostForm: React.FC = () => {
 
   // "Post Job" is now triggered only on Step 3.
   const handlePostJob = async () => {
+    if (isPosting) return; // prevent double submit
+    setIsPosting(true);
     // Convert datetime-local value to ISO string format
     const formatDeadline = (deadline: string | null): string | null => {
       if (!deadline) return null;
@@ -378,6 +384,7 @@ const JobPostForm: React.FC = () => {
       console.error('Failed to post job:', response.message);
       // optionally show error to user
     }
+    setIsPosting(false);
   };
 
 
@@ -391,6 +398,35 @@ const JobPostForm: React.FC = () => {
     []
   );
   const DepartmentOptions = useMemo(() => jobCategories, []);
+
+  // Fetch departments from backend and map to OptionType
+  useEffect(() => {
+    const loadDepartments = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const headers: Record<string, string> = { Accept: 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch('http://localhost:8000/api/departments/', { headers });
+        if (!res.ok) throw new Error(`Failed to fetch departments: ${res.status}`);
+        const data = await res.json();
+
+        // Expecting either an array of { id, name } or { id, department_name }
+        if (Array.isArray(data)) {
+          const opts = data.map((d: any) => {
+            const label = d.name || d.department_name || d.title || String(d.id);
+            return { value: String(d.id), label } as OptionType;
+          });
+          setApiDepartments(opts);
+        }
+      } catch (err) {
+        console.error('Failed to load departments', err);
+        setApiDepartments([]);
+      }
+    };
+
+    loadDepartments();
+  }, []);
 
   const steps = ["General Info", "Application Form", "Review"];
 
@@ -659,7 +695,7 @@ const JobPostForm: React.FC = () => {
               states={states}
               cities={cities}
               countryOptions={countryOptions}
-              DepartmentOptions={DepartmentOptions}
+              DepartmentOptions={apiDepartments}
               selectStyles={selectStyles}
               handleInputChange={handleInputChange}
               handleSelectChange={handleSelectChange}
@@ -733,10 +769,21 @@ const JobPostForm: React.FC = () => {
               <button
                 type="button"
                 onClick={handlePostJob}
-                className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md transition duration-150 ease-in-out"
+                className="inline-flex justify-center items-center gap-2 py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md transition duration-150 ease-in-out"
                 style={{ backgroundColor: "#352F44", color: "#FFFFFF" }}
+                disabled={isPosting}
               >
-                Post Job
+                {isPosting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    Posting...
+                  </>
+                ) : (
+                  'Post Job'
+                )}
               </button>
             )}
           </div>
