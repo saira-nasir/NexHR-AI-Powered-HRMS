@@ -36,6 +36,7 @@ import AttendanceLeave from "@/pages/AttendanceLeave";
 import BankInfo from "@/pages/BankInfo";
 import EmployeeSalaryStructure from "@/pages/EmployeeSalaryStructure";
 import Payslips from "@/pages/Payslips";
+import { HRAttendanceManagement } from "@/pages/HRAttendanceManagement";
 
 // Route Guards
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -172,6 +173,14 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <HiringHandbook />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "hr-attendance-management",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <HRAttendanceManagement />
               </RoleBasedRoute>
             ),
           },

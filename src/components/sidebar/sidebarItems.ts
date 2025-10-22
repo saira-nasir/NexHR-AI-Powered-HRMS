@@ -11,7 +11,8 @@ import {
   CreditCard,
   Building2,
   Receipt,
-  FileText
+  FileText,
+  Clock
 } from 'lucide-react';
 import { SidebarMenuItem } from '../../types/sidebar/types';
 
@@ -63,6 +64,13 @@ export const sidebarItems: SidebarMenuItem[] = [
       { title: 'Checklist', path: '/checklist', allowedRoles: ['HR', 'Admin'] },
       { title: 'Time off', path: '/time-off', allowedRoles: ['HR', 'Admin'] },
     ],
+  },
+  {
+    title: 'HR Attendance Management',
+    path: '/hr-attendance-management',
+    icon: Clock,
+    // Visible to HR and Admin
+    allowedRoles: ['HR', 'Admin'],
   },
   {
     title: 'Hiring',

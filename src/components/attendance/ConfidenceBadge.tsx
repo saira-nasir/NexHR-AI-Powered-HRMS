@@ -9,9 +9,9 @@ interface ConfidenceBadgeProps {
 }
 
 export const ConfidenceBadge: React.FC<ConfidenceBadgeProps> = ({ confidence, showIcon = true, size = 'md' }) => {
-  const getConfidenceConfig = (c: number) => {
-    if (c >= 95) return { color: 'bg-green-500 hover:bg-green-600', Icon: CheckCircle };
-    if (c >= 85) return { color: 'bg-yellow-500 hover:bg-yellow-600', Icon: AlertTriangle };
+  const getConfidenceConfig = (v: number) => {
+    if (v >= 95) return { color: 'bg-green-500 hover:bg-green-600', Icon: CheckCircle };
+    if (v >= 85) return { color: 'bg-yellow-500 hover:bg-yellow-600', Icon: AlertTriangle };
     return { color: 'bg-red-500 hover:bg-red-600', Icon: ShieldAlert };
   };
 

@@ -10,8 +10,8 @@ interface StatusBadgeProps {
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' }) => {
-  const getStatusConfig = (s: AttendanceStatus) => {
-    switch (s) {
+  const getStatusConfig = (v: AttendanceStatus) => {
+    switch (v) {
       case 'present':
         return { label: 'Present', className: 'bg-green-500 hover:bg-green-600', Icon: CheckCircle };
       case 'absent':
@@ -30,7 +30,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
 
   const { label, className, Icon } = getStatusConfig(status);
   const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4';
-  
+
   return (
     <Badge className={className}>
       <Icon className={`${iconSize} mr-1`} />
