@@ -23,6 +23,10 @@ export interface SalaryStructure {
   tax: string;
   effective_from: string; // ISO date
   effective_to?: string | null; // ISO date or null
+  name?: string; // Optional name field for display
+  title?: string; // Alternative name field
+  structure_name?: string; // Another possible name field
+  salary_name?: string; // Another possible name field
 }
 
 export interface Payroll {
@@ -53,6 +57,22 @@ export interface Payroll {
     company?: string;
     department?: string;
   };
+}
+
+// Payload shape for creating a Payroll via POST /payroll/payrolls/
+// Matches backend expectations and allows sending computed numeric fields.
+export interface CreatePayrollPayload {
+  employee: number;
+  salary_structure?: number | null;
+  period_start: string; // YYYY-MM-DD
+  period_end: string;   // YYYY-MM-DD
+  gross_salary?: string | number;
+  total_deductions?: string | number;
+  net_salary?: string | number;
+  tax_amount?: string | number;
+  statutory_deductions?: string | number;
+  payment_status?: "PENDING" | "PAID" | "FAILED"; // default PENDING
+  paid_on?: string | null;
 }
 
 export interface Payslip {
@@ -191,7 +211,7 @@ const payrollService = {
     const { data } = await api.get<Payroll>(`${BASE}/payrolls/${id}/`);
     return data;
   },
-  createPayroll: async (payload: Omit<Payroll, "id" | "gross_salary" | "total_deductions" | "net_salary" | "payment_status" | "paid_on">) => {
+  createPayroll: async (payload: CreatePayrollPayload) => {
     const { data } = await api.post<Payroll>(`${BASE}/payrolls/`, payload);
     return data;
   },
@@ -245,70 +265,31 @@ const payrollService = {
     return data;
   },
 
-  // Stripe Checkout
+  // Stripe Checkout - Using correct backend endpoints
   createCheckoutSession: async (payrollId: number) => {
-    // Backend may expose the checkout creation endpoint in multiple ways
-    // depending on backend routing. Try the most likely endpoints in order
-    // so the frontend works across deployments.
-    const tries = [
-      `${BASE}/payrolls/${payrollId}/create-checkout/`, // explicit action on payrolls
-      `${BASE}/${payrollId}/`, // backend's create_checkout_session registered at base/<id>/ in some setups
-      `${BASE}/checkout/${payrollId}/`, // older/alternate path
-    ];
-
-    // local helper removed - use `extractHttpStatus` above
-
-    for (const url of tries) {
-      try {
-        const { data } = await api.post<StripeCheckoutResponse>(url);
-        if (data && data.url) return data;
-      } catch (err: unknown) {
-  const status = extractHttpStatus(err);
-        if (status === 404) continue;
-        throw err;
-      }
+    try {
+      console.log(`Creating checkout session for payroll ${payrollId}...`);
+      const { data } = await api.post<StripeCheckoutResponse>(`${BASE}/create-checkout-session/${payrollId}/`);
+      console.log('Checkout session created:', data);
+      return data;
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      throw error;
     }
-
-    throw new Error('Checkout creation endpoint not found on server');
   },
 
   // Payment confirmation and status update
   confirmPayment: async (payrollId: number, sessionId?: string) => {
-    // Preferred confirm endpoint (provided in backend API list)
-    const prefer = [`${BASE}/payrolls/${payrollId}/confirm-payment/`, `${BASE}/checkout/${payrollId}/confirm/`];
-    for (const url of prefer) {
-      try {
-        const payload = sessionId ? { session_id: sessionId } : {};
-        // Explicit debug log so network/console clearly shows what we're sending
-        console.log('Confirm payment request', { url, payload });
-        const { data } = await api.post<Payroll>(url, payload);
-        return data;
-      } catch (err: unknown) {
-  const status = extractHttpStatus(err);
-        // If endpoint not found try the next candidate
-        if (status === 404) continue;
-
-        // If backend returned validation errors (400) attach them to the error
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const e = err as any;
-          if (e?.response?.data) {
-            // add a serverErrors property to help callers inspect details
-            (err as any).serverErrors = e.response.data;
-            console.error('Confirm payment failed with server errors:', e.response.data);
-          }
-        } catch (e) {
-          // ignore
-        }
-
-        throw err;
-      }
+    try {
+      console.log(`Confirming payment for payroll ${payrollId}...`);
+      const payload = sessionId ? { session_id: sessionId } : {};
+      const { data } = await api.post<Payroll>(`${BASE}/payrolls/${payrollId}/confirm-payment/`, payload);
+      console.log('Payment confirmed:', data);
+      return data;
+    } catch (error) {
+      console.error('Error confirming payment:', error);
+      throw error;
     }
-
-    // If confirm endpoints are webhook-only or not available, fetch payroll
-    // detail so the caller can refresh UI state. This is non-fatal.
-    const payroll = await api.get<Payroll>(`${BASE}/payrolls/${payrollId}/`);
-    return payroll.data;
   },
 
   // Mark payroll as paid (for manual confirmation if needed)

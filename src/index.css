@@ -168,6 +168,31 @@
   .sidebar-link-inactive {
     @apply text-sidebar-foreground hover:bg-sidebar-accent;
   }
+
+  /* Gradient backgrounds */
+  .bg-gradient-primary {
+    @apply bg-gradient-to-r from-primary to-primary/80;
+  }
+
+  .bg-gradient-hero {
+    @apply bg-gradient-to-br from-primary/10 via-primary/5 to-primary/10;
+  }
+
+  /* Animations */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 @layer utilities {

@@ -29,6 +29,8 @@ import { employeeService, Employee } from '@/services/employeeService';
 import { useToast } from '@/hooks/use-toast';
 import { usePaymentConfirmation } from '@/hooks/usePaymentConfirmation';
 import PayrollPreviewModal from '@/components/financeDashboard/PayrollPreviewModal';
+import PayrollCreateModal from '@/components/financeDashboard/PayrollCreateModal';
+import PayrollEditModal from '@/components/financeDashboard/PayrollEditModal';
 
 type EmployeeMap = Record<number, { name: string; email?: string; department?: string }>;
 
@@ -44,6 +46,9 @@ const PayrollPage: React.FC = () => {
   const { isConfirming } = usePaymentConfirmation();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewPayrollId, setPreviewPayrollId] = useState<number | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editPayrollId, setEditPayrollId] = useState<number | null>(null);
   // Inspect JSON UI removed per UX decision
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'ALL' | 'PENDING' | 'PAID' | 'FAILED'>('ALL');
@@ -94,10 +99,9 @@ const PayrollPage: React.FC = () => {
   const handlePayPayroll = async (payrollId: number) => {
     try {
       const session = await payrollService.createCheckoutSession(payrollId);
+      
       if (session.url) {
-        // Persist payroll id locally before redirecting to Stripe so we can
-        // recover it after Stripe redirects back (useful when success_url
-        // isn't set to include payroll_id).
+        // Persist payroll id locally before redirecting to Stripe
         try {
           localStorage.setItem('nexhr.pending_payroll', payrollId.toString());
         } catch (err) {
@@ -105,6 +109,8 @@ const PayrollPage: React.FC = () => {
         }
         // Redirect to Stripe-hosted checkout
         window.location.href = session.url;
+      } else {
+        throw new Error('No checkout URL received from server');
       }
     } catch (e: any) {
       toast({ title: 'Checkout failed', description: e?.message || 'Please try again.', variant: 'destructive' });
@@ -137,9 +143,12 @@ const PayrollPage: React.FC = () => {
       if (pendingPayrolls.length === 0) return;
       const first = pendingPayrolls[0];
       const session = await payrollService.createCheckoutSession(first.id);
+      
       if (session.url) {
         try { localStorage.setItem('nexhr.pending_payroll', first.id.toString()); } catch {};
         window.location.href = session.url;
+      } else {
+        throw new Error('No checkout URL received from server');
       }
     } catch (e: any) {
       toast({ title: 'Checkout failed', description: e?.message || 'Please try again.', variant: 'destructive' });
@@ -371,7 +380,7 @@ const PayrollPage: React.FC = () => {
       console.log('Employee data structure:', emps.map(e => ({ id: e.id, name: e.name, fname: e.fname, lname: e.lname, email: e.email })));
       console.log('Employee data length:', emps.length);
       console.log('Payroll data length:', pr.length);
-      console.log('Salary structures:', ss);
+      console.log('Salary structures:', salaryStructures);
       
       // Debug specific employee ID 8
       const employee8 = emps.find(e => e.id === 8);
@@ -422,7 +431,6 @@ const PayrollPage: React.FC = () => {
 
       setPayrolls(uniquePayrolls);
       setPayslips(ps);
-      setSalaryStructures(ss);
 
       // Build employee map with proper name resolution
       const map: EmployeeMap = {};
@@ -590,9 +598,9 @@ const PayrollPage: React.FC = () => {
               <option>November 2024</option>
               <option>October 2024</option>
             </select>
-            <Button onClick={handlePreparePayroll} disabled={loading} className="cursor-pointer">
+            <Button onClick={() => setCreateOpen(true)} disabled={loading} className="cursor-pointer">
               <RefreshCw className="w-4 h-4 mr-2" />
-              Prepare Payroll
+              Create Payroll
             </Button>
           </div>
         </div>
@@ -1014,6 +1022,17 @@ const PayrollPage: React.FC = () => {
                                     Paid
                                   </Badge>
                                 )}
+
+                                {p.payment_status === 'PENDING' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-gray-700 hover:text-gray-900 border-gray-200 text-xs font-medium bg-transparent flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105"
+                                    onClick={() => { setEditPayrollId(p.id); setEditOpen(true); }}
+                                  >
+                                    Edit
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1351,6 +1370,22 @@ const PayrollPage: React.FC = () => {
         payrollId={previewPayrollId}
         payrollData={previewPayrollId ? getPayrollData(previewPayrollId) : null}
         onRecalculate={async () => { await loadData(); }}
+      />
+
+
+      <PayrollCreateModal
+        isOpen={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSuccess={async () => { 
+          await loadData(); 
+        }}
+      />
+
+      <PayrollEditModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        payroll={editPayrollId ? getPayrollData(editPayrollId) : null}
+        onUpdated={async () => { await loadData(); }}
       />
 
       {/* Inspect dialog removed per UX decision */}

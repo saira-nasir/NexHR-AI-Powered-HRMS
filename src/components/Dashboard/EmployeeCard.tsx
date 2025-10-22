@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSelector } from 'react-redux';
 import { Phone, Mail, BarChart2 } from 'lucide-react';
+import { getUserRole } from '@/utils/roleUtils';
 
 const EmployeeCard: React.FC = () => {
   const user = useSelector((state: any) => state.auth.user);
@@ -18,6 +19,9 @@ const EmployeeCard: React.FC = () => {
   const statusText = typeof rawStatus === 'string' && rawStatus.length > 0
     ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)
     : 'Active';
+  
+  // Get user role using the utility function
+  const userRole = getUserRole(user);
 
   // Hardcode the avatar URL for every user
   const employee = {
@@ -43,7 +47,7 @@ const EmployeeCard: React.FC = () => {
       <div className="p-5 flex-1 flex flex-col">
         <div className="text-center mb-6">
           <h3 className="text-xl font-bold">{employee.name}</h3>
-          <p className="text-muted-foreground text-sm">{department}</p>
+          <p className="text-muted-foreground text-sm">{userRole}</p>
         </div>
 
         <div className="flex space-x-3 justify-center mb-6">
