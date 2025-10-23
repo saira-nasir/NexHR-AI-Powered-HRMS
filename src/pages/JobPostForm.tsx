@@ -13,7 +13,6 @@ import { useNavigate } from 'react-router-dom';
 
 import {
   countryData,
-  jobCategories,
   OptionType,
 } from "../data/formData";
 
@@ -397,7 +396,6 @@ const JobPostForm: React.FC = () => {
       })),
     []
   );
-  const DepartmentOptions = useMemo(() => jobCategories, []);
 
   // Fetch departments from backend and map to OptionType
   useEffect(() => {
@@ -407,20 +405,42 @@ const JobPostForm: React.FC = () => {
         const headers: Record<string, string> = { Accept: 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch('http://localhost:8000/api/departments/', { headers });
-        if (!res.ok) throw new Error(`Failed to fetch departments: ${res.status}`);
+        const baseApi = import.meta.env.VITE_API_URL 
+          ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '') 
+          : 'http://127.0.0.1:8000/api';
+        const url = `${baseApi}/departments/`;
+
+        const res = await fetch(url, { headers });
+        if (!res.ok) {
+          console.error(`Failed to fetch departments: ${res.status}`);
+          setApiDepartments([]);
+          return;
+        }
         const data = await res.json();
 
-        // Expecting either an array of { id, name } or { id, department_name }
-        if (Array.isArray(data)) {
+        // Handle response format: { departments: ["name1", "name2", ...] }
+        if (data.departments && Array.isArray(data.departments)) {
+          const opts = data.departments.map((deptName: string, index: number) => ({
+            value: deptName, // Use department name as value
+            label: deptName  // Use department name as label
+          }));
+          setApiDepartments(opts);
+          console.log(`Loaded ${opts.length} departments from backend`);
+        } else if (Array.isArray(data)) {
+          // Fallback: if response is directly an array
           const opts = data.map((d: any) => {
-            const label = d.name || d.department_name || d.title || String(d.id);
-            return { value: String(d.id), label } as OptionType;
+            const label = d.name || d.department_name || d.title || String(d);
+            const value = d.id ? String(d.id) : String(d);
+            return { value, label } as OptionType;
           });
           setApiDepartments(opts);
+          console.log(`Loaded ${opts.length} departments from backend`);
+        } else {
+          console.warn('Unexpected departments API response format:', data);
+          setApiDepartments([]);
         }
       } catch (err) {
-        console.error('Failed to load departments', err);
+        console.error('Failed to load departments:', err);
         setApiDepartments([]);
       }
     };
