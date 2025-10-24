@@ -243,7 +243,7 @@ export const routes: RouteObject[] = [
           {
             path: "attendance-leave",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin"]}>
+              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
                 <AttendanceLeave />
               </RoleBasedRoute>
             ),

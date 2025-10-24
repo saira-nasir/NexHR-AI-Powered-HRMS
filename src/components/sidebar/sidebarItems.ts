@@ -26,7 +26,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Attendance & Leave',
     path: '/attendance-leave',
     icon: Calendar,
-    allowedRoles: ['Employee'],
+    allowedRoles: ['Employee', 'HR', 'Admin', 'Finance Manager'],
   },
   {
     title: 'Loan & Expense',

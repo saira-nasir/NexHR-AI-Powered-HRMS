@@ -70,7 +70,13 @@ const AttendanceLeave: React.FC = () => {
   useEffect(() => {
     const fetchAttendance = async () => {
       try {
-        const data = await apiGet('/payroll/attendance/');
+        const userId = getUserId();
+        if (!userId) {
+          toast.error('User not identified. Please log in again.');
+          setAttendanceLoading(false);
+          return;
+        }
+        const data = await apiGet(`/payroll/attendance/?employee=${userId}`);
         setAttendance(data);
       } catch (error) {
         toast.error('Failed to fetch attendance records');
@@ -86,7 +92,13 @@ const AttendanceLeave: React.FC = () => {
   useEffect(() => {
     const fetchLeaves = async () => {
       try {
-        const data = await apiGet('/payroll/leaves/');
+        const userId = getUserId();
+        if (!userId) {
+          toast.error('User not identified. Please log in again.');
+          setLeavesLoading(false);
+          return;
+        }
+        const data = await apiGet(`/payroll/leaves/?employee=${userId}`);
         setLeaves(data);
       } catch (error) {
         toast.error('Failed to fetch leaves');
@@ -110,8 +122,8 @@ const AttendanceLeave: React.FC = () => {
       toast.success('Leave application submitted successfully');
       setOpen(false);
       setFormData({ leave_type: 'Casual', from_date: '', to_date: '' });
-      // Refresh leaves data
-      const data = await apiGet('/payroll/leaves/');
+      // Refresh leaves data for current user only
+      const data = await apiGet(`/payroll/leaves/?employee=${employee}`);
       setLeaves(data);
     } catch (error) {
       toast.error('Failed to submit leave application');
