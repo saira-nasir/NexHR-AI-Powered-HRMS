@@ -1,44 +1,44 @@
-import api from '@/lib/api';
+// src/services/employeeService.ts
+import api from "@/lib/api";
 
 export interface Employee {
-    id: number;
-    fname?: string;
-    lname?: string;
-    first_name?: string;
-    last_name?: string;
-    firstName?: string;
-    lastName?: string;
-    email: string;
-    phone?: string;
-    phone_number?: string;
-    mobile?: string;
-    company?: string;
-    department?: string;
-    branch?: string;
-    // Additional fields that might come from different endpoints
-    name?: string;
-    username?: string;
-    is_active?: boolean;
-    is_verified?: boolean;
+  id: number;
+  fname?: string;
+  lname?: string;
+  first_name?: string;
+  last_name?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  phone_number?: string;
+  mobile?: string;
+  company?: string;
+  department?: string;
+  branch?: string;
+  name?: string;
+  username?: string;
+  is_active?: boolean;
+  is_verified?: boolean;
 }
 
-// Normalize various backend user shapes into the Employee interface
 const normalizeEmployee = (raw: any): Employee => {
-    if (!raw) return raw as Employee;
+  if (!raw) return raw as Employee;
 
-    const id = raw.id ?? raw.pk ?? raw.user_id ?? raw.uid;
-    const email = raw.email || raw.user_email || raw.username || '';
-    const phone = raw.phone || raw.phone_number || raw.mobile || '';
+  const id = raw.id ?? raw.pk ?? raw.user_id ?? raw.uid ?? raw.employee_id;
+  const email = raw.email || raw.user_email || raw.username || "";
+  const phone = raw.phone || raw.phone_number || raw.mobile || "";
 
-    // Name resolution: prefer 'name', then fname/lname combos, then username
-    const fname = raw.fname || raw.first_name || raw.firstName || '';
-    const lname = raw.lname || raw.last_name || raw.lastName || '';
-    const name = raw.name || `${fname} ${lname}`.trim() || raw.username;
+  const fname = raw.fname || raw.first_name || raw.firstName || "";
+  const lname = raw.lname || raw.last_name || raw.lastName || "";
+  const name = raw.name || `${fname} ${lname}`.trim() || raw.username || "";
 
-    const company = raw.company || (raw.company && typeof raw.company === 'object' ? raw.company.name : raw.company) || raw.company_name;
-    const department = raw.department || raw.dept || raw.department_name;
-    const branch = raw.branch || raw.branch_name;
+  const company =
+    raw.company && typeof raw.company === "object"
+      ? raw.company.name
+      : raw.company || raw.company_name;
 
+<<<<<<< Updated upstream
     return {
         id: Number(id),
         fname: fname || 'Unknown',
@@ -236,10 +236,51 @@ export const probeEmployeeEndpoints = async () => {
         '/company-users/',
         '/payroll/attendance/',
         '/payroll/bank-info/',
+=======
+  const department = raw.department || raw.dept || raw.department_name;
+  const branch = raw.branch || raw.branch_name;
+
+  return {
+    id: Number(id),
+    fname: fname || undefined,
+    lname: lname || undefined,
+    first_name: raw.first_name,
+    last_name: raw.last_name,
+    firstName: raw.firstName,
+    lastName: raw.lastName,
+    email,
+    phone,
+    phone_number: raw.phone_number,
+    mobile: raw.mobile,
+    company: typeof company === "string" ? company : company?.name || undefined,
+    department,
+    branch,
+    name,
+    username: raw.username,
+    is_active: raw.is_active,
+    is_verified: raw.is_verified,
+  } as Employee;
+};
+
+export const employeeService = {
+  async getEmployees(): Promise<Employee[]> {
+    const endpoints = [
+      "/company-users/",
+      "/users/",
+      "/employees/",
+      "/accounts_user/",
+      "/accounts/users/",
+      "/accounts/users",
+      "/accounts/user/",
+      "/accounts/",
+      "/auth/users/",
+      "/auth/users",
+      "/auth/",
+>>>>>>> Stashed changes
     ];
 
-    const results: Array<any> = [];
     for (const endpoint of endpoints) {
+<<<<<<< Updated upstream
         try {
             const res = await api.get(endpoint);
             const data = res.data;
@@ -259,17 +300,107 @@ export const probeEmployeeEndpoints = async () => {
                 status: err?.response?.status, 
                 error: err?.response?.data || err.message 
             });
+=======
+      try {
+        console.log(`employeeService: trying ${endpoint}`);
+        const res = await api.get(endpoint);
+        let data: any = res.data;
+        // support DRF paginated results
+        if (data && typeof data === "object" && Array.isArray(data.results)) {
+          data = data.results;
+>>>>>>> Stashed changes
         }
+        if (Array.isArray(data)) {
+          const normalized = data.map(normalizeEmployee);
+          console.log(`employeeService: success ${endpoint}, found ${normalized.length}`);
+          return normalized;
+        }
+        // if endpoint returned object single user, skip
+        if (data && typeof data === "object" && (data.id || data.pk)) {
+          return [normalizeEmployee(data)];
+        }
+      } catch (err: any) {
+        console.warn(`employeeService: ${endpoint} failed`, err?.response?.status, err?.response?.data || err.message);
+        continue;
+      }
     }
-    return results;
+
+    throw new Error("All employee endpoints failed");
+  },
+
+  async getEmployee(id: number): Promise<Employee | null> {
+    const endpoints = [
+      `/company-users/${id}/`,
+      `/users/${id}/`,
+      `/employees/${id}/`,
+      `/accounts_user/${id}/`,
+      `/accounts/users/${id}/`,
+      `/accounts/${id}/`,
+      `/auth/users/${id}/`,
+      `/auth/users/${id}`,
+      ];
+
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`employeeService.getEmployee: trying ${endpoint}`);
+       const res = await api.get(`/auth/users/${id}/`);
+        const data = res.data;
+        if (data && (data.id === id || data.pk === id)) {
+          return normalizeEmployee(data);
+        }
+        if (data && typeof data === "object" && Array.isArray(data.results)) {
+          const found = data.results.find((d: any) => d.id === id || d.pk === id);
+          if (found) return normalizeEmployee(found);
+        }
+      } catch (err: any) {
+        console.warn(`employeeService.getEmployee: ${endpoint} failed`, err?.response?.status);
+        continue;
+      }
+    }
+
+    return null;
+  },
+
+  async importEmployees(file: File): Promise<{ success: boolean; message?: string }> {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await api.post("/import-employees/", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return { success: true, message: res.data?.detail || "Imported" };
+    } catch (err: any) {
+      console.error("employeeService.importEmployees failed", err?.response?.data || err.message);
+      return { success: false, message: err?.response?.data?.detail || "Failed to import" };
+    }
+  },
 };
 
-// Attach to window in development for quick manual probing from browser console
-try {
-    if (typeof window !== 'undefined' && import.meta.env.DEV) {
-        // @ts-ignore
-        window.__employeeProbe = probeEmployeeEndpoints;
+// probe helper
+export const probeEmployeeEndpoints = async () => {
+  const endpoints = [
+    "/company-users/",
+    "/users/",
+    "/employees/",
+    "/accounts_user/",
+    "/accounts/users/",
+    "/accounts/users",
+    "/accounts/user/",
+    "/accounts/",
+    "/auth/users/",
+    "/auth/users",
+    "/auth/",
+  ];
+  const results: any[] = [];
+  for (const ep of endpoints) {
+    try {
+      const res = await api.get(ep);
+      results.push({ endpoint: ep, ok: true, status: res.status, data: res.data });
+    } catch (err: any) {
+      results.push({ endpoint: ep, ok: false, status: err?.response?.status, error: err?.response?.data || err.message });
     }
-} catch (e) {
-    // ignore in non-browser environments
-}
+  }
+  return results;
+};
+
+export default employeeService;

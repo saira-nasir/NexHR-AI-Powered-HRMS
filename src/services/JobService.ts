@@ -1,7 +1,8 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = "http://127.0.0.1:8000/api";
 
+// Schema for applicant fields visibility/config
 export interface JobSchema {
   name: boolean;
   email: boolean;
@@ -16,6 +17,7 @@ export interface JobSchema {
   skills: boolean;
 }
 
+// Expected job post structure
 export interface JobPostData {
   job_title: string | null;
   department: string | null;
@@ -36,16 +38,18 @@ export interface JobPostData {
 
 class JobService {
   private getAuthHeader() {
-    const access_token = localStorage.getItem('access_token');
+    const access_token = localStorage.getItem("access_token");
     return access_token
       ? {
           Authorization: `Bearer ${access_token}`,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         }
-      : {};
+      : { "Content-Type": "application/json" };
   }
 
-  async postJob(jobData: JobPostData): Promise<{ success: boolean; message?: string; jobId?: string }> {
+  async postJob(
+    jobData: JobPostData
+  ): Promise<{ success: boolean; message?: string; jobId?: string }> {
     try {
       const response = await axios.post(`${API_BASE_URL}/jobs/post/`, jobData, {
         headers: this.getAuthHeader(),
@@ -55,19 +59,16 @@ class JobService {
         return {
           success: true,
           jobId: response.data.job_id,
-          message: 'Job posted successfully',
+          message: "Job posted successfully",
         };
       }
 
-      return {
-        success: false,
-        message: 'Failed to post job',
-      };
+      return { success: false, message: "Failed to post job" };
     } catch (error: any) {
-      console.error('Error posting job:', error.response?.data || error.message);
+      console.error("Error posting job:", error.response?.data || error.message);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to post job',
+        message: error.response?.data?.message || "Failed to post job",
       };
     }
   }

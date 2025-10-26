@@ -160,121 +160,137 @@ const PayrollPage: React.FC = () => {
   };
 
   const handleGeneratePayslips = async () => {
-    try {
-      const selected = payrolls.filter(p => selectedEmployees.includes(p.employee));
-      if (selected.length === 0) {
-        toast({ title: 'Select employees first', description: 'Choose one or more employees to generate payslips for.' });
-        return;
-      }
-
-      const paidTargets = selected.filter(p => p.payment_status === 'PAID');
-      const skipped = selected.filter(p => p.payment_status !== 'PAID');
-
-      if (paidTargets.length === 0) {
-        toast({ title: 'No paid payrolls selected', description: 'Payslips can only be generated for payrolls with status Paid.' });
-        return;
-      }
-
-      if (skipped.length > 0) {
-        toast({ title: 'Some payrolls were skipped', description: `${skipped.length} selected payroll(s) are not paid and were skipped.` });
-      }
-
-      // Generate payslips for all paid selected employees
-      for (const p of paidTargets) {
-        try {
-          // First generate the payslip record if it doesn't exist and get its data
-          const payslip = await payrollService.generatePayslip(p.id);
-
-          // Prefer direct file URL if backend returned one; otherwise fall back to Download action
-          let blob: Blob;
-          if (payslip?.payslip_pdf_url) {
-            blob = await payrollService.downloadByUrl(payslip.payslip_pdf_url as string);
-          } else {
-            blob = await payrollService.downloadPayslip(p.id);
-          }
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `payslip_${p.id}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
-        } catch (error) {
-          console.error(`Failed to generate payslip for payroll ${p.id}:`, error);
-        }
-      }
-      toast({ title: 'Payslips generated', description: `${paidTargets.length} file(s) downloaded.` });
-      await loadData(); // Refresh data to show updated payslips
-    } catch (e: any) {
-      toast({ title: 'Generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+  try {
+    const selected = payrolls.filter(p => selectedEmployees.includes(p.employee));
+    if (selected.length === 0) {
+      toast({ title: 'Select employees first', description: 'Choose one or more employees to generate payslips for.' });
+      return;
     }
-  };
 
-  const handleDownloadAllPayslips = async () => {
-    try {
-      const paidPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
-      if (paidPayrolls.length === 0) {
-        toast({ title: 'No paid payrolls', description: 'No paid payrolls available for download.' });
-        return;
-      }
-      
-      for (const p of paidPayrolls) {
-        try {
-          // First generate the payslip record if it doesn't exist and get its data
-          const payslip = await payrollService.generatePayslip(p.id);
+    const paidTargets = selected.filter(p => p.payment_status === 'PAID');
+    const skipped = selected.filter(p => p.payment_status !== 'PAID');
 
-          // Prefer direct file URL if backend returned one; otherwise fall back to Download action
-          let blob: Blob;
-          if (payslip?.payslip_pdf_url) {
-            blob = await payrollService.downloadByUrl(payslip.payslip_pdf_url as string);
-          } else {
-            blob = await payrollService.downloadPayslip(p.id);
-          }
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `payslip_${p.id}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
-        } catch (error) {
-          console.error(`Failed to download payslip for payroll ${p.id}:`, error);
-        }
-      }
-      toast({ title: 'All payslips downloaded', description: `${paidPayrolls.length} file(s) downloaded.` });
-      await loadData(); // Refresh data to show updated payslips
-    } catch (e: any) {
-      toast({ title: 'Download failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    if (paidTargets.length === 0) {
+      toast({ title: 'No paid payrolls selected', description: 'Payslips can only be generated for payrolls with status Paid.' });
+      return;
     }
-  };
 
-  const handleBulkGeneratePayslips = async () => {
-    try {
-      const allPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
-      if (allPayrolls.length === 0) {
-        toast({ title: 'No paid payrolls', description: 'No paid payrolls available for bulk generation.' });
-        return;
-      }
-      
-      toast({ title: 'Bulk generation started', description: `Generating payslips for ${allPayrolls.length} employees...` });
-      
-      for (const p of allPayrolls) {
-        try {
-          // Generate payslip record
-          await payrollService.generatePayslip(p.id);
-        } catch (error) {
-          console.error(`Failed to generate payslip for payroll ${p.id}:`, error);
-        }
-      }
-      
-      toast({ title: 'Bulk generation completed', description: `Payslips generated for ${allPayrolls.length} employees.` });
-      await loadData(); // Refresh data to show updated payslips
-    } catch (e: any) {
-      toast({ title: 'Bulk generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    if (skipped.length > 0) {
+      toast({ title: 'Some payrolls were skipped', description: `${skipped.length} selected payroll(s) are not paid and were skipped.` });
     }
-  };
+
+    // Generate payslips for all paid selected employees
+    for (const p of paidTargets) {
+      try {
+        const payslip = await payrollService.generatePayslip(
+          p.id,                         // payrollId
+          p.employee,                   // employeeId
+          p.period_start.slice(0, 7),   // month → "YYYY-MM"
+          Number(p.net_salary)          // netSalary
+        );
+
+        let blob: Blob;
+        if (payslip?.payslip_pdf_url) {
+          blob = await fetch(payslip.payslip_pdf_url as string).then(res => res.blob());
+        } else {
+          blob = await payrollService.downloadPayslip(p.id);
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `payslip_${p.id}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+      } catch (error) {
+        console.error(`Failed to generate payslip for payroll ${p.id}:`, error);
+      }
+    }
+    toast({ title: 'Payslips generated', description: `${paidTargets.length} file(s) downloaded.` });
+    await loadData();
+  } catch (e: any) {
+    toast({ title: 'Generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+  }
+};
+
+
+const handleDownloadAllPayslips = async () => {
+  try {
+    const paidPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
+    if (paidPayrolls.length === 0) {
+      toast({ title: 'No paid payrolls', description: 'No paid payrolls available for download.' });
+      return;
+    }
+    
+    for (const p of paidPayrolls) {
+      try {
+        const payslip = await payrollService.generatePayslip(
+          p.id,
+          p.employee,
+          p.period_start.slice(0, 7),
+          Number(p.net_salary)
+        );
+
+        let blob: Blob;
+        if (payslip?.payslip_pdf_url) {
+          blob = await fetch(payslip.payslip_pdf_url as string).then(res => res.blob());
+        } else {
+          blob = await payrollService.downloadPayslip(p.id);
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `payslip_${p.id}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+      } catch (error) {
+        console.error(`Failed to download payslip for payroll ${p.id}:`, error);
+      }
+    }
+    toast({ title: 'All payslips downloaded', description: `${paidPayrolls.length} file(s) downloaded.` });
+    await loadData();
+  } catch (e: any) {
+    toast({ title: 'Download failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+  }
+};
+
+
+const handleBulkGeneratePayslips = async () => {
+  try {
+    const allPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
+    if (allPayrolls.length === 0) {
+      toast({ title: 'No paid payrolls', description: 'No paid payrolls available for bulk generation.' });
+      return;
+    }
+    
+    toast({ title: 'Bulk generation started', description: `Generating payslips for ${allPayrolls.length} employees...` });
+    
+    for (const p of allPayrolls) {
+      try {
+        await payrollService.generatePayslip(
+          p.id,
+          p.employee,
+          p.period_start.slice(0, 7),
+          Number(p.net_salary)
+        );
+      } catch (error) {
+        console.error(`Failed to generate payslip for payroll ${p.id}:`, error);
+      }
+    }
+    
+    toast({ title: 'Bulk generation completed', description: `Payslips generated for ${allPayrolls.length} employees.` });
+    await loadData();
+  } catch (e: any) {
+    toast({ title: 'Bulk generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+  }
+};
 
   const handlePreviewPayrollRun = async () => {
     try {

@@ -19,7 +19,7 @@ const RegisterPage = () => {
 
   useEffect(() => {
     const loadLottie = async () => {
-      const lottie = await import("lottie-web");
+      const lottie = (await import("lottie-web")).default;
 
       const isMobile = window.innerWidth < 768;
       const container = isMobile

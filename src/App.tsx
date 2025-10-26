@@ -1,15 +1,17 @@
-
+// src/App.tsx
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, useRoutes } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { routes } from "./routes";
+import { routes } from "@/routes";
 import { Provider } from "react-redux";
-import { store } from "./store";
-import { RedirectProvider } from '@/contexts/RedirectContext';
+import { store } from "@/store";
+import { RedirectProvider } from "@/contexts/RedirectContext";
 
+// ✅ New import for Chatbot Context
+import { ChatProvider } from "@/contexts/ChatContext";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,8 +35,11 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <RedirectProvider> {/* Wrap with RedirectProvider */}
-              <Router />
+            <RedirectProvider>
+              {/* 🧠 Wrap all routes inside ChatProvider */}
+              <ChatProvider>
+                <Router />
+              </ChatProvider>
             </RedirectProvider>
           </AuthProvider>
         </BrowserRouter>

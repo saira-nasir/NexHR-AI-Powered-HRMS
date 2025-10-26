@@ -24,7 +24,10 @@ import FinanceDashboard from "@/pages/FinanceDashboard";
 import HiringHandbook from "@/pages/HiringHandbook";
 import Expenses from "@/pages/Expenses";
 import Loans from "@/pages/Loans";
+<<<<<<< Updated upstream
 import LoanExpense from "@/pages/LoanExpense";
+=======
+>>>>>>> Stashed changes
 import BulkPayments from "@/pages/BulkPayments";
 import SalaryStructures from "@/pages/SalaryStructures";
 import TaxManagement from "@/pages/TaxManagement";
@@ -32,10 +35,13 @@ import LinkedInAuth from "@/pages/LinkedInAuth";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import TestModal from "@/pages/TestModal";
 import NotFound from "@/pages/NotFound";
+<<<<<<< Updated upstream
 import AttendanceLeave from "@/pages/AttendanceLeave";
 import BankInfo from "@/pages/BankInfo";
 import EmployeeSalaryStructure from "@/pages/EmployeeSalaryStructure";
 import Payslips from "@/pages/Payslips";
+=======
+>>>>>>> Stashed changes
 
 // Route Guards
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -74,9 +80,12 @@ const PaymentReturn = () => {
   );
 };
 
+<<<<<<< Updated upstream
 
 
 
+=======
+>>>>>>> Stashed changes
 // ✅ All Routes
 export const routes: RouteObject[] = [
   {
@@ -229,6 +238,7 @@ export const routes: RouteObject[] = [
             ),
           },
 
+<<<<<<< Updated upstream
           // Employee Routes
           { path: "employee-dashboard", element: <Navigate to="/dashboard" replace /> },
           {
@@ -271,6 +281,10 @@ export const routes: RouteObject[] = [
               </RoleBasedRoute>
             ),
           },
+=======
+          // Employee Redirect
+          { path: "employee-dashboard", element: <Navigate to="/dashboard" replace /> },
+>>>>>>> Stashed changes
 
           // Common routes
           { path: "settings", element: <PlaceholderPage title="Settings" /> },

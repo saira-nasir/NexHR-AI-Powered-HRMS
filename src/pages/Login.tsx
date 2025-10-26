@@ -36,7 +36,8 @@ const LoginPage = () => {
 
   useEffect(() => {
     const loadLottie = async () => {
-      const lottie = await import("lottie-web");
+      const lottieModule = await import("lottie-web");
+      const lottie = lottieModule.default;
 
       const isMobile = window.innerWidth < 768;
       const container = isMobile
@@ -74,6 +75,7 @@ const LoginPage = () => {
       });
     }
   };
+  
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
