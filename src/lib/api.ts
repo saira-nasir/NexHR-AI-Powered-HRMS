@@ -1,6 +1,5 @@
 // src/lib/api.ts
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
-<<<<<<< Updated upstream
 import { toast } from "@/components/ui/use-toast";
 
 // Use environment variable or fallback with full URL for development
@@ -16,17 +15,10 @@ const api = axios.create({
   withCredentials: false, 
   // Add timeout to prevent long hanging requests (from File 2)
   timeout: 15000, // Increased timeout for slower connections
-=======
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL, // e.g. http://127.0.0.1:8000/api
-  withCredentials: false,
->>>>>>> Stashed changes
 });
 
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-<<<<<<< Updated upstream
     const token = localStorage.getItem('access_token');
     if (token) {
       // ✅ Safer header assignment (inspired by File 1's check)
@@ -49,29 +41,9 @@ api.interceptors.request.use(
     console.error('API Request Error:', error);
     return Promise.reject(error);
   }
-=======
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      // ✅ Safely cast to any to avoid AxiosHeader type mismatch
-      (config.headers as any) = (config.headers as any) || {};
-      (config.headers as any).Authorization = `Bearer ${token}`;
-    }
-
-    console.log(
-      "➡️ API Request:",
-      config.method?.toUpperCase(),
-      `${config.baseURL}${config.url}`,
-      config
-    );
-
-    return config;
-  },
-  (error: AxiosError) => Promise.reject(error)
->>>>>>> Stashed changes
 );
 
 api.interceptors.response.use(
-<<<<<<< Updated upstream
   (response: AxiosResponse) => {
     console.log(`API Response from ${response.config.url}:`, {
       status: response.status,
@@ -87,16 +59,9 @@ api.interceptors.response.use(
     console.error('❌ API Response Error:', {
       url: originalRequest?.url,
       method: originalRequest?.method,
-=======
-  (response: AxiosResponse) => response,
-  (error: AxiosError) => {
-    console.error("❌ API Error:", {
-      url: error.config?.url,
->>>>>>> Stashed changes
       status: error.response?.status,
       data: error.response?.data,
     });
-<<<<<<< Updated upstream
     try {
       console.error('API Response Error (stringified):', JSON.stringify(error.response?.data, null, 2));
     } catch (e) {
@@ -167,13 +132,10 @@ api.interceptors.response.use(
       }
     }
     
-=======
->>>>>>> Stashed changes
     return Promise.reject(error);
   }
 );
 
-<<<<<<< Updated upstream
 // Helper function to handle API errors in a consistent way
 export const handleApiError = (error: any, defaultMessage = "An unexpected error occurred") => {
   console.error('API error:', error);
@@ -241,6 +203,3 @@ export const apiDelete = async (url: string) => {
 };
 
 export default api;
-=======
-export default api;
->>>>>>> Stashed changes

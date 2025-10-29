@@ -27,17 +27,12 @@ export interface SalaryStructure {
   allowances: string;
   deductions: string;
   tax: string;
-<<<<<<< Updated upstream
   effective_from: string; // ISO date
   effective_to?: string | null; // ISO date or null
   name?: string; // Optional name field for display
   title?: string; // Alternative name field
   structure_name?: string; // Another possible name field
   salary_name?: string; // Another possible name field
-=======
-  effective_from: string;
-  effective_to?: string | null;
->>>>>>> Stashed changes
 }
 
 export interface Payroll {
@@ -235,12 +230,7 @@ const payrollService = {
     const { data } = await api.get<Payroll>(`${BASE}/payrolls/${id}/`);
     return data;
   },
-<<<<<<< Updated upstream
   createPayroll: async (payload: CreatePayrollPayload) => {
-=======
-
-  createPayroll: async (payload: Omit<Payroll, "id" | "gross_salary" | "total_deductions" | "net_salary" | "payment_status" | "paid_on">) => {
->>>>>>> Stashed changes
     const { data } = await api.post<Payroll>(`${BASE}/payrolls/`, payload);
     return data;
   },
@@ -307,7 +297,6 @@ const payrollService = {
     return data;
   },
 
-<<<<<<< Updated upstream
   // Leaves
   listLeaves: async () => {
     const { data } = await api.get<LeaveRecord[]>(`${BASE}/leaves/`);
@@ -333,49 +322,6 @@ const payrollService = {
     }
   },
 
-  // Payment confirmation and status update
-  confirmPayment: async (payrollId: number, sessionId?: string) => {
-    try {
-      console.log(`Confirming payment for payroll ${payrollId}...`);
-      const payload = sessionId ? { session_id: sessionId } : {};
-      const { data } = await api.post<Payroll>(`${BASE}/payrolls/${payrollId}/confirm-payment/`, payload);
-      console.log('Payment confirmed:', data);
-      return data;
-    } catch (error) {
-      console.error('Error confirming payment:', error);
-      throw error;
-    }
-  },
-
-  // Mark payroll as paid (for manual confirmation if needed)
-  markAsPaid: async (payrollId: number) => {
-    const { data } = await api.patch<Payroll>(`${BASE}/payrolls/${payrollId}/`, { 
-      payment_status: 'PAID',
-      paid_on: new Date().toISOString()
-    });
-    return data;
-  },
-
-  // Generate payslip
-  generatePayslip: async (payrollId: number) => {
-    try {
-      console.log('Generating payslip for payroll ID:', payrollId);
-      const payload = {
-        payroll: payrollId,
-        issued_on: new Date().toISOString().split('T')[0]
-      };
-      console.log('Payslip generation payload:', payload);
-      
-      const { data } = await api.post<Payslip>(`${BASE}/payslips/`, payload);
-      console.log('Payslip generation response:', data);
-      return data;
-    } catch (error) {
-      console.error('Payslip generation error:', error);
-      console.error('Error response:', error.response?.data);
-      throw error;
-    }
-  },
-
   // Download payslip as PDF stream (uses action on PayrollViewSet)
   downloadPayslip: async (payrollId: number) => {
     const response = await api.get(`${BASE}/payrolls/${payrollId}/download-payslip/`, {
@@ -393,60 +339,6 @@ const payrollService = {
   },
 
   // Tax Brackets
-=======
-  // Download payslip as Blob (tries multiple endpoints)
-  downloadPayslip: async (payrollId: number) => {
-    // try payroll-specific action first (matches many backends)
-    const tries = [
-      `${BASE}/payrolls/${payrollId}/download-payslip/`,
-      `${BASE}/payslips/${payrollId}/download/`,
-      `${BASE}/payslips/${payrollId}/`,
-    ];
-    for (const url of tries) {
-      try {
-        const resp = await api.get(url, { responseType: "blob" });
-        // axios returns Blob in resp.data
-        return resp.data as Blob;
-      } catch (err: unknown) {
-        const status = extractHttpStatus(err);
-        if (status === 404) continue;
-        throw err;
-      }
-    }
-    throw new Error("No download endpoint found for payslip/payroll");
-  },
-
-  // download by any URL (absolute or relative)
-  downloadByUrl: async (url: string) => {
-    const response = await api.get(url, { responseType: "blob" });
-    return response.data as Blob;
-  },
-
-  /* ---------------- Stripe checkout helpers ---------------- */
-  createCheckoutSession: async (payrollId: number) => {
-    // Try multiple URL shapes
-    const tries = [
-      `${BASE}/checkout/${payrollId}/`, // routes/urls earlier
-      `${BASE}/payrolls/${payrollId}/create-checkout/`,
-      `${BASE}/payrolls/${payrollId}/create-checkout-session/`,
-      `${BASE}/${payrollId}/`, // less likely
-    ];
-
-    for (const url of tries) {
-      try {
-        const { data } = await api.post<StripeCheckoutResponse>(url);
-        if (data && data.url) return data;
-      } catch (err: unknown) {
-        const status = extractHttpStatus(err);
-        if (status === 404) continue;
-        throw err;
-      }
-    }
-    throw new Error("Checkout creation endpoint not found on server");
-  },
-
-  /* ---------------- Tax & Statutory ---------------- */
->>>>>>> Stashed changes
   listTaxBrackets: async () => {
     const { data } = await api.get<TaxBracket[]>(`${BASE}/tax-brackets/`);
     return data;
@@ -456,11 +348,7 @@ const payrollService = {
     return data;
   },
 
-  /* ---------------- Notifications ---------------- */
-  listNotifications: async () => {
-    const { data } = await api.get<Notification[]>(`${BASE}/notifications/`);
-    return data;
-  },
+  /* ---------------- Notifications (extended) ---------------- */
   markNotificationAsRead: async (id: number) => {
     const { data } = await api.patch<Notification>(`${BASE}/notifications/${id}/`, { is_read: true });
     return data;

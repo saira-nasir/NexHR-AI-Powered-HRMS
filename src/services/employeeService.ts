@@ -38,27 +38,29 @@ const normalizeEmployee = (raw: any): Employee => {
       ? raw.company.name
       : raw.company || raw.company_name;
 
-<<<<<<< Updated upstream
-    return {
-        id: Number(id),
-        fname: fname || 'Unknown',
-        lname: lname || 'User',
-        first_name: raw.first_name,
-        last_name: raw.last_name,
-        firstName: raw.firstName,
-        lastName: raw.lastName,
-        email,
-        phone,
-        phone_number: raw.phone_number,
-        mobile: raw.mobile,
-        company: typeof company === 'string' ? company : company?.name || undefined,
-        department: department,
-        branch: branch,
-        name: name,
-        username: raw.username,
-        is_active: raw.is_active,
-        is_verified: raw.is_verified,
-    } as Employee;
+  const department = raw.department || raw.dept || raw.department_name;
+  const branch = raw.branch || raw.branch_name;
+
+  return {
+    id: Number(id),
+    fname: fname || 'Unknown',
+    lname: lname || 'User',
+    first_name: raw.first_name,
+    last_name: raw.last_name,
+    firstName: raw.firstName,
+    lastName: raw.lastName,
+    email,
+    phone,
+    phone_number: raw.phone_number,
+    mobile: raw.mobile,
+    company: typeof company === 'string' ? company : company?.name || undefined,
+    department: department,
+    branch: branch,
+    name: name,
+    username: raw.username,
+    is_active: raw.is_active,
+    is_verified: raw.is_verified,
+  } as Employee;
 };
 
 export const employeeService = {
@@ -236,51 +238,10 @@ export const probeEmployeeEndpoints = async () => {
         '/company-users/',
         '/payroll/attendance/',
         '/payroll/bank-info/',
-=======
-  const department = raw.department || raw.dept || raw.department_name;
-  const branch = raw.branch || raw.branch_name;
-
-  return {
-    id: Number(id),
-    fname: fname || undefined,
-    lname: lname || undefined,
-    first_name: raw.first_name,
-    last_name: raw.last_name,
-    firstName: raw.firstName,
-    lastName: raw.lastName,
-    email,
-    phone,
-    phone_number: raw.phone_number,
-    mobile: raw.mobile,
-    company: typeof company === "string" ? company : company?.name || undefined,
-    department,
-    branch,
-    name,
-    username: raw.username,
-    is_active: raw.is_active,
-    is_verified: raw.is_verified,
-  } as Employee;
-};
-
-export const employeeService = {
-  async getEmployees(): Promise<Employee[]> {
-    const endpoints = [
-      "/company-users/",
-      "/users/",
-      "/employees/",
-      "/accounts_user/",
-      "/accounts/users/",
-      "/accounts/users",
-      "/accounts/user/",
-      "/accounts/",
-      "/auth/users/",
-      "/auth/users",
-      "/auth/",
->>>>>>> Stashed changes
     ];
-
+    const results: any[] = [];
+    
     for (const endpoint of endpoints) {
-<<<<<<< Updated upstream
         try {
             const res = await api.get(endpoint);
             const data = res.data;
@@ -300,107 +261,10 @@ export const employeeService = {
                 status: err?.response?.status, 
                 error: err?.response?.data || err.message 
             });
-=======
-      try {
-        console.log(`employeeService: trying ${endpoint}`);
-        const res = await api.get(endpoint);
-        let data: any = res.data;
-        // support DRF paginated results
-        if (data && typeof data === "object" && Array.isArray(data.results)) {
-          data = data.results;
->>>>>>> Stashed changes
         }
-        if (Array.isArray(data)) {
-          const normalized = data.map(normalizeEmployee);
-          console.log(`employeeService: success ${endpoint}, found ${normalized.length}`);
-          return normalized;
-        }
-        // if endpoint returned object single user, skip
-        if (data && typeof data === "object" && (data.id || data.pk)) {
-          return [normalizeEmployee(data)];
-        }
-      } catch (err: any) {
-        console.warn(`employeeService: ${endpoint} failed`, err?.response?.status, err?.response?.data || err.message);
-        continue;
-      }
     }
-
-    throw new Error("All employee endpoints failed");
-  },
-
-  async getEmployee(id: number): Promise<Employee | null> {
-    const endpoints = [
-      `/company-users/${id}/`,
-      `/users/${id}/`,
-      `/employees/${id}/`,
-      `/accounts_user/${id}/`,
-      `/accounts/users/${id}/`,
-      `/accounts/${id}/`,
-      `/auth/users/${id}/`,
-      `/auth/users/${id}`,
-      ];
-
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`employeeService.getEmployee: trying ${endpoint}`);
-       const res = await api.get(`/auth/users/${id}/`);
-        const data = res.data;
-        if (data && (data.id === id || data.pk === id)) {
-          return normalizeEmployee(data);
-        }
-        if (data && typeof data === "object" && Array.isArray(data.results)) {
-          const found = data.results.find((d: any) => d.id === id || d.pk === id);
-          if (found) return normalizeEmployee(found);
-        }
-      } catch (err: any) {
-        console.warn(`employeeService.getEmployee: ${endpoint} failed`, err?.response?.status);
-        continue;
-      }
-    }
-
-    return null;
-  },
-
-  async importEmployees(file: File): Promise<{ success: boolean; message?: string }> {
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await api.post("/import-employees/", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      return { success: true, message: res.data?.detail || "Imported" };
-    } catch (err: any) {
-      console.error("employeeService.importEmployees failed", err?.response?.data || err.message);
-      return { success: false, message: err?.response?.data?.detail || "Failed to import" };
-    }
-  },
-};
-
-// probe helper
-export const probeEmployeeEndpoints = async () => {
-  const endpoints = [
-    "/company-users/",
-    "/users/",
-    "/employees/",
-    "/accounts_user/",
-    "/accounts/users/",
-    "/accounts/users",
-    "/accounts/user/",
-    "/accounts/",
-    "/auth/users/",
-    "/auth/users",
-    "/auth/",
-  ];
-  const results: any[] = [];
-  for (const ep of endpoints) {
-    try {
-      const res = await api.get(ep);
-      results.push({ endpoint: ep, ok: true, status: res.status, data: res.data });
-    } catch (err: any) {
-      results.push({ endpoint: ep, ok: false, status: err?.response?.status, error: err?.response?.data || err.message });
-    }
-  }
-  return results;
+    
+    return results;
 };
 
 export default employeeService;
