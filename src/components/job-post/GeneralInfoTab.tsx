@@ -158,30 +158,37 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
             Department <span className="text-red-500">*</span>
           </label>
           {isClient ? (
-            <Select<OptionType>
-              id="Department"
-              name="Department"
-              options={DepartmentOptions && DepartmentOptions.length > 0 ? DepartmentOptions : [{ value: '', label: 'No departments found — register departments first', isDisabled: true } as any]}
-              value={formData.Department}
-              onChange={(option) => handleSelectChange("Department", option)}
-              classNamePrefix="select"
-              placeholder="Select Department..."
-              isClearable
-              isDisabled={!(DepartmentOptions && DepartmentOptions.length > 0)}
-              required
-              styles={{
-                ...selectStyles,
-                control: (base) => ({
-                  ...base,
-                  backgroundColor: "#FFFFFF",
-                  borderColor: validationErrors.Department ? "red" : "#DBD8E3",
-                  color: "#2A2438",
-                  "&:hover": {
+            <>
+              <Select<OptionType>
+                id="Department"
+                name="Department"
+                options={DepartmentOptions && DepartmentOptions.length > 0 ? DepartmentOptions : [{ value: '', label: 'No departments available', isDisabled: true } as any]}
+                value={formData.Department}
+                onChange={(option) => handleSelectChange("Department", option)}
+                classNamePrefix="select"
+                placeholder={DepartmentOptions && DepartmentOptions.length > 0 ? "Select Department..." : "No departments available"}
+                isClearable
+                isDisabled={!(DepartmentOptions && DepartmentOptions.length > 0)}
+                required
+                styles={{
+                  ...selectStyles,
+                  control: (base) => ({
+                    ...base,
+                    backgroundColor: "#FFFFFF",
                     borderColor: validationErrors.Department ? "red" : "#DBD8E3",
-                  },
-                }),
-              }}
-            />
+                    color: "#2A2438",
+                    "&:hover": {
+                      borderColor: validationErrors.Department ? "red" : "#DBD8E3",
+                    },
+                  }),
+                }}
+              />
+              {DepartmentOptions && DepartmentOptions.length === 0 && (
+                <p className="text-amber-600 text-xs mt-1">
+                  ⚠️ To create a job post, first create a department for that job.
+                </p>
+              )}
+            </>
           ) : (
             <div className="w-full h-[42px] rounded-md animate-pulse" style={{ backgroundColor: "#F2F1F7", border: "1px solid #DBD8E3" }} />
           )}
