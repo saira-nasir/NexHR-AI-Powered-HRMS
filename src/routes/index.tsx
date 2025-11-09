@@ -27,6 +27,7 @@ import AssessmentAndInterview from "@/pages/AssessmentInterview";
 import LinkedInAuth from "@/pages/LinkedInAuth";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import TestModal from "@/pages/TestModal";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import NotFound from "@/pages/NotFound";
 import AttendanceLeave from "@/pages/AttendanceLeave";
 import BankInfo from "@/pages/BankInfo";
@@ -92,11 +93,15 @@ export const routes: RouteObject[] = [
     element: <JobPortal />,
   },
   {
-    path: "/job-detail",
+    path: "/privacy-policy",
+    element: <PrivacyPolicy />,
+  },
+  {
+    path: "/job-detail/:jobId",
     element: <JobDetail />,
   },
   {
-    path: "/application",
+    path: "/application/:jobId",
     element: <JobApplicationForm />,
   },
   {

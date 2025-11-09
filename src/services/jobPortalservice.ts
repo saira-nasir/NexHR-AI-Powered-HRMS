@@ -52,15 +52,15 @@ class ApplicationService {
       : {};
   }
 
-  async submitApplication(applicationData: FormData): Promise<{ success: boolean; message?: string; applicationId?: string; errorData?: any }> {
+  async submitApplication(applicationData: FormData, jobId?: string | number): Promise<{ success: boolean; message?: string; applicationId?: string; errorData?: any }> {
     try {
-      console.log('Sending FormData to:', `${API_BASE_URL}/applications/`);
+      const endpoint = jobId ? `${API_BASE_URL}/jobs/${jobId}/applications/` : `${API_BASE_URL}/applications/`;
+      console.log('Sending FormData to:', endpoint);
       console.log('FormData contents:');
       for (let [key, value] of applicationData.entries()) {
         console.log(key, value);
       }
-
-      const response = await axios.post(`${API_BASE_URL}/applications/`, applicationData, {
+      const response = await axios.post(endpoint, applicationData, {
         headers: {
           ...this.getAuthHeader(),
           // Don't set Content-Type - let browser set it for multipart/form-data

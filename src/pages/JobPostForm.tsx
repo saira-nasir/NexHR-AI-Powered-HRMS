@@ -185,6 +185,14 @@ const JobPostForm: React.FC = () => {
       if (!formData.jobDescription.trim()) {
         errors.jobDescription = "Job Description cannot be empty";
       }
+      // Validate deadline is in the future
+      if (formData.deadline) {
+        const deadlineDate = new Date(formData.deadline);
+        const now = new Date();
+        if (deadlineDate <= now) {
+          errors.deadline = "Deadline must be in the future";
+        }
+      }
       if (formData.locationType !== "Remote") {
         if (!formData.country) {
           errors.country = "Country is required";

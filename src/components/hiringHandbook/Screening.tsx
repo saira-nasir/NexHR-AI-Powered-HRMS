@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useJobScreeningStatus } from '@/hooks/useJobScreeningStatus';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -71,7 +72,14 @@ interface BackendCandidate {
   skills_coverage?: number;
   experience_score?: number;
   final_score?: number; // decimal between 0-1
-  screening_summary?: string; // may be a stringified object
+  screening_summary?: {
+    gaps?: string[];
+    risks?: string[];
+    strengths?: string[];
+    skill_matches?: string[];
+    experience_fit?: string;
+    score_alignment?: string;
+  } | string; // may be a stringified object or parsed object
 }
 
 interface ScreenedCandidate {
@@ -96,7 +104,7 @@ interface ScreenedCandidate {
 }
 
 interface JobScreeningResponse {
-  status: 'screening' | 'screened' | 'not_started';
+  status: 'screening' | 'screened' | 'scheduled';
   message: string;
   threshold?: number;
   candidates: BackendCandidate[];
@@ -140,15 +148,26 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
     education: 50 // Fixed at 50%, not editable
   });
   const [threshold, setThreshold] = useState(70);
-  const [jobStatus, setJobStatus] = useState<'screening' | 'screened' | 'not_started'>('not_started');
+  const [jobStatus, setJobStatus] = useState<'scheduled' | 'screening' | 'screened'>('scheduled');
   const [jobMessage, setJobMessage] = useState('');
   const [jobCounts, setJobCounts] = useState({ count: 0, shortlisted: 0, rejected: 0 });
   const [screeningsLeft, setScreeningsLeft] = useState<number | null>(null);
   const [screenedCandidates, setScreenedCandidates] = useState<ScreenedCandidate[]>([]);
   const [apiLoading, setApiLoading] = useState(false);
+  const [thresholdLoading, setThresholdLoading] = useState(false); // Separate state for threshold button
+  const [candidatesLoaded, setCandidatesLoaded] = useState(false); // Track if candidates have been loaded
   const [overrideExisting, setOverrideExisting] = useState(false);
   const [lastActive, setLastActive] = useState<boolean>(false);
   const { toast } = useToast();
+  
+  // Use custom hook to manage job screening status
+  const { 
+    jobStatus: fetchedJobStatus, 
+    isLoading: statusLoading, 
+    error: statusError,
+    refetch: refetchStatus 
+  } = useJobScreeningStatus(selectedJobId, isActive);
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null);
   const [overrideModal, setOverrideModal] = useState<{
@@ -161,19 +180,26 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
   const transformCandidate = (backendCandidate: BackendCandidate): ScreenedCandidate => {
     // Attempt to extract a readable notes string from screening_summary
     let notes = '';
+    let parsedScreeningSummary: any = null;
     if (backendCandidate.screening_summary) {
       try {
-        // screening_summary might be a python-style dict string using single quotes. Try to convert to JSON safely.
-        const maybeJson = backendCandidate.screening_summary.replace(/'/g, '"');
-        const parsed = JSON.parse(maybeJson);
-        // Create a compact summary from parsed object if possible
-        if (parsed && typeof parsed === 'object') {
-          // Prefer the 'score_alignment' or 'strengths' fields for a short note
-          if (parsed.score_alignment) notes = String(parsed.score_alignment).slice(0, 300);
-          else if (parsed.strengths && Array.isArray(parsed.strengths)) notes = String(parsed.strengths.slice(0, 3).join('; ')).slice(0, 300);
-          else notes = JSON.stringify(parsed).slice(0, 300);
+        // If it's already an object, use it directly
+        if (typeof backendCandidate.screening_summary === 'object') {
+          parsedScreeningSummary = backendCandidate.screening_summary;
         } else {
-          notes = String(parsed).slice(0, 300);
+          // screening_summary might be a python-style dict string using single quotes. Try to convert to JSON safely.
+          const maybeJson = backendCandidate.screening_summary.replace(/'/g, '"');
+          parsedScreeningSummary = JSON.parse(maybeJson);
+        }
+        
+        // Create a compact summary for the notes field
+        if (parsedScreeningSummary && typeof parsedScreeningSummary === 'object') {
+          // Prefer the 'score_alignment' or 'strengths' fields for a short note
+          if (parsedScreeningSummary.score_alignment) notes = String(parsedScreeningSummary.score_alignment).slice(0, 300);
+          else if (parsedScreeningSummary.strengths && Array.isArray(parsedScreeningSummary.strengths)) notes = String(parsedScreeningSummary.strengths.slice(0, 3).join('; ')).slice(0, 300);
+          else notes = JSON.stringify(parsedScreeningSummary).slice(0, 300);
+        } else {
+          notes = String(parsedScreeningSummary).slice(0, 300);
         }
       } catch (e) {
         // Fallback to raw string if parsing fails
@@ -189,6 +215,12 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
     const skillsCov = typeof backendCandidate.skills_coverage === 'number' ? backendCandidate.skills_coverage : undefined;
     const expScore = typeof backendCandidate.experience_score === 'number' ? backendCandidate.experience_score : undefined;
     const finalScoreDecimal = typeof backendCandidate.final_score === 'number' ? backendCandidate.final_score : backendCandidate.score;
+
+    // Create a modified raw object with parsed screening_summary
+    const rawWithParsedSummary = {
+      ...backendCandidate,
+      screening_summary: parsedScreeningSummary || backendCandidate.screening_summary
+    };
 
     return {
       id: backendCandidate.id,
@@ -210,7 +242,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
       education: education,
       location: backendCandidate.address || '',
       notes: notes,
-      raw: backendCandidate
+      raw: rawWithParsedSummary
     };
   };
 
@@ -220,43 +252,52 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
     const statusLower = status.toLowerCase();
     if (statusLower === 'screening') return 'screening';
     if (statusLower === 'screened') return 'screened';
+    // Map 'scheduled' to 'not_started'
+    if (statusLower === 'scheduled') return 'not_started';
     return 'not_started';
   };
 
-  // Set initial status from props and fetch candidates only when needed
+  // Sync fetched job status from custom hook with local state
+  // Only update the button state, don't fetch candidates automatically
   useEffect(() => {
-    if (initialJobStatus) {
-      const mappedStatus = mapJobStatusToScreeningStatus(initialJobStatus);
-      setJobStatus(mappedStatus);
-      // If backend already reports 'screened', fetch candidates for display
-      if (mappedStatus === 'screened' && selectedJobId) {
-        // Only fetch status when the tab is active — otherwise defer
-        if (isActive) {
-          // Auto apply the threshold filter when user opens the screening tab
-          fetchCandidatesByThreshold(threshold, false);
-        }
-      }
-    } else {
-      // Default to not started when no status provided
-      setJobStatus('not_started');
+    if (fetchedJobStatus) {
+      setJobStatus(fetchedJobStatus);
     }
-    // Intentionally do NOT fetch full job details here - we rely on selectedJobId and initialJobStatus props
-  }, [initialJobStatus, selectedJobId]);
+  }, [fetchedJobStatus]);
 
-  // Handle tab activation: when `isActive` changes to true, auto-apply threshold filter (but do not run screening)
+  // Handle tab activation: load candidates when tab becomes active
   useEffect(() => {
+    console.log('Tab activation useEffect triggered:', {
+      isActive,
+      lastActive,
+      jobStatus,
+      fetchedJobStatus,
+      selectedJobId,
+      candidatesLoaded
+    });
+    
     if (isActive && !lastActive) {
-      // tab became active
-      if (jobStatus === 'screened' && selectedJobId) {
-        fetchCandidatesByThreshold(threshold, false);
+      // Tab became active
+      console.log('Tab became active, checking conditions...');
+      if ((jobStatus === 'screened' || fetchedJobStatus === 'screened') && selectedJobId && !candidatesLoaded) {
+        console.log('Conditions met, calling fetchCandidatesByThreshold...');
+        // Initial load - GET request without payload
+        fetchCandidatesByThreshold(threshold, false, true); // isInitialLoad = true
+      } else {
+        console.log('Conditions NOT met:', {
+          statusCheck: jobStatus === 'screened' || fetchedJobStatus === 'screened',
+          hasJobId: !!selectedJobId,
+          notLoaded: !candidatesLoaded
+        });
       }
     }
     // If tab was active and is now inactive, reset override toggle to false
     if (!isActive && lastActive) {
+      console.log('Tab became inactive');
       setOverrideExisting(false);
     }
     setLastActive(isActive);
-  }, [isActive, lastActive, jobStatus, selectedJobId]);
+  }, [isActive, lastActive, jobStatus, fetchedJobStatus, selectedJobId, candidatesLoaded, threshold]);
 
   // Fetch job screening status and candidates from GET endpoint
   const fetchJobStatus = async () => {
@@ -305,7 +346,9 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
         // If endpoint doesn't exist (404), keep default state
         if (res.status === 404) {
           console.warn('Candidates endpoint not found - using default state');
-          setJobStatus('not_started');
+          // Backend does not return a `not_started` status. Use `scheduled` as the local default
+          // which maps to the UI state for jobs that haven't started screening.
+          setJobStatus('scheduled');
           setJobMessage('No screening data available yet');
         }
         return;
@@ -360,15 +403,10 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
     }
   };
 
-  // Apply threshold filter via POST endpoint
-  const fetchCandidatesByThreshold = async (thresholdPercent: number, overrideExistingFlag: boolean = false) => {
-    // Ensure thresholdPercent is within allowed range (30-100)
-    if (thresholdPercent < 30 || thresholdPercent > 100) {
-      toast({ title: 'Invalid threshold', description: 'Threshold must be between 30% and 100%', variant: 'destructive' });
-      return;
-    }
-
-    const thresholdDecimal = Number((thresholdPercent / 100).toFixed(2));
+  // Apply threshold filter via POST endpoint or just GET for initial load
+  const fetchCandidatesByThreshold = async (thresholdPercent: number, overrideExistingFlag: boolean = false, isInitialLoad: boolean = false) => {
+    console.log('fetchCandidatesByThreshold called:', { thresholdPercent, overrideExistingFlag, isInitialLoad });
+    
     const rawJobId = selectedJobId ?? candidates[0]?.appliedFor;
     let jobId: string | null = null;
     if (rawJobId != null) {
@@ -381,30 +419,52 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
       }
     }
 
-    if (!jobId) return;
+    if (!jobId) {
+      console.warn('No valid jobId, skipping API call');
+      return;
+    }
 
+    console.log('Making API call with jobId:', jobId);
     const token = localStorage.getItem('access_token');
     const baseApi = import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '') : 'http://127.0.0.1:8000/api';
     const url = `${baseApi}/jobs/${jobId}/candidates/`;
 
     try {
-      setApiLoading(true);
-      const res = await fetch(url, {
+      setThresholdLoading(true);
+      
+      // For initial load, use GET without payload. For applying threshold, use POST
+      console.log('Request method:', isInitialLoad ? 'GET' : 'POST');
+      const res = await fetch(url, isInitialLoad ? {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      } : {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify(overrideExistingFlag ? { threshold: thresholdDecimal, override_existing: true } : { threshold: thresholdDecimal })
+        body: JSON.stringify(overrideExistingFlag ? { 
+          threshold: Number((thresholdPercent / 100).toFixed(2)), 
+          override_existing: true 
+        } : { 
+          threshold: Number((thresholdPercent / 100).toFixed(2)) 
+        })
       });
 
       if (!res.ok) {
         const txt = await res.text();
-        toast({ title: 'Filter failed', description: `Server responded ${res.status}: ${txt}`, variant: 'destructive' });
+        console.error('API error:', res.status, txt);
+        if (!isInitialLoad) {
+          toast({ title: 'Filter failed', description: `Server responded ${res.status}: ${txt}`, variant: 'destructive' });
+        }
         return;
       }
 
       const data: JobScreeningResponse = await res.json();
+      console.log('API response:', data);
       
       // Update state with response
       if (data.status) setJobStatus(data.status);
@@ -421,16 +481,28 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
         });
       }
 
-      if (data.threshold !== undefined) {
+      // Set threshold from last_threshold in response
+      const lastThreshold = (data as any).last_threshold;
+      if (lastThreshold !== undefined) {
+        setThreshold(Math.round(Number(lastThreshold) * 100));
+      } else if (data.threshold !== undefined) {
         setThreshold(Math.round(Number(data.threshold) * 100));
       }
 
-      toast({ title: 'Filter applied', description: data.message || 'Candidates filtered by threshold' });
+      setCandidatesLoaded(true);
+      console.log('Candidates loaded successfully, count:', data.candidates?.length);
+
+      // Only show toast if user explicitly clicked apply threshold
+      if (!isInitialLoad) {
+        toast({ title: 'Filter applied', description: data.message || 'Candidates filtered by threshold' });
+      }
     } catch (err: any) {
       console.error('Network error fetching candidates by threshold:', err);
-      toast({ title: 'Network error', description: String(err?.message || err), variant: 'destructive' });
+      if (!isInitialLoad) {
+        toast({ title: 'Network error', description: String(err?.message || err), variant: 'destructive' });
+      }
     } finally {
-      setApiLoading(false);
+      setThresholdLoading(false);
     }
   };
 
@@ -498,6 +570,9 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
         // After queuing, backend likely sets job status to 'screening'
         setJobStatus('screening');
         toast({ title: 'Screening queued', description: data.message });
+        
+        // Refetch status from backend to confirm the status change
+        refetchStatus();
       } else {
         toast({ title: 'Screening', description: 'Screening request submitted' });
       }
@@ -537,8 +612,8 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
     try {
       // NOTE: mockApi removed. For now we simply close the modal and refresh the latest job status.
       setOverrideModal({ open: false, candidate: null, action: null });
-      // Refresh results by fetching current job status/candidates
-      await fetchJobStatus();
+      // Refresh results by refetching current job status
+      refetchStatus();
     } catch (error) {
       console.error('Error applying override:', error);
     }
@@ -556,10 +631,8 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
     return <Badge className="bg-red-100 text-red-800">Poor</Badge>;
   };
 
-  const uniqueJobs = Array.from(new Set(candidates.map(c => c.appliedFor)));
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6">{/*  Screening Configuration */}
       {/* Screening Configuration */}
       <Card className="border-0 shadow-lg">
         <CardHeader className="border-b bg-gradient-to-r from-purple-50 to-blue-50">
@@ -687,14 +760,34 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
             <div className="flex justify-center">
               <Button 
                 onClick={handleRunScreening} 
-                disabled={loading || apiLoading || jobStatus === 'screening' || screeningsLeft === 0}
+                disabled={
+                  loading || 
+                  statusLoading ||
+                  jobStatus === 'screening' || 
+                  screeningsLeft === 0
+                }
                 size="lg"
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-12 py-6 text-lg shadow-lg"
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-12 py-6 text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {jobStatus === 'screening' || apiLoading || loading ? (
+                {statusLoading ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                    {jobStatus === 'screening' ? 'Screening Queued...' : 'Running AI Screening...'}
+                    Loading status...
+                  </>
+                ) : jobStatus === 'screening' ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                    Screening in Progress...
+                  </>
+                ) : loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                    Running AI Screening...
+                  </>
+                ) : jobStatus === 'screened' || jobStatus === 'scheduled' ? (
+                  <>
+                    <CheckCircle className="w-5 h-5 mr-3" />
+                    Run AI Screening
                   </>
                 ) : (
                   <>
@@ -793,19 +886,19 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                   </div>
 
                   <Button 
-                    onClick={() => fetchCandidatesByThreshold(threshold, overrideExisting)}
+                    onClick={() => fetchCandidatesByThreshold(threshold, overrideExisting, false)}
                     className="w-full mt-2 bg-yellow-600 hover:bg-yellow-700"
-                    disabled={apiLoading}
+                    disabled={thresholdLoading}
                   >
-                    {apiLoading ? (
+                    {thresholdLoading ? (
                       <div className="flex items-center">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Applying...
+                        {candidatesLoaded ? 'Applying...' : 'Loading candidates...'}
                       </div>
                     ) : (
                       <>
                         <Search className="w-4 h-4 mr-2" />
-                        Apply Threshold Filter
+                        {candidatesLoaded ? 'Apply Threshold Filter' : 'Load Candidates'}
                       </>
                     )}
                   </Button>
@@ -1068,57 +1161,211 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
 
       {/* Candidate Detail Modal */}
       {selectedCandidate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">{selectedCandidate.name}</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                  {(selectedCandidate.name || 'U').split(' ').map(n => n[0] || '').join('').toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">{selectedCandidate.name}</h3>
+                  <p className="text-sm text-gray-600">Applied {selectedCandidate.appliedAt ? new Date(selectedCandidate.appliedAt).toLocaleDateString() : ''}</p>
+                </div>
+              </div>
               <Button
                 variant="ghost"
+                size="sm"
                 onClick={() => setSelectedCandidate(null)}
               >
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <p className="text-sm text-gray-600">Position</p>
-                <p className="font-medium">{selectedCandidate.appliedAt ? new Date(selectedCandidate.appliedAt).toLocaleDateString() : ''}</p>
+
+            {/* Score Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <Card className="border-2 border-purple-200">
+                <CardContent className="p-4 text-center">
+                  <p className="text-xs text-gray-600 mb-1">Final Score</p>
+                  <p className="text-3xl font-bold text-purple-600">{selectedCandidate.score}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-2 border-blue-200">
+                <CardContent className="p-4 text-center">
+                  <p className="text-xs text-gray-600 mb-1">Similarity</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {selectedCandidate.similarityScore ? Math.round(selectedCandidate.similarityScore * 100) : 'N/A'}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-2 border-green-200">
+                <CardContent className="p-4 text-center">
+                  <p className="text-xs text-gray-600 mb-1">Skills</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {selectedCandidate.skillsCoverage !== undefined ? Math.round(selectedCandidate.skillsCoverage * 100) : 'N/A'}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-2 border-orange-200">
+                <CardContent className="p-4 text-center">
+                  <p className="text-xs text-gray-600 mb-1">Experience</p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {selectedCandidate.experienceScore !== undefined ? Math.round(selectedCandidate.experienceScore * 100) : 'N/A'}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Contact & Basic Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-gray-400" />
+                <div>
+                  <p className="text-xs text-gray-600">Email</p>
+                  <p className="font-medium">{selectedCandidate.email}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Experience</p>
-                <p className="font-medium">{selectedCandidate.experience} years</p>
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-gray-400" />
+                <div>
+                  <p className="text-xs text-gray-600">Phone</p>
+                  <p className="font-medium">{selectedCandidate.phone || 'N/A'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Education</p>
-                <p className="font-medium">{selectedCandidate.education}</p>
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-gray-400" />
+                <div>
+                  <p className="text-xs text-gray-600">Experience</p>
+                  <p className="font-medium">{selectedCandidate.experience} years</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Location</p>
-                <p className="font-medium">{selectedCandidate.location}</p>
+              <div className="flex items-center gap-2">
+                <GraduationCap className="w-4 h-4 text-gray-400" />
+                <div>
+                  <p className="text-xs text-gray-600">Education</p>
+                  <p className="font-medium">{selectedCandidate.education || 'N/A'}</p>
+                </div>
               </div>
             </div>
 
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">Top Skills</p>
+            {/* AI Screening Analysis */}
+            {selectedCandidate.raw?.screening_summary && (
+              <div className="space-y-4 mb-6">
+                <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Brain className="w-5 h-5 text-purple-600" />
+                  AI Screening Analysis
+                </h4>
+
+                {/* Strengths */}
+                {selectedCandidate.raw.screening_summary.strengths && (
+                  <Card className="border-l-4 border-l-green-500">
+                    <CardContent className="p-4">
+                      <h5 className="font-semibold text-green-700 mb-2 flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" />
+                        Strengths
+                      </h5>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                        {selectedCandidate.raw.screening_summary.strengths.map((strength: string, idx: number) => (
+                          <li key={idx}>{strength}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Skill Matches */}
+                {selectedCandidate.raw.screening_summary.skill_matches && (
+                  <Card className="border-l-4 border-l-blue-500">
+                    <CardContent className="p-4">
+                      <h5 className="font-semibold text-blue-700 mb-2 flex items-center gap-2">
+                        <Zap className="w-4 h-4" />
+                        Skill Matches
+                      </h5>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedCandidate.raw.screening_summary.skill_matches.map((skill: string, idx: number) => (
+                          <Badge key={idx} className="bg-blue-100 text-blue-700 border-blue-300">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Gaps */}
+                {selectedCandidate.raw.screening_summary.gaps && (
+                  <Card className="border-l-4 border-l-yellow-500">
+                    <CardContent className="p-4">
+                      <h5 className="font-semibold text-yellow-700 mb-2 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        Gaps
+                      </h5>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                        {selectedCandidate.raw.screening_summary.gaps.map((gap: string, idx: number) => (
+                          <li key={idx}>{gap}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Risks */}
+                {selectedCandidate.raw.screening_summary.risks && (
+                  <Card className="border-l-4 border-l-red-500">
+                    <CardContent className="p-4">
+                      <h5 className="font-semibold text-red-700 mb-2 flex items-center gap-2">
+                        <XCircle className="w-4 h-4" />
+                        Risks
+                      </h5>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                        {selectedCandidate.raw.screening_summary.risks.map((risk: string, idx: number) => (
+                          <li key={idx}>{risk}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Experience Fit */}
+                {selectedCandidate.raw.screening_summary.experience_fit && (
+                  <Card>
+                    <CardContent className="p-4">
+                      <h5 className="font-semibold text-gray-700 mb-2">Experience Fit</h5>
+                      <p className="text-sm text-gray-700">{selectedCandidate.raw.screening_summary.experience_fit}</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Score Alignment */}
+                {selectedCandidate.raw.screening_summary.score_alignment && (
+                  <Card>
+                    <CardContent className="p-4">
+                      <h5 className="font-semibold text-gray-700 mb-2">Score Alignment</h5>
+                      <p className="text-sm text-gray-700">{selectedCandidate.raw.screening_summary.score_alignment}</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+
+            {/* Top Skills */}
+            <div className="mb-6">
+              <h5 className="font-semibold text-gray-700 mb-2">Candidate Skills</h5>
               <div className="flex flex-wrap gap-2">
                 {(selectedCandidate.skills || []).map((skill, index) => (
-                  <Badge key={index} variant="secondary">
+                  <Badge key={index} variant="outline" className="bg-gray-50">
                     {skill}
                   </Badge>
                 ))}
               </div>
             </div>
 
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">Notes</p>
-              <p className="text-gray-700">{selectedCandidate.notes}</p>
-            </div>
-
-            <div className="flex gap-2">
+            {/* Actions */}
+            <div className="flex gap-2 pt-4 border-t">
               <Button
                 onClick={() => handleOverride(selectedCandidate, 'boost')}
-                className="text-green-600 border-green-600 hover:bg-green-50"
+                variant="outline"
+                className="flex-1 text-green-600 border-green-600 hover:bg-green-50"
               >
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Boost Candidate
@@ -1126,6 +1373,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
               <Button
                 onClick={() => handleOverride(selectedCandidate, 'reject')}
                 variant="destructive"
+                className="flex-1"
               >
                 <TrendingDown className="w-4 h-4 mr-2" />
                 Reject Candidate
