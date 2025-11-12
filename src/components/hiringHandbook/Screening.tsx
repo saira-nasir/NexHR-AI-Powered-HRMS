@@ -31,7 +31,8 @@ import {
   Phone,
   Send,
   XCircle,
-  Clock
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
@@ -152,9 +153,11 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
   const [jobMessage, setJobMessage] = useState('');
   const [jobCounts, setJobCounts] = useState({ count: 0, shortlisted: 0, rejected: 0 });
   const [screeningsLeft, setScreeningsLeft] = useState<number | null>(null);
+  const [screeningCount, setScreeningCount] = useState<number | null>(null);
   const [screenedCandidates, setScreenedCandidates] = useState<ScreenedCandidate[]>([]);
   const [apiLoading, setApiLoading] = useState(false);
   const [thresholdLoading, setThresholdLoading] = useState(false); // Separate state for threshold button
+  const [refreshLoading, setRefreshLoading] = useState(false); // Separate state for refresh button
   const [candidatesLoaded, setCandidatesLoaded] = useState(false); // Track if candidates have been loaded
   const [overrideExisting, setOverrideExisting] = useState(false);
   const [lastActive, setLastActive] = useState<boolean>(false);
@@ -258,14 +261,20 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
   };
 
   // Sync fetched job status from custom hook with local state
-  // Only update the button state, don't fetch candidates automatically
+  // Automatically load candidates when status becomes 'screening' or 'screened'
   useEffect(() => {
     if (fetchedJobStatus) {
       setJobStatus(fetchedJobStatus);
+      
+      // Auto-load candidates when status is 'screening' or 'screened' and we haven't loaded yet
+      if ((fetchedJobStatus === 'screened' || fetchedJobStatus === 'screening') && isActive && !candidatesLoaded && selectedJobId) {
+        console.log('Status changed to screening/screened - auto-loading candidates');
+        fetchCandidatesByThreshold(threshold, false, true); // isInitialLoad = true
+      }
     }
-  }, [fetchedJobStatus]);
+  }, [fetchedJobStatus, isActive, selectedJobId]);
 
-  // Handle tab activation: load candidates when tab becomes active
+  // Handle tab activation: load candidates when tab becomes active if status is already screening/screened
   useEffect(() => {
     console.log('Tab activation useEffect triggered:', {
       isActive,
@@ -279,25 +288,26 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
     if (isActive && !lastActive) {
       // Tab became active
       console.log('Tab became active, checking conditions...');
-      if ((jobStatus === 'screened' || fetchedJobStatus === 'screened') && selectedJobId && !candidatesLoaded) {
+      if ((jobStatus === 'screened' || jobStatus === 'screening') && selectedJobId && !candidatesLoaded) {
         console.log('Conditions met, calling fetchCandidatesByThreshold...');
         // Initial load - GET request without payload
         fetchCandidatesByThreshold(threshold, false, true); // isInitialLoad = true
       } else {
         console.log('Conditions NOT met:', {
-          statusCheck: jobStatus === 'screened' || fetchedJobStatus === 'screened',
+          statusCheck: jobStatus === 'screened' || jobStatus === 'screening',
           hasJobId: !!selectedJobId,
           notLoaded: !candidatesLoaded
         });
       }
     }
-    // If tab was active and is now inactive, reset override toggle to false
+    // If tab was active and is now inactive, reset state
     if (!isActive && lastActive) {
       console.log('Tab became inactive');
       setOverrideExisting(false);
+      setCandidatesLoaded(false); // Reset so candidates load again on next activation
     }
     setLastActive(isActive);
-  }, [isActive, lastActive, jobStatus, fetchedJobStatus, selectedJobId, candidatesLoaded, threshold]);
+  }, [isActive, lastActive, jobStatus, selectedJobId, candidatesLoaded, threshold]);
 
   // Fetch job screening status and candidates from GET endpoint
   const fetchJobStatus = async () => {
@@ -387,14 +397,13 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
         setThreshold(data.threshold * 100); // Convert decimal to percentage
       }
 
-      // If backend returns remaining screenings, pick it up; otherwise default when status is 'screened'
-      // Support both `remaining_screenings` and `screenings_left` field names from backend
-      // If not present and status is 'screened' ensure we have a sensible default (4)
-      const remaining = (data as any).remaining_screenings ?? (data as any).screenings_left;
-      if (typeof remaining === 'number') {
-        setScreeningsLeft(remaining);
-      } else if (data.status === 'screened' && screeningsLeft === null) {
-        setScreeningsLeft(4);
+      // Backend returns screening_count (total screenings done for this job)
+      const screeningCount = (data as any).screening_count;
+      if (typeof screeningCount === 'number') {
+        // Treat the backend-provided screening_count as the number of screenings LEFT for this job
+        // Store the raw value for diagnostics and set the visible remaining count directly.
+        setScreeningCount(screeningCount);
+        setScreeningsLeft(screeningCount);
       }
     } catch (err) {
       console.error('Network error fetching job status:', err);
@@ -404,8 +413,8 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
   };
 
   // Apply threshold filter via POST endpoint or just GET for initial load
-  const fetchCandidatesByThreshold = async (thresholdPercent: number, overrideExistingFlag: boolean = false, isInitialLoad: boolean = false) => {
-    console.log('fetchCandidatesByThreshold called:', { thresholdPercent, overrideExistingFlag, isInitialLoad });
+  const fetchCandidatesByThreshold = async (thresholdPercent: number, overrideExistingFlag: boolean = false, isInitialLoad: boolean = false, isRefresh: boolean = false) => {
+    console.log('fetchCandidatesByThreshold called:', { thresholdPercent, overrideExistingFlag, isInitialLoad, isRefresh });
     
     const rawJobId = selectedJobId ?? candidates[0]?.appliedFor;
     let jobId: string | null = null;
@@ -430,7 +439,11 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
     const url = `${baseApi}/jobs/${jobId}/candidates/`;
 
     try {
-      setThresholdLoading(true);
+      if (isRefresh) {
+        setRefreshLoading(true);
+      } else {
+        setThresholdLoading(true);
+      }
       
       // For initial load, use GET without payload. For applying threshold, use POST
       console.log('Request method:', isInitialLoad ? 'GET' : 'POST');
@@ -469,16 +482,24 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
       // Update state with response
       if (data.status) setJobStatus(data.status);
       if (data.message) setJobMessage(data.message);
-      
+
       // Transform backend candidates to frontend format
       setScreenedCandidates((data.candidates || []).map(transformCandidate));
-      
+
       if (data.count !== undefined) {
         setJobCounts({
           count: data.count,
           shortlisted: data.shortlisted || 0,
           rejected: data.rejected || 0
         });
+      }
+
+      // If backend provides the raw screening_count, store it explicitly so UI can show it
+      const rawScreeningCount = (data as any).screening_count;
+      if (typeof rawScreeningCount === 'number') {
+        // Backend returns screening_count - treat it as remaining runs and show it directly
+        setScreeningCount(rawScreeningCount);
+        setScreeningsLeft(rawScreeningCount);
       }
 
       // Set threshold from last_threshold in response
@@ -492,18 +513,33 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
       setCandidatesLoaded(true);
       console.log('Candidates loaded successfully, count:', data.candidates?.length);
 
-      // Only show toast if user explicitly clicked apply threshold
-      if (!isInitialLoad) {
+      // Show toast messages appropriately
+      if (isRefresh) {
+        toast({ title: 'Refreshed', description: data.message || 'Candidates list refreshed successfully' });
+      } else if (!isInitialLoad) {
         toast({ title: 'Filter applied', description: data.message || 'Candidates filtered by threshold' });
       }
     } catch (err: any) {
       console.error('Network error fetching candidates by threshold:', err);
-      if (!isInitialLoad) {
+      if (!isInitialLoad && !isRefresh) {
         toast({ title: 'Network error', description: String(err?.message || err), variant: 'destructive' });
+      } else if (isRefresh) {
+        toast({ title: 'Refresh failed', description: String(err?.message || err), variant: 'destructive' });
       }
     } finally {
-      setThresholdLoading(false);
+      if (isRefresh) {
+        setRefreshLoading(false);
+      } else {
+        setThresholdLoading(false);
+      }
     }
+  };
+
+  // Handle refresh button click
+  const handleRefresh = async () => {
+    if (!selectedJobId) return;
+    console.log('Refresh button clicked');
+    await fetchCandidatesByThreshold(threshold, overrideExisting, false, true); // isRefresh = true
   };
 
   const handleRunScreening = async () => {
@@ -584,12 +620,15 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
         setWeights({ skills: s, experience: e, education: 50 });
       }
 
-      // Update remaining screenings if backend returns it, otherwise decrement local counter if set
-      const remainingFromBackend = (data as any).remaining_screenings ?? (data as any).screenings_left;
-      if (typeof remainingFromBackend === 'number') {
-        setScreeningsLeft(remainingFromBackend);
-      } else if (screeningsLeft !== null) {
-        setScreeningsLeft(Math.max(0, (screeningsLeft || 0) - 1));
+      // Update screening counts if provided
+      const rawScreeningCount = (data as any).screening_count;
+      if (typeof rawScreeningCount === 'number') {
+        setScreeningCount(rawScreeningCount);
+        // Treat the backend's screening_count as the number of screenings LEFT for this job
+        setScreeningsLeft(rawScreeningCount);
+      } else if (screeningsLeft !== null && screeningsLeft > 0) {
+        // Fallback: decrement local counter
+        setScreeningsLeft(screeningsLeft - 1);
       }
 
     } catch (error: any) {
@@ -659,13 +698,15 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                   The similarity weight between job description and resume is <span className="font-bold">fixed at 50%</span>. 
                   You can tune the remaining <span className="font-bold">50%</span> between Skills and Experience below.
                 </p>
-                {jobStatus === 'screened' && (
+                {(jobStatus === 'screened' || jobStatus === 'screening') && (
                   <p className="text-sm text-orange-800 mt-3">
-                    {screeningsLeft === null
-                      ? 'You have 4 screening runs remaining for this job.'
-                      : screeningsLeft > 0
+                    {screeningsLeft !== null ? (
+                      screeningsLeft > 0
                         ? `You have ${screeningsLeft} screening run${screeningsLeft > 1 ? 's' : ''} remaining for this job.`
-                        : 'No screening runs remaining for this job.'}
+                        : 'Maximum screening runs reached for this job.'
+                    ) : (
+                      'Loading screening information...'
+                    )}
                   </p>
                 )}
               </div>
@@ -763,6 +804,8 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                 disabled={
                   loading || 
                   statusLoading ||
+                  thresholdLoading ||
+                  refreshLoading ||
                   jobStatus === 'screening' || 
                   screeningsLeft === 0
                 }
@@ -885,23 +928,38 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                     </label>
                   </div>
 
-                  <Button 
-                    onClick={() => fetchCandidatesByThreshold(threshold, overrideExisting, false)}
-                    className="w-full mt-2 bg-yellow-600 hover:bg-yellow-700"
-                    disabled={thresholdLoading}
-                  >
-                    {thresholdLoading ? (
-                      <div className="flex items-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        {candidatesLoaded ? 'Applying...' : 'Loading candidates...'}
-                      </div>
-                    ) : (
-                      <>
-                        <Search className="w-4 h-4 mr-2" />
-                        {candidatesLoaded ? 'Apply Threshold Filter' : 'Load Candidates'}
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex gap-2 w-full mt-2">
+                    <Button 
+                      onClick={() => fetchCandidatesByThreshold(threshold, overrideExisting, false, false)}
+                      className="flex-1 bg-yellow-600 hover:bg-yellow-700"
+                      disabled={thresholdLoading || loading || refreshLoading}
+                    >
+                      {thresholdLoading ? (
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Load Candidates...
+                        </div>
+                      ) : (
+                        <>
+                          <Target className="w-4 h-4 mr-2" />
+                          Apply Threshold
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button 
+                      onClick={handleRefresh}
+                      variant="outline"
+                      className="border-2 border-yellow-600 text-yellow-700 hover:bg-yellow-50"
+                      disabled={refreshLoading || loading || thresholdLoading}
+                    >
+                      {refreshLoading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

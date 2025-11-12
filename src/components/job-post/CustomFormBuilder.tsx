@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
+import { Check, Search } from 'lucide-react';
 
 export interface CustomFormQuestion {
   id: string;
@@ -44,69 +45,47 @@ const CustomFormBuilder: React.FC<CustomFormBuilderProps> = ({
   onShowCustomForm,
   onCustomFormInput,
 }) => {
-  const enabledQuestions = customFormQuestions.filter(q => q.enabled);
+  const [query, setQuery] = useState('');
 
-  const educationArr = Array.isArray(customFormAnswers.education) ? customFormAnswers.education : [];
-  const experienceArr = Array.isArray(customFormAnswers.experience) ? customFormAnswers.experience : [];
+  const filteredQuestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return customFormQuestions;
+    return customFormQuestions.filter((x) => x.label.toLowerCase().includes(q) || x.id.toLowerCase().includes(q));
+  }, [query, customFormQuestions]);
 
-  const handleEducationChange = (idx: number, field: string, value: string) => {
-    const updated = [...educationArr];
-    updated[idx] = { ...updated[idx], [field]: value };
-    if (onCustomFormInput) {
-      const event = {
-        target: {
-          name: 'education',
-          value: updated
-        }
-      } as unknown as React.ChangeEvent<HTMLInputElement>;
-      onCustomFormInput(event);
+  const getTypeDescription = (type: CustomFormQuestion['type']) => {
+    switch (type) {
+      case 'text': return 'Short single-line text input';
+      case 'email': return 'Email address field';
+      case 'telephone': return 'Phone number field';
+      case 'file': return 'Upload files (resume, cover letter)';
+      case 'textarea': return 'Long answer / description';
+      case 'dropdown': return 'Select one option from a list';
+      case 'radio': return 'Choose one option';
+      case 'date': return 'Date picker';
+      case 'education': return 'Education block (multiple fields)';
+      case 'experience': return 'Experience block (multiple fields)';
+      default: return '';
     }
   };
 
-  const addEducationBlock = () => {
-    const updated = [...educationArr, {}];
-    if (onCustomFormInput) {
-      const event = {
-        target: {
-          name: 'education',
-          value: updated
-        }
-      } as unknown as React.ChangeEvent<HTMLInputElement>;
-      onCustomFormInput(event);
+  const friendlyType = (type: CustomFormQuestion['type']) => {
+    switch (type) {
+      case 'text': return 'Text';
+      case 'email': return 'Email';
+      case 'telephone': return 'Phone';
+      case 'file': return 'File';
+      case 'textarea': return 'Textarea';
+      case 'dropdown': return 'Dropdown';
+      case 'radio': return 'Radio';
+      case 'date': return 'Date';
+      case 'education': return 'Education';
+      case 'experience': return 'Experience';
+      default: return '';
     }
   };
 
-  const handleExperienceChange = (idx: number, field: string, value: string) => {
-    const updated = [...experienceArr];
-    updated[idx] = { ...updated[idx], [field]: value };
-    if (onCustomFormInput) {
-      const event = {
-        target: {
-          name: 'experience',
-          value: updated
-        }
-      } as unknown as React.ChangeEvent<HTMLInputElement>;
-      onCustomFormInput(event);
-    }
-  };
-
-  const addExperienceBlock = () => {
-    const updated = [...experienceArr, {}];
-    if (onCustomFormInput) {
-      const event = {
-        target: {
-          name: 'experience',
-          value: updated
-        }
-      } as unknown as React.ChangeEvent<HTMLInputElement>;
-      onCustomFormInput(event);
-    }
-  };
-
-  const getStringValue = (value: string | EducationBlock[] | ExperienceBlock[] | undefined): string => {
-    if (typeof value === 'string') return value;
-    return '';
-  };
+  // Note: preview shows only the field labels. For file fields (resume) we display a simple "Resume" text badge.
 
   return (
     <div className="space-y-4">
@@ -115,251 +94,72 @@ const CustomFormBuilder: React.FC<CustomFormBuilderProps> = ({
         Toggle the questions you want to include in your application form
       </p>
       <div className="space-y-4">
-        {customFormQuestions
-          .filter(question => question.id !== 'applied_at')
-          .map((question) => (
-            <div key={question.id} className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200">
-              <div>
-                <h4 className="font-medium text-gray-900">{question.label}</h4>
-              </div>
+        <div className="flex items-center justify-between">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3 top-2.5 text-[#9A8EA6] w-4 h-4" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search questions..."
+              className="pl-10 pr-3 py-2 w-full border rounded-md bg-white"
+            />
+          </div>
+          <div className="flex gap-2 ml-4">
+            <button
+              type="button"
+              onClick={() => {
+                // select all (enable all)
+                customFormQuestions.forEach((q) => {
+                  if (!q.enabled && q.id !== 'applied_at') onToggleQuestion(q.id);
+                });
+                onShowCustomForm(false);
+              }}
+              className="px-3 py-1 rounded-md bg-[#EEF2FF] text-sm text-[#4338CA]"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                // clear all (disable all)
+                customFormQuestions.forEach((q) => {
+                  if (q.enabled && q.id !== 'applied_at') onToggleQuestion(q.id);
+                });
+                onShowCustomForm(false);
+              }}
+              className="px-3 py-1 rounded-md bg-[#FFF1F2] text-sm text-[#B91C1C]"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filteredQuestions
+            .filter(question => question.id !== 'applied_at')
+            .map((question) => (
               <button
+                key={question.id}
+                type="button"
                 onClick={() => {
                   onToggleQuestion(question.id);
                   onShowCustomForm(false);
                 }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
-                  question.enabled ? 'bg-indigo-600' : 'bg-gray-200'
-                }`}
+                className={`flex items-start gap-3 p-4 rounded-lg border transition-colors text-left w-full ${question.enabled ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-200 hover:shadow-sm'}`}
               >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    question.enabled ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
+                <div className={`mt-0.5 flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center ${question.enabled ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                  {question.enabled ? <Check className="w-4 h-4" /> : <div className="h-2 w-2 rounded-full" />}
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-gray-900">{question.label}</h4>
+                  <p className="text-xs text-gray-500 mt-1">{getTypeDescription(question.type)}</p>
+                </div>
+                <div className="text-xs text-[#5C5470] font-medium">{friendlyType(question.type)}</div>
               </button>
-            </div>
-          ))}
-      </div>
-      {customFormQuestions.some(q => q.enabled) && !showCustomForm && (
-        <button
-          className="mt-4 px-6 py-2 rounded-md shadow transition inline-flex justify-center font-medium text-sm border border-transparent"
-          style={{ backgroundColor: "#352F44", color: "#FFFFFF" }}
-          onMouseOver={e => (e.currentTarget.style.backgroundColor = '#4B3B6A')}
-          onMouseOut={e => (e.currentTarget.style.backgroundColor = '#352F44')}
-          onClick={() => onShowCustomForm(true)}
-          type="button"
-        >
-          Create
-        </button>
-      )}
-      {showCustomForm && (
-        <form
-          className="mt-6 space-y-4 p-4 border border-gray-200 rounded-lg bg-gray-50"
-          action="#"
-          onSubmit={e => {
-            e.preventDefault();
-            return false;
-          }}
-        >
-          <h4 className="font-semibold text-gray-900 mb-2">Generated Application Form</h4>
-          {enabledQuestions
-            .filter(q => q.id !== 'applied_at')
-            .map(q => (
-              <div key={q.id} className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-700" htmlFor={q.id}>{q.label}</label>
-                {q.type === "file" ? (
-                  <input
-                    type="file"
-                    name={q.id}
-                    id={q.id}
-                    className="border rounded px-3 py-2"
-                    onChange={onCustomFormInput}
-                  />
-                ) : q.type === "textarea" ? (
-                  <textarea
-                    name={q.id}
-                    id={q.id}
-                    rows={5}
-                    className="border rounded px-3 py-2"
-                    style={{ backgroundColor: "#FFFFFF", color: "#2A2438", borderColor: "#DBD8E3" }}
-                    value={getStringValue(customFormAnswers[q.id])}
-                    onChange={onCustomFormInput}
-                  />
-                ) : q.type === "dropdown" ? (
-                  <select
-                    name={q.id}
-                    id={q.id}
-                    className="border rounded px-3 py-2 text-[#2A2438]"
-                    style={{ backgroundColor: "#FFFFFF", borderColor: "#DBD8E3" }}
-                    value={getStringValue(customFormAnswers[q.id])}
-                    onChange={onCustomFormInput}
-                  >
-                    <option value="">Select experience level</option>
-                    <option value="Entry Level">Entry Level</option>
-                    <option value="Mid Level">Mid Level</option>
-                    <option value="Senior Level">Senior Level</option>
-                    <option value="Executive Level">Executive Level</option>
-                  </select>
-                ) : q.type === "radio" ? (
-                  <div className="flex gap-6 items-center mt-2">
-                    <label className="inline-flex items-center">
-                      <input
-                        type="radio"
-                        name={q.id}
-                        value="male"
-                        checked={getStringValue(customFormAnswers[q.id]) === 'male'}
-                        onChange={onCustomFormInput}
-                        className="mr-2"
-                      />
-                      <span>Male</span>
-                    </label>
-                    <label className="inline-flex items-center">
-                      <input
-                        type="radio"
-                        name={q.id}
-                        value="female"
-                        checked={getStringValue(customFormAnswers[q.id]) === 'female'}
-                        onChange={onCustomFormInput}
-                        className="mr-2"
-                      />
-                      <span>Female</span>
-                    </label>
-                  </div>
-                ) : q.type === "education" ? (
-                  <div className="mb-6 p-4 rounded-lg border bg-white">
-                    <h5 className="font-semibold mb-2">Education</h5>
-                    {(educationArr.length === 0 ? [{}] : educationArr).map((edu, idx) => (
-                      <div key={idx} className="mb-4 p-3 border rounded-md bg-gray-50">
-                        <input
-                          type="text"
-                          name={`education_level_${idx}`}
-                          placeholder="Education Level"
-                          className="mb-2 border rounded px-3 py-2 w-full"
-                          value={edu.education_level || ""}
-                          onChange={e => handleEducationChange(idx, 'education_level', e.target.value)}
-                        />
-                        <input
-                          type="text"
-                          name={`institution_name_${idx}`}
-                          placeholder="Institution Name"
-                          className="mb-2 border rounded px-3 py-2 w-full"
-                          value={edu.institution_name || ""}
-                          onChange={e => handleEducationChange(idx, 'institution_name', e.target.value)}
-                        />
-                        <input
-                          type="text"
-                          name={`degree_detail_${idx}`}
-                          placeholder="Degree Detail"
-                          className="mb-2 border rounded px-3 py-2 w-full"
-                          value={edu.degree_detail || ""}
-                          onChange={e => handleEducationChange(idx, 'degree_detail', e.target.value)}
-                        />
-                        <input
-                          type="number"
-                          step="0.01"
-                          name={`cgpa_${idx}`}
-                          placeholder="CGPA"
-                          className="mb-2 border rounded px-3 py-2 w-full"
-                          value={edu.cgpa || ""}
-                          onChange={e => handleEducationChange(idx, 'cgpa', e.target.value)}
-                        />
-                        <input
-                          type="date"
-                          name={`start_date_${idx}`}
-                          placeholder="Start Date"
-                          className="mb-2 border rounded px-3 py-2 w-full"
-                          value={edu.start_date || ""}
-                          onChange={e => handleEducationChange(idx, 'start_date', e.target.value)}
-                        />
-                        <textarea
-                          name={`description_${idx}`}
-                          placeholder="Description"
-                          className="border rounded px-3 py-2 w-full"
-                          value={edu.description || ""}
-                          onChange={e => handleEducationChange(idx, 'description', e.target.value)}
-                        />
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className="px-4 py-2 rounded bg-[#352F44] text-white mt-2"
-                      onClick={addEducationBlock}
-                    >
-                      + Add Education
-                    </button>
-                  </div>
-                ) : q.type === "experience" ? (
-                  <div className="mb-6 p-4 rounded-lg border bg-white">
-                    <h5 className="font-semibold mb-2">Experience</h5>
-                    {(experienceArr.length === 0 ? [{}] : experienceArr).map((exp, idx) => (
-                      <div key={idx} className="mb-4 p-3 border rounded-md bg-gray-50">
-                        <select
-                          name={`experience_level_${idx}`}
-                          className="mb-2 border rounded px-3 py-2 w-full"
-                          value={exp.experience_level || ""}
-                          onChange={e => handleExperienceChange(idx, 'experience_level', e.target.value)}
-                        >
-                          <option value="">Select Experience Level</option>
-                          <option value="Entry Level">Entry Level</option>
-                          <option value="Mid Level">Mid Level</option>
-                          <option value="Senior Level">Senior Level</option>
-                          <option value="Executive Level">Executive Level</option>
-                        </select>
-                        <input
-                          type="number"
-                          name={`years_of_experience_${idx}`}
-                          placeholder="Years of Experience"
-                          className="mb-2 border rounded px-3 py-2 w-full"
-                          value={exp.years_of_experience || ""}
-                          onChange={e => handleExperienceChange(idx, 'years_of_experience', e.target.value)}
-                        />
-                        <input
-                          type="text"
-                          name={`previous_job_titles_${idx}`}
-                          placeholder="Previous Job Titles"
-                          className="mb-2 border rounded px-3 py-2 w-full"
-                          value={exp.previous_job_titles || ""}
-                          onChange={e => handleExperienceChange(idx, 'previous_job_titles', e.target.value)}
-                        />
-                        <input
-                          type="text"
-                          name={`company_name_${idx}`}
-                          placeholder="Company Name"
-                          className="mb-2 border rounded px-3 py-2 w-full"
-                          value={exp.company_name || ""}
-                          onChange={e => handleExperienceChange(idx, 'company_name', e.target.value)}
-                        />
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className="px-4 py-2 rounded bg-[#352F44] text-white mt-2"
-                      onClick={addExperienceBlock}
-                    >
-                      + Add Experience
-                    </button>
-                  </div>
-                ) : (
-                  <input
-                    type={q.type === "telephone" ? "tel" : q.type}
-                    name={q.id}
-                    id={q.id}
-                    className="border rounded px-3 py-2"
-                    value={getStringValue(customFormAnswers[q.id])}
-                    onChange={onCustomFormInput}
-                  />
-                )}
-              </div>
             ))}
-          <button
-            type="submit"
-            tabIndex={-1}
-            className="w-full mt-2 px-6 py-2 bg-[#352F44] text-white rounded-md shadow hover:bg-indigo-700 transition"
-          >
-            Submit
-          </button>
-        </form>
-      )}
+        </div>
+      </div>
+      {/* Preview removed - only show selectable cards above */}
     </div>
   );
 };

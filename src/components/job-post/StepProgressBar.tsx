@@ -1,19 +1,74 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface StepProgressBarProps {
   currentStep: number;
   steps: string[];
   reviewCompleted?: boolean;
+  prevStep?: number | null;
 }
 
 const StepProgressBar: React.FC<StepProgressBarProps> = ({
   currentStep,
   steps,
   reviewCompleted = false,
+  prevStep = null,
 }) => {
+  const count = steps.length;
+  const getLeft = (index: number) => {
+    if (count <= 1) return '0%';
+    return `${(index / (count - 1)) * 100}%`;
+  };
+
+  const [dotLeft, setDotLeft] = useState<string | null>(null);
+  const [showDot, setShowDot] = useState(false);
+
+  useEffect(() => {
+    if (prevStep && prevStep < currentStep) {
+      // start at prev
+      const start = getLeft(prevStep - 1);
+      const end = getLeft(currentStep - 1);
+      setDotLeft(start);
+      setShowDot(true);
+      // allow layout then move
+      const t1 = requestAnimationFrame(() => {
+        // small timeout to ensure transition occurs
+        setTimeout(() => setDotLeft(end), 20);
+      });
+
+      // hide dot after animation
+      const t2 = setTimeout(() => {
+        setShowDot(false);
+        setDotLeft(null);
+      }, 900);
+
+      return () => {
+        cancelAnimationFrame(t1);
+        clearTimeout(t2);
+      };
+    }
+  }, [prevStep, currentStep]);
   return (
     <nav aria-label="Progress" className="mb-8">
-      <ol role="list" className="flex items-center justify-center space-x-2 sm:space-x-4">
+      <div className="relative">
+        {/* moving dot: animate from prevStep to currentStep when advancing */}
+        {showDot && dotLeft && (
+          <div
+            className="moving-dot pointer-events-none"
+            style={{
+              position: 'absolute',
+              top: 0,
+              transform: 'translate(-50%, -50%)',
+              left: dotLeft,
+              transition: 'left 650ms cubic-bezier(0.22, 1, 0.36, 1)',
+              zIndex: 40,
+            }}
+          >
+            <div style={{ width: 14, height: 14, borderRadius: 9999, background: 'linear-gradient(90deg,#6366f1,#06b6d4)', boxShadow: '0 6px 18px rgba(99,102,241,0.25)' }} />
+          </div>
+        )}
+
+        <ol role="list" className="flex items-center justify-center space-x-2 sm:space-x-4">
+          {/* We render the list inside the same relative container so left positions match */}
         {steps.map((step, index) => {
           const stepIndex = index + 1;
           let isCompleted = stepIndex < currentStep;
@@ -70,7 +125,8 @@ const StepProgressBar: React.FC<StepProgressBarProps> = ({
             </li>
           );
         })}
-      </ol>
+        </ol>
+      </div>
     </nav>
   );
 };

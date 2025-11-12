@@ -24,6 +24,7 @@ import FinanceDashboard from "@/pages/FinanceDashboard";
 import HiringHandbook from "@/pages/HiringHandbook";
 import JobScreening from "@/pages/JobScreening";
 import AssessmentAndInterview from "@/pages/AssessmentInterview";
+import Onboarding from "@/pages/Onboarding";
 import LinkedInAuth from "@/pages/LinkedInAuth";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import TestModal from "@/pages/TestModal";
@@ -197,6 +198,14 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <AssessmentAndInterview />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "onboarding",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <Onboarding />
               </RoleBasedRoute>
             ),
           },

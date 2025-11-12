@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/sidebar/Sidebar';
 import { Link, useLocation } from 'react-router-dom';
 import { Search, Calendar, Menu, PanelLeft, PanelRight, LogOut } from 'lucide-react';
+import ProfileDrawer from '@/components/header/ProfileDrawer';
 import NotificationsDropdown from '@/components/notifications/NotificationsDropdown';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -24,6 +25,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { logout } = useAuth();
+  const [profileOpen, setProfileOpen] = React.useState(false);
   
   // Auto-collapse sidebar on mobile
   useEffect(() => {
@@ -118,7 +120,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <img
                   src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
                   alt="User Profile"
-                  className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-gray-200 hover:opacity-90 transition-opacity"
+                  role="button"
+                  tabIndex={0}
+                  title="Profile"
+                  onClick={() => setProfileOpen(true)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setProfileOpen(true); }}
+                  className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-gray-200 hover:opacity-90 transition-opacity cursor-pointer"
                 />
               </div>
             </div>
@@ -128,6 +135,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         {/* Page Content - with proper padding on mobile */}
         <main className="flex-1 overflow-auto p-2 sm:p-3 md:p-6 pb-12">
           {children}
+          <ProfileDrawer isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
         </main>
       </div>
     </div>

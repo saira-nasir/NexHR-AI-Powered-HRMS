@@ -240,7 +240,7 @@ const HiringHandbook: React.FC<HiringHandbookProps> = ({ selectedJob, onClose, j
                     </div>
 
                     <div className="flex-shrink-0 flex items-center gap-3">
-                      <Button onClick={() => window.open(`/job-detail?jobId=${encodeURIComponent(jobId)}`, '_blank')} className="inline-flex items-center gap-2">
+                      <Button onClick={() => window.open(`/job-detail/${encodeURIComponent(jobId)}`, '_blank')} className="inline-flex items-center gap-2">
                         Details
                       </Button>
                       {onClose ? (

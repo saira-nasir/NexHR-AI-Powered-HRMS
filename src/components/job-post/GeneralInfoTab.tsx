@@ -1,5 +1,6 @@
 import React from 'react';
-import Select, { MultiValue, ActionMeta, StylesConfig } from "react-select";
+import Select, { components as RSComponents, MultiValue, ActionMeta, StylesConfig } from "react-select";
+import { ChevronDown } from 'lucide-react';
 import CreatableSelect from 'react-select/creatable';
 import { OptionType } from "../../data/formData";
 import RequiredSkillsField from './RequiredSkillsField';
@@ -35,6 +36,7 @@ interface GeneralInfoTabProps {
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
   handleSelectChange: (name: string, selectedOption: OptionType | MultiValue<OptionType> | null) => void;
   handleSkillsChange: (skills: RequiredSkill[]) => void;
+  minDeadline?: string;
 }
 
 const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
@@ -49,6 +51,7 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
   handleInputChange,
   handleSelectChange,
   handleSkillsChange,
+  minDeadline,
 }) => {
   return (
     <div className="space-y-6">
@@ -93,9 +96,13 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
             value={formData.deadline || ''}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-1 focus:ring-[#352F44] focus:border-[#352F44] transition duration-150 ease-in-out"
-            style={{ borderColor: "#DBD8E3", backgroundColor: "#FFFFFF", color: "#2A2438" }}
+            style={{ borderColor: validationErrors.deadline ? "red" : "#DBD8E3", backgroundColor: "#FFFFFF", color: "#2A2438" }}
+            min={minDeadline}
           />
           <p className="mt-1 text-xs text-gray-500">Select both date and time for the application deadline</p>
+          {validationErrors.deadline && (
+            <p className="text-red-500 text-xs mt-1">{validationErrors.deadline}</p>
+          )}
         </div>
       </div>
 
@@ -181,6 +188,13 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
                       borderColor: validationErrors.Department ? "red" : "#DBD8E3",
                     },
                   }),
+                }}
+                components={{
+                  DropdownIndicator: (props) => (
+                    <RSComponents.DropdownIndicator {...props}>
+                      <ChevronDown className="w-4 h-4 text-[#5C5470]" />
+                    </RSComponents.DropdownIndicator>
+                  ),
                 }}
               />
               {DepartmentOptions && DepartmentOptions.length === 0 && (
