@@ -37,6 +37,7 @@ import BankInfo from "@/pages/BankInfo";
 import EmployeeSalaryStructure from "@/pages/EmployeeSalaryStructure";
 import Payslips from "@/pages/Payslips";
 import { HRAttendanceManagement } from "@/pages/HRAttendanceManagement";
+import RegisterFace from "@/pages/RegisterFace";
 
 // Route Guards
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -245,6 +246,14 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
                 <AttendanceLeave />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "register-face",
+            element: (
+              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
+                <RegisterFace />
               </RoleBasedRoute>
             ),
           },

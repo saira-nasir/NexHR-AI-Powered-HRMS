@@ -12,7 +12,8 @@ import {
   Building2,
   Receipt,
   FileText,
-  Clock
+  Clock,
+  UserCircle
 } from 'lucide-react';
 import { SidebarMenuItem } from '../../types/sidebar/types';
 
@@ -26,6 +27,12 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Attendance & Leave',
     path: '/attendance-leave',
     icon: Calendar,
+    allowedRoles: ['Employee', 'HR', 'Admin', 'Finance Manager'],
+  },
+  {
+    title: 'Register Face',
+    path: '/register-face',
+    icon: UserCircle,
     allowedRoles: ['Employee', 'HR', 'Admin', 'Finance Manager'],
   },
   {

@@ -29,6 +29,13 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
+    // Handle FormData: remove Content-Type header so axios can set it with boundary
+    if (config.data instanceof FormData) {
+      if (config.headers) {
+        delete (config.headers as any)['Content-Type'];
+      }
+    }
+    
     // ✅ Improved logging (combines File 1's full URL + File 2's data)
     const fullUrl = `${config.baseURL}${config.url}`;
     console.log(`➡️ API Request: ${config.method?.toUpperCase()} ${fullUrl}`, {
@@ -111,7 +118,7 @@ api.interceptors.response.use(
         }
         
         // Try to refresh token
-        const response = await axios.post(`${BASE_URL}/auth/refresh/`, {
+        const response = await axios.post(`${BASE_URL}/auth/token/refresh/`, {
           refresh: refreshToken
         });
         
@@ -202,6 +209,14 @@ export const apiPut = async (url: string, data: any) => {
 
 export const apiDelete = async (url: string) => {
   const response = await api.delete(url);
+  return response.data;
+};
+
+// Helper function for posting FormData (multipart/form-data)
+// Note: Don't set Content-Type manually - axios will automatically set it with boundary parameter
+// The Authorization header will be added automatically by the request interceptor
+export const apiPostFormData = async (url: string, formData: FormData) => {
+  const response = await api.post(url, formData);
   return response.data;
 };
 
