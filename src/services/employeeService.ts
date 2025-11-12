@@ -64,32 +64,12 @@ const normalizeEmployee = (raw: any): Employee => {
 export const employeeService = {
     async getEmployees(): Promise<Employee[]> {
         try {
-            console.log('🔄 Fetching employees using multiple API endpoints...');
+            console.log('🔄 Fetching company employees...');
             
-            // Strategy: Try multiple endpoints and combine results
+            // Strategy: Fetch company-specific users and attendance data
             const allEmployees = new Map<number, Employee>(); // Use Map to avoid duplicates by ID
             
-            // 1. First try /api/auth/users/ to get ALL users (no company filtering)
-            try {
-                console.log('📡 Fetching from /auth/users/ (all users)...');
-                const allUsersResponse = await api.get('/auth/users/');
-                console.log('✅ Success with /auth/users/:', allUsersResponse.status);
-                
-                const allUsers = Array.isArray(allUsersResponse.data) ? allUsersResponse.data : allUsersResponse.data?.results || [];
-                console.log(`📊 Found ${allUsers.length} users from /auth/users/`);
-                
-                // Add all users to our collection
-                allUsers.forEach((user: any) => {
-                    const normalized = normalizeEmployee(user);
-                    allEmployees.set(normalized.id, normalized);
-                });
-                
-                console.log('👥 Users from /auth/users/ added to collection');
-            } catch (error) {
-                console.warn('❌ Failed to fetch from /auth/users/:', error);
-            }
-            
-            // 2. Try /api/company-users/ to get company-specific users
+            // 1. Try /api/company-users/ to get company-specific users
             try {
                 console.log('📡 Fetching from /company-users/ (company users)...');
                 const companyUsersResponse = await api.get('/company-users/');
@@ -98,7 +78,7 @@ export const employeeService = {
                 const companyUsers = Array.isArray(companyUsersResponse.data) ? companyUsersResponse.data : companyUsersResponse.data?.results || [];
                 console.log(`📊 Found ${companyUsers.length} users from /company-users/`);
                 
-                // Add company users to our collection (will overwrite duplicates)
+                // Add company users to our collection
                 companyUsers.forEach((user: any) => {
                     const normalized = normalizeEmployee(user);
                     allEmployees.set(normalized.id, normalized);
@@ -109,7 +89,7 @@ export const employeeService = {
                 console.warn('❌ Failed to fetch from /company-users/:', error);
             }
             
-            // 3. Try payroll-related endpoints for additional employee data
+            // 2. Try payroll-related endpoints for additional employee data
             try {
                 console.log('📡 Fetching from /payroll/attendance/ (attendance data)...');
                 const attendanceResponse = await api.get('/payroll/attendance/');
@@ -146,9 +126,11 @@ export const employeeService = {
             console.log(`🎯 Final result: ${finalEmployees.length} unique employees`);
             
             // Debug: Log all employee IDs to see the range
-            const employeeIds = finalEmployees.map(emp => emp.id);
-            console.log('📋 All employee IDs found:', employeeIds);
-            console.log('📊 Employee ID range:', { min: Math.min(...employeeIds), max: Math.max(...employeeIds) });
+            if (finalEmployees.length > 0) {
+                const employeeIds = finalEmployees.map(emp => emp.id);
+                console.log('📋 All employee IDs found:', employeeIds);
+                console.log('📊 Employee ID range:', { min: Math.min(...employeeIds), max: Math.max(...employeeIds) });
+            }
             
             return finalEmployees;
         } catch (error) {
