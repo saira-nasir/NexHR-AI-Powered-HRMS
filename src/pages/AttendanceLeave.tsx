@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/layouts/DashboardLayout';
-import { apiGet, apiPost, apiPostFormData } from '@/lib/api';
+import { apiGet, apiPost, apiPostFormData, apiPatch, apiDelete } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Calendar as CalendarIcon, Plus, CheckCircle, XCircle, Camera, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, Plus, CheckCircle, XCircle, Camera, CheckCircle2, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar';
 import { TimeCard, TimeCardData } from '@/components/attendance/TimeCard';
@@ -39,10 +39,17 @@ interface Leave {
 }
 
 interface AttendanceMarkResponse {
-  employee: string;
+  employee?: string;
   verified: boolean;
+  similarity?: number;
   message: string;
   photo_url?: string;
+}
+
+interface CheckoutResponse {
+  message: string;
+  checkout_time?: string;
+  error?: string;
 }
 
 const AttendanceLeave: React.FC = () => {
@@ -64,11 +71,103 @@ const AttendanceLeave: React.FC = () => {
   const [checkInTime, setCheckInTime] = useState<Date | null>(null);
   const [checkOutTime, setCheckOutTime] = useState<Date | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<Attendance | null>(null);
+  const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     leave_type: 'Casual',
     from_date: '',
     to_date: '',
   });
+
+  const normalizeDate = (value?: string | null): string | null => {
+    if (!value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value;
+    }
+    const parsed = new Date(value);
+    if (isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toISOString().split('T')[0];
+  };
+
+  const sameDate = (a?: string | null, b?: string | null): boolean => {
+    const normA = normalizeDate(a);
+    const normB = normalizeDate(b);
+    if (!normA || !normB) return false;
+    return normA === normB;
+  };
+
+  const dateValue = (value?: string | null): number => {
+    const norm = normalizeDate(value);
+    if (!norm) return 0;
+    const parsed = new Date(norm);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.getTime();
+    }
+    const fallback = Date.parse(norm);
+    return isNaN(fallback) ? 0 : fallback;
+  };
+
+  const mergeAttendanceRecords = (incoming: Attendance[], existing: Attendance[], userId: number): Attendance[] => {
+    // CRITICAL: Filter existing records to only include those belonging to current user
+    const userExisting = existing.filter((record) => record.employee === userId);
+    
+    const existingByDate = new Map<string, Attendance>();
+    userExisting.forEach((record) => {
+      const key = normalizeDate(record.date) ?? record.date;
+      // Preserve the latest optimistic data for merging
+      if (!existingByDate.has(key)) {
+        existingByDate.set(key, record);
+      }
+    });
+
+    const mergedByDate = new Map<string, Attendance>();
+
+    incoming.forEach((record) => {
+      // CRITICAL: Only process records belonging to current user
+      if (record.employee !== userId) {
+        console.warn('⚠️ Skipping record not belonging to current user during merge:', {
+          recordEmployeeId: record.employee,
+          currentUserId: userId,
+          recordId: record.id
+        });
+        return;
+      }
+      
+      const key = normalizeDate(record.date) ?? record.date;
+      const previous = existingByDate.get(key);
+      const merged: Attendance = {
+        ...(previous ?? {}),
+        ...record,
+      };
+
+      if ((!merged.check_in || merged.check_in === '') && previous?.check_in) {
+        merged.check_in = previous.check_in;
+      }
+      if ((!merged.check_out || merged.check_out === '') && previous?.check_out) {
+        merged.check_out = previous.check_out;
+      }
+      if (merged.work_hours === undefined && previous?.work_hours !== undefined) {
+        merged.work_hours = previous.work_hours;
+      }
+      if (!merged.photo && previous?.photo) {
+        merged.photo = previous.photo;
+      }
+
+      mergedByDate.set(key, merged);
+    });
+
+    // Carry over optimistic records that backend hasn't confirmed yet (only for current user)
+    userExisting.forEach((record) => {
+      const key = normalizeDate(record.date) ?? record.date;
+      if (!mergedByDate.has(key)) {
+        mergedByDate.set(key, record);
+      }
+    });
+
+    return Array.from(mergedByDate.values()).sort((a, b) => dateValue(b.date) - dateValue(a.date));
+  };
 
   // Decode user id from JWT access token with validation
   const getUserId = (): number | null => {
@@ -109,247 +208,246 @@ const AttendanceLeave: React.FC = () => {
   };
 
   // Fetch attendance data
-  const fetchAttendance = async () => {
+  const fetchAttendance = async (skipMerge: boolean = false) => {
     try {
       const userId = getUserId();
       if (!userId) {
-        toast.error('User not identified. Please log in again.');
+        console.warn('⚠️ No user ID found, skipping attendance fetch');
         setAttendanceLoading(false);
         return;
       }
-      const data = await apiGet(`/payroll/attendance/?employee=${userId}`);
       
-      // CRITICAL SECURITY: Filter data client-side to ensure only current user's data is shown
-      // This is a safety measure in case backend doesn't filter properly
-      const filteredData = Array.isArray(data) 
-        ? data.filter((record: Attendance) => {
-            // Ensure the record belongs to the current user
-            const recordEmployeeId = record.employee;
-            const matches = recordEmployeeId === userId;
-            if (!matches) {
-              console.warn('⚠️ Filtered out attendance record not belonging to current user:', {
-                recordEmployeeId,
-                currentUserId: userId,
-                recordId: record.id
-              });
-            }
-            return matches;
-          })
-        : [];
-      
-      console.log('📊 Fetched attendance data (raw):', data);
-      console.log('📊 Filtered attendance data (user-specific):', filteredData);
-      console.log('👤 Current user ID:', userId);
-      
-      setAttendance(filteredData);
-      
-      // Find today's attendance record (from filtered data)
-      const today = new Date().toISOString().split('T')[0];
-      console.log('📅 Looking for today\'s record:', today);
-      const todayRecord = filteredData.find((record: Attendance) => {
-        try {
-          // Handle different date formats
-          let recordDate: string;
-          if (/^\d{4}-\d{2}-\d{2}$/.test(record.date)) {
-            recordDate = record.date;
-          } else {
-            const date = new Date(record.date);
-            if (isNaN(date.getTime())) {
-              return false;
-            }
-            recordDate = date.toISOString().split('T')[0];
-          }
-          return recordDate === today;
-        } catch {
-          return false;
-        }
-      });
-      
-      if (todayRecord) {
-        console.log('✅ Found today\'s attendance record:', todayRecord);
-        console.log('📋 Check-in:', todayRecord.check_in);
-        console.log('📋 Check-out:', todayRecord.check_out);
-        console.log('📋 Full record:', JSON.stringify(todayRecord, null, 2));
+      try {
+        const data = await apiGet(`/payroll/attendance/?employee=${userId}`);
         
-        // CRITICAL: Always update todayAttendance with the full record FIRST
-        // This ensures the UI shows the latest data from backend
-        setTodayAttendance({ ...todayRecord });
+        // CRITICAL SECURITY: Filter data client-side to ensure only current user's data is shown
+        // This is a safety measure in case backend doesn't filter properly
+        const filteredData = Array.isArray(data) 
+          ? data.filter((record: Attendance) => {
+              // Ensure the record belongs to the current user
+              const recordEmployeeId = record.employee;
+              const matches = recordEmployeeId === userId;
+              if (!matches) {
+                console.warn('⚠️ Filtered out attendance record not belonging to current user:', {
+                  recordEmployeeId,
+                  currentUserId: userId,
+                  recordId: record.id
+                });
+              }
+              return matches;
+            })
+          : [];
         
-        if (todayRecord.check_in) {
+        console.log('📊 Fetched attendance data (raw):', data);
+        console.log('📊 Filtered attendance data (user-specific):', filteredData);
+        console.log('👤 Current user ID:', userId);
+        
+        const todayKey = normalizeDate(new Date().toISOString());
+        let mergedRecords: Attendance[] = [];
+        let todayRecord: Attendance | null = null;
+
+        setAttendance((prevRecords) => {
           try {
-            // Handle different check_in formats
-            let checkIn: Date | null = null;
-            if (typeof todayRecord.check_in === 'string') {
-              // Clean the time string - remove microseconds if present
-              const cleanTime = todayRecord.check_in.split('.')[0];
-              
-                // If it's just time (HH:mm:ss), combine with date
-                if (/^\d{2}:\d{2}:\d{2}/.test(cleanTime)) {
-                  // Ensure date is in YYYY-MM-DD format
-                  let dateStr = todayRecord.date;
-                  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                    const dateObj = new Date(dateStr);
-                    if (!isNaN(dateObj.getTime())) {
-                      dateStr = dateObj.toISOString().split('T')[0];
-                    } else {
-                      dateStr = new Date().toISOString().split('T')[0];
-                    }
-                  }
-                  // Parse as local time (not UTC) to avoid timezone issues
-                  // The backend stores time in local server time, so we interpret it as local
-                  const combined = `${dateStr}T${cleanTime}`;
-                  checkIn = new Date(combined);
-                  // If the date seems wrong (timezone offset issue), adjust it
-                  // Check if the time is more than 12 hours in the future (likely timezone issue)
-                  const now = new Date();
-                  const hoursDiff = (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
-                  if (hoursDiff > 12) {
-                    // Likely a timezone issue - the time is probably in a different timezone
-                    // Try parsing as UTC instead
-                    const utcCombined = `${dateStr}T${cleanTime}Z`;
-                    const utcCheckIn = new Date(utcCombined);
-                    if (!isNaN(utcCheckIn.getTime())) {
-                      console.log('⚠️ Timezone adjustment: Using UTC interpretation');
-                      checkIn = utcCheckIn;
-                    }
-                  }
-              } else {
-                checkIn = new Date(todayRecord.check_in);
-              }
-            }
-            
-            // Validate the parsed date
-            if (checkIn && !isNaN(checkIn.getTime())) {
-              // Don't validate against "future" - timezone differences can cause false positives
-              // The backend stores the correct time, we just need to parse it correctly
-              console.log('✅ Setting check-in time:', checkIn);
-              console.log('Check-in time string:', todayRecord.check_in);
-              console.log('Parsed date object:', checkIn.toISOString());
-              console.log('Local time:', checkIn.toLocaleString());
-              setCheckInTime(checkIn);
-            } else {
-              console.warn('⚠️ Failed to parse check-in time, using current time');
-              setCheckInTime(new Date());
-            }
-          } catch (error) {
-            console.error('Error parsing check-in time:', error);
-            setCheckInTime(new Date());
+            // Skip merging if explicitly requested (e.g., after clearing)
+            const merged = skipMerge 
+              ? filteredData.sort((a, b) => dateValue(b.date) - dateValue(a.date))
+              : mergeAttendanceRecords(filteredData, prevRecords, userId);
+            mergedRecords = merged;
+            // CRITICAL: Only find today's record if it belongs to current user
+            todayRecord = merged.find((record) => sameDate(record.date, todayKey) && record.employee === userId) ?? null;
+            return merged;
+          } catch (mergeError) {
+            console.error('❌ Error merging attendance records:', mergeError);
+            // Return filtered data as fallback
+            return filteredData.sort((a, b) => dateValue(b.date) - dateValue(a.date));
           }
-          
-          // Determine mode: if check-in exists but no check-out, show check-out mode
-          if (!todayRecord.check_out || todayRecord.check_out === null || todayRecord.check_out === '') {
-            console.log('➡️ No check-out found, setting mode to checkout');
-            setAttendanceMode('checkout');
-            setCheckOutTime(null);
-            // Ensure todayAttendance doesn't have stale check_out
-            setTodayAttendance(prev => prev ? { ...prev, check_out: undefined } : null);
-          } else {
-            console.log('✅ Check-out exists in record:', todayRecord.check_out);
-            try {
-              // Handle different check_out formats
-              let checkOut: Date | null = null;
-              if (typeof todayRecord.check_out === 'string') {
-                // Clean the time string - remove microseconds if present
-                const cleanTime = todayRecord.check_out.split('.')[0];
-                
-                // If it's just time (HH:mm:ss), combine with date
-                if (/^\d{2}:\d{2}:\d{2}/.test(cleanTime)) {
-                  // Ensure date is in YYYY-MM-DD format
-                  let dateStr = todayRecord.date;
-                  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                    const dateObj = new Date(dateStr);
-                    if (!isNaN(dateObj.getTime())) {
-                      dateStr = dateObj.toISOString().split('T')[0];
-                    } else {
-                      dateStr = new Date().toISOString().split('T')[0];
-                    }
-                  }
-                  const combined = `${dateStr}T${cleanTime}`;
-                  checkOut = new Date(combined);
-                  console.log('📅 Combined check-out datetime:', combined, '→', checkOut.toISOString());
-                } else {
-                  checkOut = new Date(todayRecord.check_out);
-                  console.log('📅 Parsed check-out as full datetime:', checkOut.toISOString());
-                }
-              }
-              
-              // Validate the parsed date
-              if (checkOut && !isNaN(checkOut.getTime())) {
-                // Ensure check-out is after check-in
-                const checkInTime = todayRecord.check_in ? (() => {
-                  try {
-                    const cleanTime = String(todayRecord.check_in).split('.')[0];
+        });
+        
+        // CRITICAL: Only set todayAttendance if record belongs to current user
+        if (todayRecord && todayRecord.employee === userId) {
+          try {
+            console.log('✅ Found today\'s attendance record:', todayRecord);
+            console.log('📋 Check-in:', todayRecord.check_in);
+            console.log('📋 Check-out:', todayRecord.check_out);
+            console.log('📋 Full record:', JSON.stringify(todayRecord, null, 2));
+            
+            const sanitizedRecord: Attendance = {
+              ...todayRecord,
+              check_out: todayRecord.check_out || undefined,
+            };
+
+            setTodayAttendance({ ...sanitizedRecord });
+
+            if (sanitizedRecord.check_in) {
+              try {
+                let checkIn: Date | null = null;
+                const rawCheckIn = sanitizedRecord.check_in;
+                const cleanTime = String(rawCheckIn).split('.')[0];
+                  
                     if (/^\d{2}:\d{2}:\d{2}/.test(cleanTime)) {
-                      let dateStr = todayRecord.date;
-                      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                        const dateObj = new Date(dateStr);
-                        if (!isNaN(dateObj.getTime())) {
-                          dateStr = dateObj.toISOString().split('T')[0];
-                        }
+                  let dateStr = normalizeDate(sanitizedRecord.date) ?? new Date().toISOString().split('T')[0];
+                      const combined = `${dateStr}T${cleanTime}`;
+                      checkIn = new Date(combined);
+                      const now = new Date();
+                      const hoursDiff = (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
+                      if (hoursDiff > 12) {
+                        const utcCombined = `${dateStr}T${cleanTime}Z`;
+                        const utcCheckIn = new Date(utcCombined);
+                        if (!isNaN(utcCheckIn.getTime())) {
+                    console.log('⚠️ Timezone adjustment: Using UTC interpretation for check-in');
+                        checkIn = utcCheckIn;
                       }
-                      return new Date(`${dateStr}T${cleanTime}`);
                     }
-                    return new Date(todayRecord.check_in);
-                  } catch {
-                    return null;
-                  }
-                })() : null;
-                
-                if (checkInTime && checkOut < checkInTime) {
-                  console.warn('⚠️ Check-out time is before check-in time, using current time');
-                  console.warn('Check-in:', checkInTime);
-                  console.warn('Check-out:', checkOut);
-                  setCheckOutTime(new Date());
-                  // Still update todayAttendance with the check_out value from backend
-                  setTodayAttendance(prev => prev ? { ...prev, check_out: todayRecord.check_out } : null);
-                } else {
-                  console.log('✅ Setting check-out time:', checkOut);
-                  console.log('✅ Check-out time ISO:', checkOut.toISOString());
-                  setCheckOutTime(checkOut);
-                  // CRITICAL: Force update todayAttendance with check_out value to ensure UI updates
-                  setTodayAttendance(prev => {
-                    const updated = prev ? { ...prev, check_out: todayRecord.check_out } : todayRecord;
-                    console.log('🔄 Updating todayAttendance with check_out:', updated);
-                    return updated;
-                  });
+                  } else {
+                  checkIn = new Date(rawCheckIn);
                 }
-              } else {
-                console.warn('⚠️ Failed to parse check-out time, but keeping the value in todayAttendance');
-                // Even if parsing fails, keep the raw value in todayAttendance so UI can display it
-                setTodayAttendance(prev => prev ? { ...prev, check_out: todayRecord.check_out } : todayRecord);
+                
+                if (checkIn && !isNaN(checkIn.getTime())) {
+                  console.log('✅ Setting check-in time:', checkIn);
+                  setCheckInTime(checkIn);
+                } else {
+                  console.warn('⚠️ Failed to parse check-in time, using current time');
+                  setCheckInTime(new Date());
+                }
+              } catch (error) {
+                console.error('Error parsing check-in time:', error);
+                setCheckInTime(new Date());
+              }
+            } else {
+              setCheckInTime(null);
+            }
+              
+            if (!sanitizedRecord.check_out) {
+              console.log('➡️ No check-out found');
+              setCheckOutTime(null);
+            } else {
+              console.log('✅ Check-out exists in record:', sanitizedRecord.check_out);
+              try {
+                let checkOut: Date | null = null;
+                const rawCheckOut = sanitizedRecord.check_out;
+                const cleanOut = String(rawCheckOut).split('.')[0];
+
+                if (/^\d{2}:\d{2}:\d{2}/.test(cleanOut)) {
+                  let dateStr = normalizeDate(sanitizedRecord.date) ?? new Date().toISOString().split('T')[0];
+                  const combined = `${dateStr}T${cleanOut}`;
+                      checkOut = new Date(combined);
+                    } else {
+                  checkOut = new Date(rawCheckOut);
+                }
+                
+                if (checkOut && !isNaN(checkOut.getTime())) {
+                  const parsedCheckIn = sanitizedRecord.check_in ? new Date(sanitizedRecord.check_in) : null;
+                  if (parsedCheckIn && !isNaN(parsedCheckIn.getTime()) && checkOut < parsedCheckIn) {
+                    console.warn('⚠️ Check-out time is before check-in time, using current time instead');
+                    setCheckOutTime(new Date());
+                  } else {
+                    console.log('✅ Setting check-out time:', checkOut);
+                    setCheckOutTime(checkOut);
+                  }
+                } else {
+                  console.warn('⚠️ Failed to parse check-out time, clearing local state');
+                  setCheckOutTime(null);
+                }
+              } catch (error) {
+                console.error('❌ Error parsing check-out time:', error);
                 setCheckOutTime(null);
               }
-            } catch (error) {
-              console.error('❌ Error parsing check-out time:', error);
-              // Even on error, keep the raw value
-              setTodayAttendance(prev => prev ? { ...prev, check_out: todayRecord.check_out } : todayRecord);
-              setCheckOutTime(null);
+
+              setAttendanceMode('checkin');
             }
+          } catch (stateError) {
+            console.error('❌ Error setting today attendance state:', stateError);
+            // Don't throw - just log and continue
           }
         } else {
+          setTodayAttendance(null);
           setCheckInTime(null);
           setCheckOutTime(null);
           setAttendanceMode('checkin');
         }
-      } else {
-        setTodayAttendance(null);
-        setCheckInTime(null);
-        setCheckOutTime(null);
-        setAttendanceMode('checkin');
+      } catch (apiError: any) {
+        console.error('❌ Error fetching attendance from API:', apiError);
+        // Don't show error toast if it's a network error during check-in (might be temporary)
+        // Only show if it's a critical error
+        if (apiError.response?.status === 401 || apiError.response?.status === 403) {
+          toast.error('Authentication Error', { 
+            description: 'Your session may have expired. Please refresh the page.' 
+          });
+        } else if (apiError.response?.status !== 404) {
+          // 404 is okay - just means no records yet
+          console.warn('⚠️ Attendance fetch failed, but continuing:', apiError.message);
+        }
+        // Don't throw - allow component to continue rendering
       }
-    } catch (error) {
-      toast.error('Failed to fetch attendance records');
+    } catch (error: any) {
+      console.error('❌ Unexpected error in fetchAttendance:', error);
+      // Don't show toast for unexpected errors during check-in flow
+      // Just log and continue
     } finally {
       setAttendanceLoading(false);
     }
   };
 
+  // Track user changes and clear state when user switches
   useEffect(() => {
-    fetchAttendance();
+    const checkUserChange = () => {
+      const userId = getUserId();
+      
+      // If user changed, clear all attendance-related state
+      if (currentUserId !== null && currentUserId !== userId && userId !== null) {
+        console.log('🔄 User changed detected. Clearing attendance state...', {
+          previousUserId: currentUserId,
+          newUserId: userId
+        });
+        
+        // Clear all state
+        setAttendance([]);
+        setTodayAttendance(null);
+        setCheckInTime(null);
+        setCheckOutTime(null);
+        setAttendanceMode('checkin');
+        setAttendanceResult(null);
+        setRecognizedEmployee(null);
+        setRecognitionTime('');
+        setShowCheckoutConfirm(false);
+      }
+      
+      // Update current user ID
+      if (userId !== currentUserId) {
+        setCurrentUserId(userId);
+      }
+    };
+    
+    // Check on mount and set initial user ID
+    checkUserChange();
+    
+    // Set up interval to periodically check for user changes (every 5 seconds)
+    const userCheckInterval = setInterval(checkUserChange, 5000);
+    
+    return () => clearInterval(userCheckInterval);
+  }, [currentUserId]);
+
+  useEffect(() => {
+    // Initial fetch with error handling to prevent blank screen
+    const loadData = async () => {
+      try {
+        await fetchAttendance();
+      } catch (error) {
+        console.error('❌ Error in initial attendance fetch:', error);
+        // Don't show error toast on initial load - just set loading to false
+        // This prevents blank screen if there's an error
+        setAttendanceLoading(false);
+      }
+    };
+    
+    loadData();
     
     // Set up periodic refresh to keep data in sync (every 30 seconds)
     const refreshInterval = setInterval(() => {
-      fetchAttendance();
+      fetchAttendance().catch((error) => {
+        console.error('❌ Error in periodic attendance fetch:', error);
+        // Silently fail - don't disrupt user experience
+      });
     }, 30000);
     
     return () => clearInterval(refreshInterval);
@@ -526,11 +624,24 @@ const AttendanceLeave: React.FC = () => {
       }
     };
 
-    const duration = typeof row.work_hours === 'number' 
+    let duration = typeof row.work_hours === 'number' 
       ? `${row.work_hours.toFixed(1)}h` 
       : (typeof row.work_hours === 'string' && row.work_hours) 
         ? `${parseFloat(row.work_hours).toFixed(1)}h`
         : undefined;
+
+    if (!duration && row.check_in && row.check_out) {
+      try {
+        const checkInDate = new Date(row.check_in);
+        const checkOutDate = new Date(row.check_out);
+        if (!isNaN(checkInDate.getTime()) && !isNaN(checkOutDate.getTime()) && checkOutDate > checkInDate) {
+          const diffHours = (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60);
+          duration = `${diffHours.toFixed(1)}h`;
+        }
+      } catch {
+        // Ignore parsing errors; duration will remain undefined
+      }
+    }
 
     return {
       id: String(row.id),
@@ -592,8 +703,8 @@ const AttendanceLeave: React.FC = () => {
     toast.success('PDF downloaded', { description: 'Your attendance record has been downloaded.' });
   };
 
-  // Handle mark attendance (check-in or check-out)
-  const handleMarkAttendance = async (file: File) => {
+  // Handle check-in with face recognition
+  const handleCheckIn = async (file: File) => {
     setMarkAttendanceLoading(true);
     setAttendanceResult(null);
 
@@ -608,10 +719,19 @@ const AttendanceLeave: React.FC = () => {
         return;
       }
       
-      console.log('👤 Marking attendance for user ID:', userId);
+      // CRITICAL: Verify user hasn't changed
+      if (currentUserId !== null && currentUserId !== userId) {
+        toast.error('User Changed', { 
+          description: 'User session changed. Please refresh the page.' 
+        });
+        setMarkAttendanceLoading(false);
+        return;
+      }
+      
+      console.log('👤 Checking in for user ID:', userId);
       
       const formData = new FormData();
-      formData.append('photo', file);
+      formData.append('captured_image', file); // ⚠️ Field name: captured_image (NOT photo)
       
       const response = await apiPostFormData('/attendance/mark-attendance-face/', formData) as AttendanceMarkResponse;
       
@@ -622,77 +742,105 @@ const AttendanceLeave: React.FC = () => {
       
       setAttendanceResult(response);
 
-      // Backend returns: { employee, verified, message, photo_url }
+      // Backend returns: { verified, similarity, message, photo_url }
+      // Handle response based on API guide
       if (response.verified) {
+        // Check-in successful
         const now = new Date();
+        const nowIso = now.toISOString();
+        const nowDateKey = normalizeDate(nowIso) ?? nowIso.split('T')[0];
         const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         setRecognitionTime(timeString);
         
         // Update recognized employee with response data
         setRecognizedEmployee({
-          name: response.employee,
-          employeeId: response.employee,
+          name: response.employee || 'Employee',
+          employeeId: response.employee || String(userId),
           department: 'Employee',
           status: 'verified',
         });
 
-        // Immediately refresh attendance data after successful verification
-        // For check-out, we need to ensure backend has processed it
-        if (attendanceMode === 'checkout') {
-          // Wait for backend to process check-out
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          // First refresh
-          console.log('🔄 First refresh after check-out...');
-          await fetchAttendance();
-          
-          // Force another refresh to ensure state is synced
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          console.log('🔄 Second refresh after check-out...');
-          await fetchAttendance();
-          
-          // Final refresh to catch any delayed updates
-          await new Promise(resolve => setTimeout(resolve, 800));
-          console.log('🔄 Final refresh after check-out...');
-          await fetchAttendance();
-          
-          // One more check to ensure state is correct
-          await new Promise(resolve => setTimeout(resolve, 500));
-          console.log('🔄 Final verification refresh...');
-          await fetchAttendance();
-        } else {
-          // For check-in, shorter delay
-          await new Promise(resolve => setTimeout(resolve, 800));
-          await fetchAttendance();
-        }
-        
-        // Show success message based on mode
-        if (attendanceMode === 'checkin') {
-          toast.success('Check-In Successful', { 
-            description: response.message || 'Your check-in has been verified and recorded' 
-          });
-        } else {
-          toast.success('Check-Out Successful', { 
-            description: response.message || 'Your check-out has been verified and recorded' 
-          });
-        }
-      } else {
-        // Face mismatch - attendance NOT recorded
-        toast.error('Verification Failed', { 
-          description: response.message || 'Face mismatch. Please try again.' 
+        // Optimistically update today's attendance and list
+        setTodayAttendance((prev) => {
+          const optimisticId = prev?.id ?? -Math.abs(now.getTime());
+          return {
+            id: optimisticId,
+            employee: prev?.employee ?? userId,
+            date: nowDateKey,
+            check_in: nowIso,
+            work_hours: undefined,
+            photo: response.photo_url ?? prev?.photo,
+          };
         });
+
+        setAttendance((prevRecords) => {
+          // CRITICAL: Filter to only include records belonging to current user
+          const userRecords = prevRecords.filter((record) => record.employee === userId);
+          const records = [...userRecords];
+          const existingIndex = records.findIndex((record) => sameDate(record.date, nowDateKey));
+          const optimisticId = existingIndex >= 0 ? records[existingIndex].id : -Math.abs(now.getTime());
+
+          const updatedRecord: Attendance = {
+            id: optimisticId,
+            employee: userId,
+            date: nowDateKey,
+            check_in: nowIso,
+            photo: response.photo_url,
+          };
+
+          if (existingIndex >= 0) {
+            records[existingIndex] = updatedRecord;
+            return records.sort((a, b) => dateValue(b.date) - dateValue(a.date));
+          }
+          return [updatedRecord, ...records].sort((a, b) => dateValue(b.date) - dateValue(a.date));
+        });
+
+        setCheckInTime(now);
+        setCheckOutTime(null);
+        
+        // Stay in checkin mode - checkout happens via button
+        setAttendanceMode('checkin');
+
+        // Allow backend a moment to persist, then refresh
+        // Use setTimeout to avoid blocking the UI
+        setTimeout(async () => {
+          try {
+            await fetchAttendance(true);
+          } catch (refreshError) {
+            console.error('❌ Error refreshing attendance after check-in:', refreshError);
+            // Don't show error - just log it
+          }
+        }, 500);
+        
+        toast.success('Check-In Successful', { 
+          description: response.message || `Face verified (${((response.similarity || 0) * 100).toFixed(1)}% match). Check-in recorded.` 
+        });
+      } else {
+        // Already checked in or face not recognized
+        if (response.message?.includes('already checked in')) {
+          toast.info('Already Checked In', { description: response.message });
+        } else {
+          toast.error('Verification Failed', { 
+            description: response.message || `Face not recognized (${((response.similarity || 0) * 100).toFixed(1)}% match). Please try again.` 
+          });
+        }
       }
     } catch (error: any) {
       // Handle different error formats from backend
-      let errorMessage = 'Failed to mark attendance. Please try again.';
+      let errorMessage = 'Failed to check in. Please try again.';
       
       if (error.response?.data) {
         const errorData = error.response.data;
-        errorMessage = errorData.error || errorData.detail || errorData.message || errorMessage;
         
-        // Special handling for 404 - no face profile registered
+        // Handle specific status codes from API guide
         if (error.response.status === 404) {
           errorMessage = 'No face profile registered. Please register your face first.';
+        } else if (error.response.status === 403) {
+          errorMessage = errorData.message || `Face not recognized (${((errorData.similarity || 0) * 100).toFixed(1)}% match).`;
+        } else if (error.response.status === 400) {
+          errorMessage = errorData.message || 'No face detected in image. Please ensure your face is clearly visible.';
+        } else {
+          errorMessage = errorData.error || errorData.detail || errorData.message || errorMessage;
         }
       }
       
@@ -702,15 +850,312 @@ const AttendanceLeave: React.FC = () => {
     }
   };
 
-  const resetAttendanceResult = async () => {
+  // Handle check-out (no face recognition required)
+  const handleCheckOut = async () => {
+    setMarkAttendanceLoading(true);
+    setAttendanceResult(null);
+
+    try {
+      const userId = getUserId();
+      if (!userId) {
+        toast.error('Authentication Error', { 
+          description: 'User not identified. Please log in again.' 
+        });
+        setMarkAttendanceLoading(false);
+        return;
+      }
+      
+      // CRITICAL: Verify user hasn't changed
+      if (currentUserId !== null && currentUserId !== userId) {
+        toast.error('User Changed', { 
+          description: 'User session changed. Please refresh the page.' 
+        });
+        setMarkAttendanceLoading(false);
+        return;
+      }
+
+      // CRITICAL: Verify todayAttendance belongs to current user
+      if (todayAttendance && todayAttendance.employee !== userId) {
+        console.error('❌ Security: Attempted checkout with attendance record belonging to different user', {
+          recordEmployeeId: todayAttendance.employee,
+          currentUserId: userId
+        });
+        toast.error('Security Error', { 
+          description: 'Attendance record does not belong to current user. Please refresh the page.' 
+        });
+        setMarkAttendanceLoading(false);
+        // Clear invalid state
+        setTodayAttendance(null);
+        await fetchAttendance(true);
+        return;
+      }
+
+      // Verify check-in exists
+      if (!todayAttendance?.check_in) {
+        toast.error('No Check-In Found', { 
+          description: 'Please check in first before checking out.' 
+        });
+        setMarkAttendanceLoading(false);
+        return;
+      }
+
+      // Check if already checked out
+      if (todayAttendance?.check_out) {
+        toast.info('Already Checked Out', { 
+          description: 'You have already checked out today.' 
+        });
+        setMarkAttendanceLoading(false);
+        return;
+      }
+
+      console.log('👤 Checking out for user ID:', userId);
+      
+      // Simple checkout API call (no face recognition needed)
+      const checkoutResponse = await apiPatch('/attendance/checkout/', {}) as CheckoutResponse;
+      
+      if (checkoutResponse.message && (checkoutResponse.message.includes('successfully') || checkoutResponse.message.includes('checked out'))) {
+        const checkoutTime = checkoutResponse.checkout_time ? new Date(checkoutResponse.checkout_time) : new Date();
+        const checkoutIso = checkoutTime.toISOString();
+        const checkInIso = todayAttendance.check_in;
+        
+        // Calculate duration
+        const durationMs = checkoutTime.getTime() - new Date(checkInIso).getTime();
+        const workHours = durationMs > 0 ? parseFloat((durationMs / (1000 * 60 * 60)).toFixed(2)) : 0;
+
+        // Set success result
+        setAttendanceResult({
+          verified: true,
+          message: checkoutResponse.message || 'Check-out successful. Work duration: ' + workHours.toFixed(1) + ' hours.',
+        });
+
+        // Optimistically update today's attendance
+        setTodayAttendance((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            check_out: checkoutIso,
+            work_hours: workHours,
+          };
+        });
+
+        // Update attendance list
+        setAttendance((prevRecords) => {
+          // CRITICAL: Filter to only include records belonging to current user
+          const userRecords = prevRecords.filter((record) => record.employee === userId);
+          const records = [...userRecords];
+          const todayKey = normalizeDate(todayAttendance.date) ?? new Date().toISOString().split('T')[0];
+          const existingIndex = records.findIndex((record) => sameDate(record.date, todayKey) && record.employee === userId);
+          
+          if (existingIndex >= 0) {
+            records[existingIndex] = {
+              ...records[existingIndex],
+              check_out: checkoutIso,
+              work_hours: workHours,
+            };
+            return records.sort((a, b) => dateValue(b.date) - dateValue(a.date));
+          }
+          return records;
+        });
+
+        setCheckOutTime(checkoutTime);
+        setAttendanceMode('checkin'); // Stay in checkin mode
+        
+        // Show success result
+        setAttendanceResult({
+          verified: true,
+          message: checkoutResponse.message || `Checked out successfully. Work duration: ${workHours.toFixed(1)} hours.`,
+        });
+
+        // Refresh to get final data from backend
+        // Use setTimeout to avoid blocking the UI
+        setTimeout(async () => {
+          try {
+            await fetchAttendance(true);
+          } catch (refreshError) {
+            console.error('❌ Error refreshing attendance after checkout:', refreshError);
+            // Don't show error - just log it
+          }
+        }, 500);
+        
+        toast.success('Check-Out Successful', { 
+          description: checkoutResponse.message || `Checked out successfully. Work duration: ${workHours.toFixed(1)} hours.` 
+        });
+      } else {
+        // Checkout failed or already checked out
+        if (checkoutResponse.message?.includes('already')) {
+          toast.info('Already Checked Out', { description: checkoutResponse.message });
+          setAttendanceMode('checkin');
+          await fetchAttendance(true);
+        } else {
+          toast.error('Checkout Failed', { description: checkoutResponse.message || checkoutResponse.error || 'Failed to check out. Please try again.' });
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Checkout error:', error);
+      let errorMessage = 'Failed to check out. Please try again.';
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        if (error.response.status === 404) {
+          errorMessage = 'No check-in record found for today. Please check in first.';
+        } else {
+          errorMessage = errorData.error || errorData.detail || errorData.message || errorMessage;
+        }
+      }
+      
+      setAttendanceResult({
+        verified: false,
+        message: errorMessage,
+      });
+      
+      toast.error('Error', { description: errorMessage });
+    } finally {
+      setMarkAttendanceLoading(false);
+    }
+  };
+
+  const resetAttendanceResult = async (nextMode?: 'checkin' | 'checkout') => {
     setAttendanceResult(null);
     
     // Always refresh attendance data when dismissing result to ensure latest state
-    await fetchAttendance();
+    // Use setTimeout to avoid blocking UI
+    setTimeout(async () => {
+      try {
+        await fetchAttendance(true);
+      } catch (refreshError) {
+        console.error('❌ Error refreshing attendance after reset:', refreshError);
+        // Don't show error - just log it
+      }
+    }, 100);
     
-    // If check-in was successful and no check-out yet, switch to check-out mode
-    if (attendanceMode === 'checkin' && todayAttendance?.check_in && !todayAttendance?.check_out) {
-      setAttendanceMode('checkout');
+    // Set the next mode if specified
+    if (nextMode) {
+      setAttendanceMode(nextMode);
+      return;
+    }
+
+    // Always stay in checkin mode - checkout happens via button
+    setAttendanceMode('checkin');
+  };
+
+  // Clear today's attendance record (for testing purposes)
+  const clearTodayAttendance = async () => {
+    // If there's no attendance record but cards might still show data, force clear all state
+    if (!todayAttendance) {
+      // Force clear all related state in case cards are showing stale data
+      setTodayAttendance(null);
+      setCheckInTime(null);
+      setCheckOutTime(null);
+      setAttendanceMode('checkin');
+      setAttendanceResult(null);
+      toast.info('State cleared', { description: 'All local attendance state has been reset' });
+      return;
+    }
+
+    // Only allow clearing if ID is positive (real backend record, not optimistic)
+    if (todayAttendance.id < 0) {
+      // Optimistic record - just reset local state immediately
+      setTodayAttendance(null);
+      setCheckInTime(null);
+      setCheckOutTime(null);
+      setAttendanceMode('checkin');
+      setAttendanceResult(null);
+      setAttendance((prev) => prev.filter((record) => record.id !== todayAttendance.id));
+      toast.success('Local attendance cleared', { description: 'Optimistic record removed' });
+      return;
+    }
+
+    // Clear UI state immediately for instant feedback
+    const recordId = todayAttendance.id;
+    setTodayAttendance(null);
+    setCheckInTime(null);
+    setCheckOutTime(null);
+    setAttendanceMode('checkin');
+    setAttendanceResult(null);
+    setAttendance((prev) => prev.filter((record) => record.id !== recordId));
+
+    try {
+      await apiDelete(`/payroll/attendance/${recordId}/`);
+      toast.success('Attendance cleared', { description: 'Today\'s attendance record has been deleted' });
+      
+      // Refresh attendance list to confirm deletion (skip merge to avoid restoring old data)
+      await fetchAttendance(true);
+    } catch (error: any) {
+      let errorMessage = 'Failed to clear attendance record';
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        errorMessage = errorData.detail || errorData.message || errorMessage;
+      }
+      toast.error('Error', { description: errorMessage });
+      // Re-fetch to restore state if deletion failed
+      await fetchAttendance(true);
+    }
+  };
+
+  // Clear ALL attendance records for the current user (for testing purposes)
+  const clearAllAttendance = async () => {
+    const userId = getUserId();
+    if (!userId) {
+      toast.error('User not identified', { description: 'Please log in again' });
+      return;
+    }
+
+    // Filter out optimistic records (negative IDs) and get only real backend records
+    const realRecords = attendance.filter((record) => record.id > 0 && record.employee === userId);
+    
+    if (realRecords.length === 0) {
+      toast.info('No records to delete', { description: 'No attendance records found' });
+      return;
+    }
+
+    // Confirm before deleting all records
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ALL ${realRecords.length} attendance record(s)?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    // Clear UI state immediately for instant feedback
+    setTodayAttendance(null);
+    setCheckInTime(null);
+    setCheckOutTime(null);
+    setAttendanceMode('checkin');
+    setAttendanceResult(null);
+    setAttendance([]);
+
+    try {
+      setAttendanceLoading(true);
+      
+      // Delete all records from backend
+      const deletePromises = realRecords.map((record) => 
+        apiDelete(`/payroll/attendance/${record.id}/`).catch((error) => {
+          console.error(`Failed to delete record ${record.id}:`, error);
+          return null; // Continue with other deletions even if one fails
+        })
+      );
+
+      await Promise.all(deletePromises);
+      
+      toast.success('All attendance cleared', { 
+        description: `Successfully deleted ${realRecords.length} attendance record(s)` 
+      });
+      
+      // Refresh to confirm deletion (should return empty array, skip merge to avoid restoring old data)
+      await fetchAttendance(true);
+    } catch (error: any) {
+      let errorMessage = 'Failed to clear attendance records';
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        errorMessage = errorData.detail || errorData.message || errorMessage;
+      }
+      toast.error('Error', { description: errorMessage });
+      // Re-fetch to restore state if deletion failed
+      await fetchAttendance(true);
+    } finally {
+      setAttendanceLoading(false);
     }
   };
 
@@ -790,26 +1235,12 @@ const AttendanceLeave: React.FC = () => {
 
           <TabsContent value="attendance" className="space-y-6">
             {attendanceLoading ? (
-              <div className="flex items-center justify-center h-64">Loading...</div>
+              <div className="flex flex-col items-center justify-center h-64 space-y-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+                <p className="text-muted-foreground">Loading attendance data...</p>
+              </div>
             ) : (
               <>
-                {/* Refresh Button */}
-                <div className="flex justify-end mb-4">
-                  <Button
-                    onClick={async () => {
-                      setAttendanceLoading(true);
-                      await fetchAttendance();
-                      toast.success('Attendance data refreshed', { description: 'Latest data has been loaded' });
-                    }}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Refresh
-                  </Button>
-                </div>
-
                 {/* Check-In/Check-Out Toggle Buttons */}
                 <div className="flex flex-row gap-4 mb-6 justify-center">
                   <Button
@@ -840,29 +1271,24 @@ const AttendanceLeave: React.FC = () => {
                     </div>
                   </Button>
                   <Button
-                    onClick={async () => {
-                      // Always allow clicking check-out button - it will check backend state
-                      // If already checked out, refresh data first
+                    onClick={() => {
+                      // Direct checkout - no separate mode needed
                       if (todayAttendance?.check_out) {
-                        await fetchAttendance();
+                        toast.info('Already Checked Out', { description: 'You have already checked out today.' });
                         return;
                       }
-                      // Only allow if check-in exists and no check-out
-                      if (todayAttendance?.check_in && !todayAttendance?.check_out) {
-                        setAttendanceMode('checkout');
-                      } else if (!todayAttendance?.check_in) {
-                        // No check-in yet, refresh to make sure
-                        await fetchAttendance();
+                      if (!todayAttendance?.check_in) {
+                        toast.error('No Check-In Found', { description: 'Please check in first before checking out.' });
+                        return;
                       }
+                      // Show confirmation dialog and checkout
+                      setShowCheckoutConfirm(true);
                     }}
                     disabled={!todayAttendance?.check_in || !!todayAttendance?.check_out}
                     className={`
                       w-40 h-14 text-sm font-semibold
                       transition-all duration-200 shadow-md hover:shadow-lg
-                      ${attendanceMode === 'checkout' 
-                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0' 
-                        : 'bg-white hover:bg-blue-50 text-blue-700 border-2 border-blue-300 hover:border-blue-400'
-                      }
+                      bg-white hover:bg-blue-50 text-blue-700 border-2 border-blue-300 hover:border-blue-400
                       ${(!todayAttendance?.check_in || !!todayAttendance?.check_out) 
                         ? 'opacity-50 cursor-not-allowed' 
                         : ''
@@ -876,100 +1302,130 @@ const AttendanceLeave: React.FC = () => {
                   </Button>
                 </div>
 
-                {/* Today's Attendance Status Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6 max-w-2xl mx-auto">
-                  <Card className="border-green-200 bg-green-50/50">
-                    <CardHeader className="pb-2 pt-4">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        Check In
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pb-4">
-                      <div className="space-y-1.5">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">Date</p>
-                          <p className="text-xs font-medium">
-                            {todayAttendance?.date ? formatDate(todayAttendance.date) : formatDate(new Date().toISOString())}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">Time</p>
-                          <p className="text-base font-bold text-green-700">
-                            {todayAttendance?.check_in ? formatTime(todayAttendance.check_in) : 'Not checked in'}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className={`border-blue-200 ${todayAttendance?.check_out ? 'bg-blue-50/50' : 'bg-gray-50/50'}`}>
-                    <CardHeader className="pb-2 pt-4">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <XCircle className="h-4 w-4 text-blue-600" />
-                        Check Out
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pb-4">
-                      <div className="space-y-1.5">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">Date</p>
-                          <p className="text-xs font-medium">
-                            {todayAttendance?.date ? formatDate(todayAttendance.date) : formatDate(new Date().toISOString())}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">Time</p>
-                          <p className={`text-base font-bold ${todayAttendance?.check_out ? 'text-blue-700' : 'text-muted-foreground'}`}>
-                            {todayAttendance?.check_out ? formatTime(todayAttendance.check_out) : 'Not checked out'}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                {/* Mark Attendance Section - Show webcam for check-in only */}
+                {attendanceMode === 'checkin' && !todayAttendance?.check_out && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div className="lg:col-span-2">
+                      {!attendanceResult || (attendanceResult && todayAttendance?.check_out) ? (
+                        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+                          <CardHeader>
+                            <div className="flex items-center gap-2">
+                              <CalendarIcon className="w-5 h-5 text-blue-600" />
+                              <CardTitle>Check In</CardTitle>
+                            </div>
+                            <CardDescription>
+                              Capture your photo to check in via facial recognition
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <WebcamCapture 
+                              key="webcam-checkin" 
+                              onCapture={handleCheckIn} 
+                              isLoading={markAttendanceLoading} 
+                            />
+                            
+                            {/* Instructions */}
+                            <Card className="mt-4 bg-primary/5 border-primary/20">
+                              <CardHeader>
+                                <CardTitle className="text-lg">Before You Capture</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <ul className="space-y-2 text-sm text-muted-foreground">
+                                  <li>✓ Make sure you're in a well-lit area</li>
+                                  <li>✓ Look directly at the camera</li>
+                                  <li>✓ Remove any face coverings</li>
+                                  <li>✓ Ensure your full face is visible</li>
+                                </ul>
+                              </CardContent>
+                            </Card>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                      <Card className={`shadow-lg ${attendanceResult.verified ? 'border-green-500' : 'border-red-500'}`}>
+                        <CardContent className="pt-12 pb-12">
+                          <div className="text-center space-y-6">
+                            {/* Success/Failure Icon */}
+                            <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center ${
+                              attendanceResult.verified ? 'bg-green-500' : 'bg-red-500'
+                            }`}>
+                              {attendanceResult.verified ? (
+                                <CheckCircle2 className="h-12 w-12 text-white" />
+                              ) : (
+                                <XCircle className="h-12 w-12 text-white" />
+                              )}
+                            </div>
 
-                {/* Mark Attendance Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                  <div className="lg:col-span-2">
-                    {!attendanceResult ? (
-                      <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-                        <CardHeader>
-                          <div className="flex items-center gap-2">
-                            <CalendarIcon className="w-5 h-5 text-blue-600" />
-                            <CardTitle>
-                              {attendanceMode === 'checkin' ? 'Check In' : 'Check Out'}
-                            </CardTitle>
+                            {/* Result Title - Only show for check-in (not checkout) */}
+                            {!todayAttendance?.check_out && (
+                              <div>
+                                <h2 className="text-3xl font-bold mb-2">
+                                  {attendanceResult.verified ? 'Check-In Successful!' : 'Verification Failed'}
+                                </h2>
+                                <p className="text-muted-foreground">
+                                  {attendanceResult.verified 
+                                    ? `Face verified. Check-in recorded.${attendanceResult.similarity ? ` (${((attendanceResult.similarity || 0) * 100).toFixed(1)}% match)` : ''}`
+                                    : attendanceResult.message}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Employee Info */}
+                            {attendanceResult.employee && (
+                              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
+                                <span className="text-sm text-muted-foreground">Employee:</span>
+                                <span className="font-medium">{attendanceResult.employee}</span>
+                              </div>
+                            )}
+
+                            {/* Payroll Sync Badge */}
+                            {attendanceResult.verified && (
+                              <div className="p-6 rounded-lg bg-green-50 border border-green-200">
+                                <Badge className="bg-green-500 mb-3">
+                                  ✓ Synced to Payroll
+                                </Badge>
+                                <p className="text-sm text-green-700 font-medium">
+                                  Your attendance has been automatically synced to the payroll system
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  Check-in time: {new Date().toLocaleTimeString('en-US', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit',
+                                  })}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Action Button */}
+                            <Button
+                              onClick={async () => {
+                                if (!attendanceResult.verified) {
+                                  await resetAttendanceResult();
+                                  return;
+                                }
+                                // After successful check-in, just reset to show normal view
+                                await resetAttendanceResult('checkin');
+                              }}
+                              variant={attendanceResult.verified ? "outline" : "default"}
+                              size="lg"
+                            >
+                              {attendanceResult.verified ? 'Done' : 'Try Again'}
+                            </Button>
                           </div>
-                          <CardDescription>
-                            {attendanceMode === 'checkin' 
-                              ? 'Capture your photo to check in via facial recognition'
-                              : 'Capture your photo to check out via facial recognition'}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <WebcamCapture 
-                            key={`webcam-${attendanceMode}`} 
-                            onCapture={handleMarkAttendance} 
-                            isLoading={markAttendanceLoading} 
-                          />
-                          
-                          {/* Instructions */}
-                          <Card className="mt-4 bg-primary/5 border-primary/20">
-                            <CardHeader>
-                              <CardTitle className="text-lg">Before You Capture</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <ul className="space-y-2 text-sm text-muted-foreground">
-                                <li>✓ Make sure you're in a well-lit area</li>
-                                <li>✓ Look directly at the camera</li>
-                                <li>✓ Remove any face coverings</li>
-                                <li>✓ Ensure your full face is visible</li>
-                              </ul>
-                            </CardContent>
-                          </Card>
                         </CardContent>
                       </Card>
-                    ) : (
+                    )}
+                  </div>
+                  <div className="lg:col-span-1">
+                    <EmployeeProfile employee={recognizedEmployee} timestamp={recognitionTime} />
+                  </div>
+                </div>
+                )}
+
+                {/* Checkout Success/Error Display - Show only after checkout */}
+                {attendanceResult && attendanceMode === 'checkin' && todayAttendance?.check_out && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div className="lg:col-span-2">
                       <Card className={`shadow-lg ${attendanceResult.verified ? 'border-green-500' : 'border-red-500'}`}>
                         <CardContent className="pt-12 pb-12">
                           <div className="text-center space-y-6">
@@ -987,36 +1443,21 @@ const AttendanceLeave: React.FC = () => {
                             {/* Result Title */}
                             <div>
                               <h2 className="text-3xl font-bold mb-2">
-                                {attendanceResult.verified 
-                                  ? (attendanceMode === 'checkin' ? 'Check-In Verified!' : 'Check-Out Verified!')
-                                  : 'Verification Failed'}
+                                {attendanceResult.verified ? 'Check-Out Successful!' : 'Check-Out Failed'}
                               </h2>
                               <p className="text-muted-foreground">
-                                {attendanceResult.message}
+                                {attendanceResult.verified 
+                                  ? (attendanceResult.message || 'Check-out recorded successfully.')
+                                  : attendanceResult.message}
                               </p>
                             </div>
 
-                            {/* Employee Info */}
-                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
-                              <span className="text-sm text-muted-foreground">Employee:</span>
-                              <span className="font-medium">{attendanceResult.employee}</span>
-                            </div>
-
-                            {/* Payroll Sync Badge */}
-                            {attendanceResult.verified && (
-                              <div className="p-6 rounded-lg bg-green-50 border border-green-200">
-                                <Badge className="bg-green-500 mb-3">
-                                  ✓ Synced to Payroll
-                                </Badge>
-                                <p className="text-sm text-green-700 font-medium">
-                                  Your attendance has been automatically synced to the payroll system
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-2">
-                                  {attendanceMode === 'checkin' ? 'Check-in' : 'Check-out'} time: {new Date().toLocaleTimeString('en-US', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    second: '2-digit',
-                                  })}
+                            {/* Work Hours Info */}
+                            {attendanceResult.verified && todayAttendance?.work_hours && (
+                              <div className="p-6 rounded-lg bg-blue-50 border border-blue-200">
+                                <p className="text-sm text-muted-foreground mb-1">Total Work Hours</p>
+                                <p className="text-3xl font-bold text-blue-700">
+                                  {todayAttendance.work_hours.toFixed(1)} hours
                                 </p>
                               </div>
                             )}
@@ -1024,35 +1465,98 @@ const AttendanceLeave: React.FC = () => {
                             {/* Action Button */}
                             <Button
                               onClick={async () => {
-                                if (attendanceResult.verified && attendanceMode === 'checkin' && !todayAttendance?.check_out) {
-                                  // Switch to check-out mode
-                                  setAttendanceResult(null);
-                                  setAttendanceMode('checkout');
-                                  // Refresh to get latest state
-                                  await fetchAttendance();
-                                } else {
-                                  await resetAttendanceResult();
-                                }
+                                await resetAttendanceResult('checkin');
                               }}
-                              variant={attendanceResult.verified ? "outline" : "default"}
+                              variant="outline"
                               size="lg"
                             >
-                              <Camera className="mr-2 h-4 w-4" />
-                              {attendanceResult.verified 
-                                ? (attendanceMode === 'checkin' && !todayAttendance?.check_out 
-                                    ? 'Check Out Now' 
-                                    : 'Done')
-                                : 'Try Again'}
+                              Done
                             </Button>
                           </div>
                         </CardContent>
                       </Card>
-                    )}
+                    </div>
+                    <div className="lg:col-span-1">
+                      {todayAttendance?.check_in && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle>Today's Summary</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Check-in</p>
+                              <p className="text-lg font-semibold">
+                                {checkInTime ? checkInTime.toLocaleTimeString('en-US', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                }) : 'N/A'}
+                              </p>
+                            </div>
+                            {todayAttendance?.check_out && checkOutTime && (
+                              <>
+                                <div>
+                                  <p className="text-sm text-muted-foreground">Check-out</p>
+                                  <p className="text-lg font-semibold">
+                                    {checkOutTime.toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </p>
+                                </div>
+                                {todayAttendance.work_hours && (
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">Work Hours</p>
+                                    <p className="text-lg font-semibold text-green-600">
+                                      {todayAttendance.work_hours.toFixed(1)} hours
+                                    </p>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
                   </div>
-                  <div className="lg:col-span-1">
-                    <EmployeeProfile employee={recognizedEmployee} timestamp={recognitionTime} />
-                  </div>
-                </div>
+                )}
+
+                {/* Checkout Confirmation Dialog */}
+                <Dialog open={showCheckoutConfirm} onOpenChange={setShowCheckoutConfirm}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Confirm Check-Out</DialogTitle>
+                      <DialogDescription>
+                        Are you sure you want to check out? This will complete your work day.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex gap-3 justify-end mt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowCheckoutConfirm(false)}
+                        disabled={markAttendanceLoading}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          setShowCheckoutConfirm(false);
+                          await handleCheckOut();
+                        }}
+                        disabled={markAttendanceLoading}
+                        className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                      >
+                        {markAttendanceLoading ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Checking Out...
+                          </>
+                        ) : (
+                          'Confirm Check-Out'
+                        )}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
 
                 {/* KPI Summary Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

@@ -207,6 +207,11 @@ export const apiPut = async (url: string, data: any) => {
   return response.data;
 };
 
+export const apiPatch = async (url: string, data: any = {}) => {
+  const response = await api.patch(url, data);
+  return response.data;
+};
+
 export const apiDelete = async (url: string) => {
   const response = await api.delete(url);
   return response.data;
