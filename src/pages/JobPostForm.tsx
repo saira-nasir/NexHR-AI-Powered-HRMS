@@ -4,17 +4,17 @@ import DashboardLayout from '@/layouts/DashboardLayout';
 import StepProgressBar from '../components/job-post/StepProgressBar';
 import GeneralInfoTab from '../components/job-post/GeneralInfoTab';
 import ApplicationFormTab from '../components/job-post/ApplicationFormTab';
-import InterviewScheduleTab from '../components/job-post/InterviewScheduleTab';
+// Interview scheduling removed per UI update
 import ReviewTab from '../components/job-post/ReviewTab';
 import JobPostedModal from '../components/modals/JobPostedModal';
 import { jobService, JobPostData, RequiredSkill } from '@/services/JobService';
 import { linkedinService } from '@/services/linkedinService';
-import { googleAuthService } from '@/services/googleAuth';
+// import { googleAuthService } from '@/services/googleAuth';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, AlertCircle, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
+import { Clock, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import GoogleCalendarConnectButton from '@/components/auth/GoogleCalendarConnectButton';
+// import GoogleCalendarConnectButton from '@/components/auth/GoogleCalendarConnectButton';
 
 
 import {
@@ -165,18 +165,6 @@ const JobPostForm: React.FC = () => {
   // --- Custom Form Builder State ---
   const [showCustomForm, setShowCustomForm] = useState(false);
 
-  // --- Google Calendar Connection State ---
-  const [calendarStatus, setCalendarStatus] = useState<{
-    is_connected: boolean;
-    email?: string;
-    connected_at?: string;
-    is_token_expired?: boolean;
-    loading: boolean;
-  }>({
-    is_connected: false,
-    loading: true
-  });
-
   const toggleQuestion = (questionId: string) => {
     setFormData(prev => ({
       ...prev,
@@ -187,47 +175,8 @@ const JobPostForm: React.FC = () => {
     setShowCustomForm(false);
   };
 
-  const handleConnectCalendar = () => {
-    const baseApi = import.meta.env.VITE_API_URL 
-      ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '') 
-      : 'http://127.0.0.1:8000/api';
-    
-    // Redirect to Google Calendar OAuth flow
-    window.location.href = `${baseApi}/auth/google-calendar/connect/`;
-  };
-
-  const handleRefreshStatus = async () => {
-    setCalendarStatus(prev => ({ ...prev, loading: true }));
-    const result = await googleAuthService.getCalendarStatus();
-    if (result.success && result.data) {
-      setCalendarStatus({
-        ...result.data,
-        loading: false
-      });
-    } else {
-      setCalendarStatus(prev => ({ ...prev, loading: false }));
-    }
-  };
-
   useEffect(() => {
     setIsClient(true);
-  }, []);
-
-  // Fetch Google Calendar connection status on mount
-  useEffect(() => {
-    const fetchCalendarStatus = async () => {
-      const result = await googleAuthService.getCalendarStatus();
-      if (result.success && result.data) {
-        setCalendarStatus({
-          ...result.data,
-          loading: false
-        });
-      } else {
-        setCalendarStatus(prev => ({ ...prev, loading: false }));
-      }
-    };
-    
-    fetchCalendarStatus();
   }, []);
 
   // Minimum selectable deadline (local datetime-local format) - now rounded up to next minute
@@ -554,7 +503,8 @@ const JobPostForm: React.FC = () => {
     loadDepartments();
   }, []);
 
-  const steps = ["General Info", "Application Form", "Schedule Interviews", "Review"];
+  const steps = ["General Info", "Application Form", "Review"];
+  const totalSteps = steps.length;
 
   // --- Custom Form Builder Component ---
   const CustomFormBuilder: React.FC = () => {
@@ -607,12 +557,12 @@ const JobPostForm: React.FC = () => {
           <form
             className="mt-6 space-y-4 p-4 border border-gray-200 rounded-lg bg-gray-50"
             action="#"
-            onSubmit={e => {
+            onSubmit={(e) => {
               e.preventDefault();
-              return false; // Do nothing, prevent navigation
-            }}
-          >
-            <h4 className="font-semibold text-gray-900 mb-2">Generated Application Form</h4>
+              if (currentStep === totalSteps) {
+                handlePostJob();
+              }
+            }}>
             {enabledQuestions.map(q => (
               <div key={q.id} className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-gray-700" htmlFor={q.id}>{q.label}</label>
@@ -794,160 +744,13 @@ const JobPostForm: React.FC = () => {
     }
   };
 
-  // Show loading state while checking calendar connection
-  if (calendarStatus.loading) {
-    return (
-      <DashboardLayout>
-        <div className='container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl rounded-md shadow-lg my-10 bg-white'>
-          <div className="flex flex-col items-center justify-center py-20">
-            <RefreshCw className="w-12 h-12 text-purple-600 animate-spin mb-4" />
-            <p className="text-lg text-gray-600">Checking calendar connection...</p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  // Show connection prompt if calendar is not connected
-  if (!calendarStatus.is_connected) {
-    return (
-      <DashboardLayout>
-        <div className='container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl my-10'>
-          <Card className="border-0 shadow-2xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 text-white pb-16">
-              <div className="flex flex-col items-center text-center">
-                <div className="bg-white/20 backdrop-blur-sm p-4 rounded-full mb-4">
-                  <Calendar className="w-16 h-16 text-white" />
-                </div>
-                <CardTitle className="text-3xl font-bold mb-2">Google Calendar Connection Required</CardTitle>
-                <p className="text-blue-100 text-lg">Connect your calendar to schedule interviews and manage job postings</p>
-              </div>
-            </CardHeader>
-            
-            <CardContent className="p-8 -mt-8">
-              <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
-                <div className="flex items-start gap-4 mb-6 pb-6 border-b border-gray-200">
-                  <div className="bg-red-100 p-3 rounded-lg">
-                    <AlertCircle className="w-6 h-6 text-red-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Why is this required?</h3>
-                    <p className="text-gray-700 leading-relaxed">
-                      To post and manage jobs effectively, we need access to your Google Calendar. This allows our system to:
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-6 mb-8">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-green-100 p-2 rounded-lg mt-1">
-                      <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-1">Schedule Interviews</h4>
-                      <p className="text-sm text-gray-600">Automatically schedule and manage candidate interviews</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="bg-blue-100 p-2 rounded-lg mt-1">
-                      <CheckCircle2 className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-1">Send Invitations</h4>
-                      <p className="text-sm text-gray-600">Send calendar invites to candidates and interviewers</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="bg-purple-100 p-2 rounded-lg mt-1">
-                      <CheckCircle2 className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-1">Manage Deadlines</h4>
-                      <p className="text-sm text-gray-600">Track application deadlines and hiring timelines</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="bg-orange-100 p-2 rounded-lg mt-1">
-                      <CheckCircle2 className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-1">Avoid Conflicts</h4>
-                      <p className="text-sm text-gray-600">Check availability and prevent scheduling conflicts</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-l-4 border-amber-500 p-4 rounded-lg mb-6">
-                  <div className="flex items-start gap-3">
-                    <Clock className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <h4 className="font-semibold text-amber-900 mb-1">Quick & Secure</h4>
-                      <p className="text-sm text-amber-800">
-                        The connection process takes less than a minute and uses Google's secure OAuth 2.0 authentication. 
-                        We only request calendar access and never store your Google password.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <GoogleCalendarConnectButton 
-                    onSuccess={handleRefreshStatus}
-                  />
-                  
-                  <Button
-                    onClick={handleRefreshStatus}
-                    variant="outline"
-                    className="border-2 border-gray-300 hover:bg-gray-50 px-6 py-2.5"
-                  >
-                    <RefreshCw className="w-5 h-5 mr-2" />
-                    Refresh Status
-                  </Button>
-                </div>
-              </div>
-
-              <div className="text-center text-sm text-gray-500">
-                <p>Already connected? Click "Refresh Status" to check your connection.</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout>
       <div
         className='container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl rounded-md shadow-lg my-10'
         style={{ backgroundColor: "#FFFFFF", color: "#2A2438" }}
       >
-        {/* Show connection status banner */}
-        {calendarStatus.is_connected && (
-          <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 p-4 rounded-lg">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-              <div className="flex-1">
-                <p className="font-semibold text-green-900">Google Calendar Connected</p>
-                <p className="text-sm text-green-700">
-                  {calendarStatus.email && `Connected as ${calendarStatus.email}`}
-                  {calendarStatus.is_token_expired && " · Token expired, please reconnect"}
-                </p>
-              </div>
-              <Button
-                onClick={handleRefreshStatus}
-                variant="ghost"
-                size="sm"
-                className="text-green-700 hover:bg-green-100"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        )}
+        {/* Google Calendar connection removed from this form (moved to Assessment/Interview pages) */}
 
         <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">
           Post a New Job
@@ -994,18 +797,10 @@ const JobPostForm: React.FC = () => {
             />
           )}
 
-          {/* Step 3: Interview Schedule */}
-          {currentStep === 3 && (
-            <InterviewScheduleTab
-              onChange={(data) => {
-                // placeholder: could lift state later
-                console.log('Interview schedule changed', data);
-              }}
-            />
-          )}
+          {/* Step 3: Interview Schedule removed - flow goes from Application Form -> Review */}
 
           {/* Step 4: Review */}
-          {currentStep === 4 && (
+          {currentStep === totalSteps && (
             <ReviewTab
               formData={{
                 jobTitle: formData.jobTitle,
@@ -1042,7 +837,7 @@ const JobPostForm: React.FC = () => {
                 Previous
               </button>
             )}
-            {currentStep < 4 ? (
+            {currentStep < totalSteps ? (
               <button
                 type="button"
                 onClick={handleNext}

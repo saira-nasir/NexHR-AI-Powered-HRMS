@@ -37,6 +37,7 @@ import {
 import { motion } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
 import { Candidate, ScreeningResult } from '@/data/hiringHandbookData';
+// LinkedIn UI moved to JobScreening page; hook removed from this component
 
 // API response types
 interface BackendCandidate {
@@ -162,7 +163,6 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
   const [overrideExisting, setOverrideExisting] = useState(false);
   const [lastActive, setLastActive] = useState<boolean>(false);
   const { toast } = useToast();
-  
   // Use custom hook to manage job screening status
   const { 
     jobStatus: fetchedJobStatus, 
@@ -857,6 +857,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                     <Target className="w-6 h-6 text-yellow-600" />
                   )}
                 </div>
+                {/* LinkedIn UI removed from this screen (moved to Job Screening page) */}
                 <div>
                   <CardTitle className="text-xl">
                     {jobStatus === 'screening' ? 'Screening In Progress' : 'Screened Candidates'}

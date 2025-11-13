@@ -2,16 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import JobCard from '@/components/jobPortal/job-card';
+import { Button } from '@/components/ui/button';
+import { useLinkedInConnection } from '@/hooks/useLinkedInConnection';
+import { linkedinService } from '@/services/linkedinService';
+import { useToast } from '@/hooks/use-toast';
 import type { JobListing } from '@/types/jobPortal/types';
 import HiringHandbookDrawer from '@/components/modals/HiringHandbookDrawer';
 import HiringHandbook from '@/pages/HiringHandbook';
 import { fetchCompanyJobs } from '@/services/jobPortalservice';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Linkedin } from 'lucide-react';
 
 
 const JobScreening: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  // LinkedIn connection hook for showing connect button on this page
+  const { isConnected: linkedInConnected, isLoading: linkedInLoading, error: linkedInError, checkConnection: checkLinkedInConnection, connectLinkedIn } = useLinkedInConnection();
   
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobListing | null>(null);
@@ -73,6 +79,34 @@ const JobScreening: React.FC = () => {
     load();
   }, [currentPage]);
 
+  const { toast } = useToast();
+
+  // Handler to post a job to LinkedIn when no linkedin_post_url exists
+  const handlePostOnLinkedIn = async (job: JobListing) => {
+    try {
+      toast({ title: 'Posting to LinkedIn...', description: `Posting "${job.title}"` });
+      const resp = await linkedinService.postJobToLinkedIn(job.id);
+      toast({ title: 'Posted', description: resp.message });
+
+      // Refresh job list to pick up linkedin_post_url added by backend
+      setLoading(true);
+      try {
+        const refreshed = await fetchCompanyJobs(currentPage, jobsPerPage);
+        setJobs(refreshed.jobs);
+        setTotalJobs(refreshed.totalCount);
+        setNextUrl(refreshed.next ?? null);
+        setPrevUrl(refreshed.previous ?? null);
+      } catch (err) {
+        console.error('Error refreshing jobs after LinkedIn post', err);
+      } finally {
+        setLoading(false);
+      }
+    } catch (err: any) {
+      console.error('Failed to post job to LinkedIn', err);
+      toast({ title: 'Failed to post', description: err?.response?.data?.message || err?.message || 'Unknown error' });
+    }
+  };
+
   const paginate = (page: number) => {
     setCurrentPage(page);
     // Update URL query param
@@ -126,6 +160,54 @@ const JobScreening: React.FC = () => {
                   <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-2">Job Screening</h1>
                   <p className="text-md text-indigo-100 max-w-2xl">List of jobs available for screening. Click on a job to view candidates and screening details.</p>
                 </div>
+                {/* LinkedIn banner (moved here from Screening). Beautiful, compact card */}
+                <div className="w-full lg:w-auto mt-4 lg:mt-0">
+                  {!linkedInLoading && !linkedInConnected ? (
+                    <div className="bg-white rounded-xl p-4 shadow-lg flex flex-col sm:flex-row items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-md bg-indigo-50">
+                          <Linkedin className="w-5 h-5 text-indigo-600" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900">Connect your LinkedIn</div>
+                          <div className="text-xs text-gray-500">Enable posting and sourcing of candidates directly from LinkedIn.</div>
+                          {linkedInError && <div className="text-xs text-red-500 mt-1">{linkedInError}</div>}
+                        </div>
+                      </div>
+                      <div className="ml-auto flex items-center gap-3">
+                        <Button
+                          size="lg"
+                          className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-5 py-2 rounded-full shadow-md flex items-center gap-2"
+                          onClick={async () => {
+                            try {
+                              const res = await connectLinkedIn();
+                              setTimeout(() => checkLinkedInConnection(), 2000);
+                              console.log('LinkedIn connect result', res);
+                            } catch (err) {
+                              console.error('Error starting LinkedIn connect', err);
+                            }
+                          }}
+                        >
+                          <Linkedin className="w-4 h-4" />
+                          Connect LinkedIn
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => checkLinkedInConnection()}
+                          className="px-4 py-2 rounded-full"
+                        >
+                          Refresh
+                        </Button>
+                      </div>
+                    </div>
+                  ) : linkedInLoading ? (
+                    <div className="bg-white rounded-xl p-3 shadow text-gray-700">Checking LinkedIn...</div>
+                  ) : (
+                    <div className="bg-white rounded-xl p-3 shadow text-gray-700">LinkedIn connected</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -149,7 +231,7 @@ const JobScreening: React.FC = () => {
               <>
                 <div className="mb-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {jobs.map((j) => (
-                    <JobCard key={j.id} job={j} isSaved={false} onToggleSave={() => {}} onView={handleView} />
+                    <JobCard key={j.id} job={j} isSaved={false} onToggleSave={() => {}} onView={handleView} showLinkedIn={linkedInConnected} onPostLinkedIn={handlePostOnLinkedIn} />
                   ))}
                 </div>
 

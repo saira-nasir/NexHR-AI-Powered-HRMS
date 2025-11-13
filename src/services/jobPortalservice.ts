@@ -54,7 +54,8 @@ class ApplicationService {
 
   async submitApplication(applicationData: FormData, jobId?: string | number): Promise<{ success: boolean; message?: string; applicationId?: string; errorData?: any }> {
     try {
-      const endpoint = jobId ? `${API_BASE_URL}/jobs/${jobId}/applications/` : `${API_BASE_URL}/applications/`;
+      // Always post to /applications/ endpoint; jobId should be included in FormData
+      const endpoint = `${API_BASE_URL}/applications/`;
       console.log('Sending FormData to:', endpoint);
       console.log('FormData contents:');
       for (let [key, value] of applicationData.entries()) {
@@ -98,6 +99,8 @@ class ApplicationService {
       };
     }
   }
+
+  // (JSON submit method removed — keep FormData multipart submission for file uploads)
 
   async getApplication(applicationId: string): Promise<{ success: boolean; data?: any; message?: string }> {
     try {
@@ -170,6 +173,7 @@ export interface ApiJobResponse {
     job_deadline: string;
     company_name: string;
     status?: string;
+  linkedin_post_url?: string | null;
     
 }
 
@@ -217,6 +221,8 @@ export const transformApiJob = (apiJob: ApiJobResponse): JobListing => {
     salary_period: `${apiJob.period}`,
     tags,
     status: apiJob.status || undefined
+    ,
+    linkedin_post_url: apiJob.linkedin_post_url ?? null
   };
 };
 

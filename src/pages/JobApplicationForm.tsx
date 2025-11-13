@@ -233,7 +233,8 @@ const JobApplicationForm: React.FC = () => {
             fd.append('educations', JSON.stringify(payload.educations));
             if (formData.resume_file) fd.append('resume', formData.resume_file);
 
-            const response = await applicationService.submitApplication(fd, routeJobId);
+            // Submit to /api/applications/ with job ID as FormData field
+            const response = await applicationService.submitApplication(fd);
             if (response.success) {
                 toast({ title: 'Success', description: response.message || 'Application submitted' });
                 setFormData({

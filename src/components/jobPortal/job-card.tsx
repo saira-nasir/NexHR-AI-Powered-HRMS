@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Bookmark, BookmarkCheck } from "lucide-react"
 import type { JobListing } from "@/types/jobPortal/types"
+import { Linkedin } from 'lucide-react'
 import { Navigate, useNavigate } from 'react-router-dom';
 
 interface JobCardProps {
@@ -10,9 +11,11 @@ interface JobCardProps {
   isSaved: boolean
   onToggleSave: () => void
   onView?: (job: JobListing) => void
+  showLinkedIn?: boolean
+  onPostLinkedIn?: (job: JobListing) => Promise<void>
 }
 
-export default function JobCard({ job, isSaved, onToggleSave, onView }: JobCardProps) {
+export default function JobCard({ job, isSaved, onToggleSave, onView, showLinkedIn = false, onPostLinkedIn }: JobCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const navigate = useNavigate();
 
@@ -161,16 +164,44 @@ export default function JobCard({ job, isSaved, onToggleSave, onView }: JobCardP
             ) : null}
           </div>
 
-              <button onClick={(e)=> {
+          <div className="flex items-center gap-3">
+            <button onClick={(e)=> {
               e.stopPropagation();
               if (onView) onView(job);
               else navigate("/job-detail");
             }} className="bg-[#2A2438] hover:bg-[#352F44] text-white text-sm font-medium px-5 py-2 rounded-full transition-all duration-200 hover:scale-105">
-            View
-          </button>
+              View
+            </button>
+
+            {showLinkedIn && (
+              (job as any).linkedin_post_url ? (
+                <a
+                  href={(job as any).linkedin_post_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-full bg-gradient-to-r from-[#0A66C2] to-[#0073b1] text-white hover:opacity-95 transition"
+                >
+                  <Linkedin className="w-4 h-4" />
+                  See on LinkedIn
+                </a>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onPostLinkedIn) onPostLinkedIn(job);
+                  }}
+                  className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-full bg-gradient-to-r from-[#0A66C2] to-[#0073b1] text-white hover:opacity-95 transition"
+                >
+                  <Linkedin className="w-4 h-4" />
+                  Post on LinkedIn
+                </button>
+              )
+            )}
+          </div>
         </div>
       </div>
     </div>
-    </div>
+  </div>
   )
 }

@@ -5,12 +5,17 @@ import { toast } from "@/components/ui/use-toast";
 interface GoogleCalendarConnectButtonProps {
   onSuccess?: () => void;
   className?: string;
+  onStart?: () => void;
+  onError?: (err?: any) => void;
 }
 
 const GoogleCalendarConnectButton: React.FC<GoogleCalendarConnectButtonProps> = ({ 
   onSuccess, 
-  className = "" 
+  className = "",
+  onStart,
+  onError,
 }) => {
+  const [isProcessing, setIsProcessing] = React.useState(false);
   const handleGoogleCalendarConnect = async () => {
     try {
       if (!(window as any).google) {
@@ -33,6 +38,7 @@ const GoogleCalendarConnectButton: React.FC<GoogleCalendarConnectButtonProps> = 
         description: "Failed to initialize Google Calendar connection",
         variant: "destructive",
       });
+      onError?.(error);
     }
   };
 
@@ -60,12 +66,16 @@ const GoogleCalendarConnectButton: React.FC<GoogleCalendarConnectButtonProps> = 
             description: "Failed to authorize Google Calendar",
             variant: "destructive",
           });
+          onError?.(response);
           return;
         }
 
         try {
           console.log("Authorization code received:", response.code);
-          
+              // indicate processing both locally and to parent
+              setIsProcessing(true);
+              onStart?.();
+
           // Send authorization code to backend
           const baseApi = import.meta.env.VITE_API_URL 
             ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '') 
@@ -105,12 +115,15 @@ const GoogleCalendarConnectButton: React.FC<GoogleCalendarConnectButtonProps> = 
             setTimeout(() => {
               onSuccess?.();
             }, 500);
+            setIsProcessing(false);
           } else {
             toast({
               title: "Error",
               description: data.message || "Failed to connect Google Calendar",
               variant: "destructive",
             });
+            onError?.(data);
+            setIsProcessing(false);
           }
         } catch (error) {
           console.error("Backend connection failed:", error);
@@ -119,6 +132,8 @@ const GoogleCalendarConnectButton: React.FC<GoogleCalendarConnectButtonProps> = 
             description: "Failed to connect with the server",
             variant: "destructive",
           });
+          onError?.(error);
+          setIsProcessing(false);
         }
       },
     });
