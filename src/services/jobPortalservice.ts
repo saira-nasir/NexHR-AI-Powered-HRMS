@@ -153,6 +153,85 @@ class ApplicationService {
       };
     }
   }
+
+  async getAssessmentJobs(): Promise<{ success: boolean; data?: any[]; count?: number; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/jobs/assessments/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        return {
+          success: true,
+          data: response.data.results || response.data,
+          count: response.data.count || (response.data.results || response.data).length,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Failed to fetch assessment jobs',
+      };
+    } catch (error: any) {
+      console.error('Error fetching assessment jobs:', error.response?.data || error.message);
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to fetch assessment jobs',
+      };
+    }
+  }
+
+  async getCandidatesByJob(jobId: string): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/jobs/${jobId}/candidates/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        return {
+          success: true,
+          data: response.data,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Failed to fetch candidates',
+      };
+    } catch (error: any) {
+      console.error('Error fetching candidates:', error.response?.data || error.message);
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to fetch candidates',
+      };
+    }
+  }
+
+  async getCompanyUsers(): Promise<{ success: boolean; data?: any[]; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/company-users/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        return {
+          success: true,
+          data: response.data,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Failed to fetch company users',
+      };
+    } catch (error: any) {
+      console.error('Error fetching company users:', error.response?.data || error.message);
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to fetch company users',
+      };
+    }
+  }
 }
 
 export const applicationService = new ApplicationService();

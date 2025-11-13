@@ -2,6 +2,7 @@ import type React from "react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { googleAuthService } from '@/services/googleAuth';
+import { applicationService } from '@/services/jobPortalservice';
 import GoogleCalendarConnectButton from '@/components/auth/GoogleCalendarConnectButton';
 import { RefreshCw, AlertCircle, CalendarIcon, Clock, Users, Briefcase, BarChart3, Search, X, MapPin, Eye, ChevronRight, CheckCircle, Download, Filter, SlidersHorizontal, Calendar as CalendarFilter } from 'lucide-react';
 import DashboardLayout from "@/layouts/DashboardLayout";
@@ -23,11 +24,13 @@ interface Job {
   location: string;
   type: string;
   postedDate: Date;
-  status: "active" | "closed" | "draft";
+  status: "active" | "closed" | "draft" | "screened";
   totalApplicants: number;
   shortlisted: number;
   interviewed: number;
   selected: number;
+  assessmentCount?: number;
+  screeningCount?: number;
 }
 
 const AssessmentAndInterview: React.FC = () => {
@@ -42,15 +45,8 @@ const AssessmentAndInterview: React.FC = () => {
   }>({ is_connected: false, loading: true });
   const [calendarError, setCalendarError] = useState<string | null>(null);
 
-  const [jobs] = useState<Job[]>([
-    { id: "1", title: "Senior Frontend Developer", department: "Engineering", location: "Remote", type: "Full-time", postedDate: new Date(2025, 9, 15), status: "active", totalApplicants: 24, shortlisted: 8, interviewed: 5, selected: 2 },
-    { id: "2", title: "Backend Engineer", department: "Engineering", location: "New York, NY", type: "Full-time", postedDate: new Date(2025, 9, 20), status: "active", totalApplicants: 32, shortlisted: 12, interviewed: 8, selected: 3 },
-    { id: "3", title: "Product Manager", department: "Product", location: "San Francisco, CA", type: "Full-time", postedDate: new Date(2025, 10, 1), status: "active", totalApplicants: 45, shortlisted: 15, interviewed: 10, selected: 1 },
-    { id: "4", title: "UX Designer", department: "Design", location: "Remote", type: "Contract", postedDate: new Date(2025, 10, 5), status: "active", totalApplicants: 18, shortlisted: 6, interviewed: 4, selected: 0 },
-    { id: "5", title: "DevOps Engineer", department: "Engineering", location: "Austin, TX", type: "Full-time", postedDate: new Date(2025, 10, 8), status: "active", totalApplicants: 28, shortlisted: 10, interviewed: 6, selected: 2 },
-    { id: "6", title: "Data Scientist", department: "Data & Analytics", location: "Boston, MA", type: "Full-time", postedDate: new Date(2025, 9, 25), status: "closed", totalApplicants: 52, shortlisted: 18, interviewed: 12, selected: 4 },
-    { id: "7", title: "QA Engineer", department: "Engineering", location: "Remote", type: "Full-time", postedDate: new Date(2025, 10, 10), status: "active", totalApplicants: 15, shortlisted: 5, interviewed: 3, selected: 1 },
-  ]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
 
   const [activeView, setActiveView] = useState<'assessment' | 'interview'>('assessment');
   const [searchTerm, setSearchTerm] = useState("");
@@ -97,6 +93,49 @@ const AssessmentAndInterview: React.FC = () => {
     fetchStatus();
   }, []);
 
+  // Fetch assessment jobs when activeView is 'assessment'
+  useEffect(() => {
+    const fetchAssessmentJobs = async () => {
+      if (activeView !== 'assessment') return;
+      
+      setIsLoadingJobs(true);
+      try {
+        const response = await applicationService.getAssessmentJobs();
+        if (response.success && response.data) {
+          const transformedJobs: Job[] = response.data.map((job: any) => {
+            const location = [job.city, job.state, job.country].filter(Boolean).join(', ') || job.location_type || 'Remote';
+            return {
+              id: String(job.id),
+              title: job.job_title,
+              department: job.department_name || 'Unknown',
+              location,
+              type: job.job_type || 'Full-time',
+              postedDate: new Date(job.created_at),
+              status: job.status || 'active',
+              totalApplicants: job.application_count || 0,
+              shortlisted: job.screening_count || 0,
+              interviewed: 0,
+              selected: 0,
+              assessmentCount: job.assessment_count || 0,
+              screeningCount: job.screening_count || 0,
+            };
+          });
+          setJobs(transformedJobs);
+        } else {
+          console.error('Failed to fetch assessment jobs:', response.message);
+          setJobs([]);
+        }
+      } catch (error) {
+        console.error('Error fetching assessment jobs:', error);
+        setJobs([]);
+      } finally {
+        setIsLoadingJobs(false);
+      }
+    };
+
+    fetchAssessmentJobs();
+  }, [activeView]);
+
   const filteredJobs = jobs.filter((job) => {
     const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) || job.department.toLowerCase().includes(searchTerm.toLowerCase()) || job.location.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || job.status === statusFilter;
@@ -112,6 +151,7 @@ const AssessmentAndInterview: React.FC = () => {
       active: { color: "bg-green-100 text-green-700 border-green-200", label: "Active" },
       closed: { color: "bg-gray-100 text-gray-700 border-gray-200", label: "Closed" },
       draft: { color: "bg-yellow-100 text-yellow-700 border-yellow-200", label: "Draft" },
+      screened: { color: "bg-blue-100 text-blue-700 border-blue-200", label: "Screened" },
     };
     const { color, label } = statusMap[status as keyof typeof statusMap] || statusMap.draft;
     return <Badge variant="outline" className={color + " font-medium"}>{label}</Badge>;
@@ -391,7 +431,16 @@ const AssessmentAndInterview: React.FC = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredJobs.length > 0 ? filteredJobs.map((job) => (
+                        {isLoadingJobs ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center py-12">
+                              <div className="flex flex-col items-center gap-2">
+                                <RefreshCw className="h-8 w-8 text-indigo-600 animate-spin" />
+                                <p className="text-gray-500 font-medium">Loading assessment jobs...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredJobs.length > 0 ? filteredJobs.map((job) => (
                           <TableRow key={job.id} className="hover:bg-gray-50/50">
                             <TableCell>
                               <div className="flex items-center gap-3">
@@ -408,7 +457,7 @@ const AssessmentAndInterview: React.FC = () => {
                             <TableCell>{getStatusBadge(job.status)}</TableCell>
                             <TableCell className="text-center"><Badge className="bg-gray-100 text-gray-700 font-semibold">{job.totalApplicants}</Badge></TableCell>
                             <TableCell className="text-center"><Badge className="bg-blue-100 text-blue-700 font-semibold">{job.shortlisted}</Badge></TableCell>
-                            <TableCell className="text-center"><Badge className="bg-amber-100 text-amber-700 font-semibold">{job.shortlisted}</Badge></TableCell>
+                            <TableCell className="text-center"><Badge className="bg-amber-100 text-amber-700 font-semibold">{job.assessmentCount || 0}</Badge></TableCell>
                             <TableCell>
                               <div className="flex items-center justify-center">
                                 <Button size="sm" onClick={() => handleViewJob(job.id)} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"><Eye className="h-4 w-4 mr-2" />View Candidates<ChevronRight className="h-4 w-4 ml-1" /></Button>
