@@ -142,77 +142,6 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Score and Quick Actions */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Score Card */}
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-purple-50">
-              <CardContent className="p-6">
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-2 mb-3">
-                    <Target className="w-5 h-5 text-blue-600" />
-                    <span className="text-sm font-medium text-gray-700">AI Score</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-3 mb-4">
-                    <div className={`w-16 h-2 bg-gradient-to-r ${getScoreGradient(candidate.score)} rounded-full`}></div>
-                    <span className={`text-3xl font-bold ${getScoreColor(candidate.score)}`}>
-                      {candidate.score}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    {candidate.score >= 80 ? 'Excellent candidate' : 
-                     candidate.score >= 60 ? 'Good candidate' : 'Needs review'}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card className="border-0 shadow-lg lg:col-span-2">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Zap className="w-5 h-5 text-orange-500" />
-                  Quick Actions
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-12 flex-col gap-1 hover:bg-blue-50 hover:text-blue-600"
-                  >
-                    <Mail className="w-4 h-4" />
-                    <span className="text-xs">Send Email</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-12 flex-col gap-1 hover:bg-green-50 hover:text-green-600"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    <span className="text-xs">Schedule Interview</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-12 flex-col gap-1 hover:bg-purple-50 hover:text-purple-600"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span className="text-xs">View Resume</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-12 flex-col gap-1 hover:bg-orange-50 hover:text-orange-600"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    <span className="text-xs">Send Message</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Main Information Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Contact Information */}
@@ -251,15 +180,28 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
                     <p className="font-medium text-gray-900">{candidate.location}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <GraduationCapIcon className="w-4 h-4 text-orange-600" />
+                {(candidate as any).apiData?.gender && (
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-100 rounded-lg">
+                      <User className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Gender</p>
+                      <p className="font-medium text-gray-900 capitalize">{(candidate as any).apiData.gender}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Education</p>
-                    <p className="font-medium text-gray-900">{candidate.education}</p>
+                )}
+                {(candidate as any).apiData?.dob && (
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-pink-100 rounded-lg">
+                      <CalendarIcon className="w-4 h-4 text-pink-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Date of Birth</p>
+                      <p className="font-medium text-gray-900">{new Date((candidate as any).apiData.dob).toLocaleDateString()}</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -288,8 +230,8 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
                     <ClockIcon className="w-4 h-4 text-yellow-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Experience</p>
-                    <p className="font-medium text-gray-900">{candidate.experienceYears} years</p>
+                    <p className="text-sm text-gray-600">Status</p>
+                    <div className="mt-1">{getStageBadge(candidate.stage)}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -301,124 +243,61 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
                     <p className="font-medium text-gray-900">{candidate.recruiter}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <FileTextIcon className="w-4 h-4 text-blue-600" />
+                {(candidate as any).apiData?.experiences?.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Briefcase className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Experience</p>
+                      <p className="font-medium text-gray-900">
+                        {(candidate as any).apiData.experiences[0].years_of_experience} years
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Resume</p>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="p-0 h-auto text-blue-600 hover:text-blue-800"
-                      onClick={() => window.open(candidate.resumeUrl, '_blank')}
-                    >
-                      View Resume <ExternalLink className="w-3 h-3 ml-1" />
-                    </Button>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Skills */}
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-purple-50">
-              <CardTitle className="flex items-center gap-2">
-                <Star className="w-5 h-5 text-purple-600" />
-                Top Skills
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="flex flex-wrap gap-2">
-                {candidate.topSkills.map((skill, index) => (
-                  <Badge
-                    key={index}
-                    variant="secondary"
-                    className="bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200"
-                  >
-                    {skill}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Attachments */}
-          {candidate.attachments.length > 0 && (
+          {/* Education Details */}
+          {(candidate as any).apiData?.educations?.length > 0 && (
             <Card className="border-0 shadow-lg">
-              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-orange-50">
+              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-indigo-50">
                 <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-orange-600" />
-                  Attachments ({candidate.attachments.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="space-y-3">
-                  {candidate.attachments.map((attachment, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-4 h-4 text-gray-500" />
-                        <span className="font-medium text-gray-900">{attachment}</span>
-                      </div>
-                      <Button variant="ghost" size="sm">
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Interview History */}
-          {candidate.interviewHistory.length > 0 && (
-            <Card className="border-0 shadow-lg">
-              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-green-50">
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-green-600" />
-                  Interview History ({candidate.interviewHistory.length})
+                  <GraduationCapIcon className="w-5 h-5 text-indigo-600" />
+                  Education Details
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-4">
-                  {candidate.interviewHistory.map((interview) => (
-                    <div
-                      key={interview.id}
-                      className={`p-4 rounded-lg border ${getInterviewOutcomeColor(interview.outcome)}`}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          {getInterviewOutcomeIcon(interview.outcome)}
-                          <div>
-                            <p className="font-medium text-gray-900 capitalize">
-                              {interview.type} Interview
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              {new Date(interview.date).toLocaleDateString()}
-                            </p>
-                          </div>
+                  {(candidate as any).apiData.educations.map((edu: any, index: number) => (
+                    <div key={edu.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 capitalize">{edu.education_level}</h4>
+                          <p className="text-sm text-gray-600">{edu.institution_name}</p>
                         </div>
-                        <Badge
-                          variant="secondary"
-                          className={`${
-                            interview.outcome === 'passed' ? 'bg-green-100 text-green-800' :
-                            interview.outcome === 'failed' ? 'bg-red-100 text-red-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}
-                        >
-                          {interview.outcome}
-                        </Badge>
+                        {edu.grades && (
+                          <Badge variant="secondary" className="bg-indigo-100 text-indigo-800">
+                            {edu.grades}
+                          </Badge>
+                        )}
                       </div>
-                      <div className="space-y-2">
-                        <p className="text-sm text-gray-600">
-                          <span className="font-medium">Interviewer:</span> {interview.interviewer}
-                        </p>
-                        <p className="text-sm text-gray-700">{interview.notes}</p>
-                      </div>
+                      <p className="text-sm text-gray-700 mb-2">{edu.degree_detail}</p>
+                      {(edu.start_date || edu.end_date) && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="w-3 h-3" />
+                          <span>
+                            {edu.start_date && new Date(edu.start_date).toLocaleDateString()}
+                            {edu.start_date && edu.end_date && ' - '}
+                            {edu.end_date && new Date(edu.end_date).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                      {edu.description && (
+                        <p className="text-sm text-gray-600 mt-2">{edu.description}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -426,32 +305,49 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
             </Card>
           )}
 
-          {/* Notes */}
-          {candidate.notes && (
+          {/* Skills */}
+          {candidate.topSkills.length > 0 && (
             <Card className="border-0 shadow-lg">
-              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-yellow-50">
+              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-purple-50">
                 <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-yellow-600" />
-                  Notes
+                  <Star className="w-5 h-5 text-purple-600" />
+                  Skills
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                <p className="text-gray-700 leading-relaxed">{candidate.notes}</p>
+                <div className="flex flex-wrap gap-2">
+                  {candidate.topSkills.map((skill, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200"
+                    >
+                      {skill}
+                    </Badge>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
 
+          {/* Attachments */}
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-orange-50">
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-orange-600" />
+                Attachments
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No attachments available</p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200">
-            {canAdvance && (
-              <Button
-                onClick={() => onAdvanceStage(candidate.id)}
-                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-              >
-                <ChevronRight className="w-4 h-4 mr-2" />
-                Advance to Next Stage
-              </Button>
-            )}
             <Button variant="outline" className="flex-1">
               <MessageSquare className="w-4 h-4 mr-2" />
               Send Message

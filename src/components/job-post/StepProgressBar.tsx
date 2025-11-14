@@ -1,19 +1,32 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface StepProgressBarProps {
   currentStep: number;
   steps: string[];
   reviewCompleted?: boolean;
+  prevStep?: number | null;
 }
 
 const StepProgressBar: React.FC<StepProgressBarProps> = ({
   currentStep,
   steps,
   reviewCompleted = false,
+  prevStep = null,
 }) => {
+  const count = steps.length;
+  const getLeft = (index: number) => {
+    if (count <= 1) return '0%';
+    return `${(index / (count - 1)) * 100}%`;
+  };
+
+  // Dot animation removed: keep progress rendering simple and static
   return (
     <nav aria-label="Progress" className="mb-8">
-      <ol role="list" className="flex items-center justify-center space-x-2 sm:space-x-4">
+      <div className="relative">
+        {/* moving dot animation removed to simplify progress UI */}
+
+        <ol role="list" className="flex items-center justify-center space-x-2 sm:space-x-4">
+          {/* We render the list inside the same relative container so left positions match */}
         {steps.map((step, index) => {
           const stepIndex = index + 1;
           let isCompleted = stepIndex < currentStep;
@@ -70,7 +83,8 @@ const StepProgressBar: React.FC<StepProgressBarProps> = ({
             </li>
           );
         })}
-      </ol>
+        </ol>
+      </div>
     </nav>
   );
 };

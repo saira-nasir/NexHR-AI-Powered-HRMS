@@ -52,15 +52,16 @@ class ApplicationService {
       : {};
   }
 
-  async submitApplication(applicationData: FormData): Promise<{ success: boolean; message?: string; applicationId?: string }> {
+  async submitApplication(applicationData: FormData, jobId?: string | number): Promise<{ success: boolean; message?: string; applicationId?: string; errorData?: any }> {
     try {
-      console.log('Sending FormData to:', `${API_BASE_URL}/applications/`);
+      // Always post to /applications/ endpoint; jobId should be included in FormData
+      const endpoint = `${API_BASE_URL}/applications/`;
+      console.log('Sending FormData to:', endpoint);
       console.log('FormData contents:');
       for (let [key, value] of applicationData.entries()) {
         console.log(key, value);
       }
-
-      const response = await axios.post(`${API_BASE_URL}/applications/`, applicationData, {
+      const response = await axios.post(endpoint, applicationData, {
         headers: {
           ...this.getAuthHeader(),
           // Don't set Content-Type - let browser set it for multipart/form-data
@@ -84,13 +85,22 @@ class ApplicationService {
       console.error('Response data:', error.response?.data);
       console.error('Response status:', error.response?.status);
       console.error('Response headers:', error.response?.headers);
-      
+
+      const rawErrorData = error.response?.data;
+      // Prefer a string message for UI; keep structured data separately
+      const message = typeof rawErrorData === 'string'
+        ? rawErrorData
+        : (rawErrorData?.message || rawErrorData?.detail || JSON.stringify(rawErrorData || 'Failed to submit application'));
+
       return {
         success: false,
-        message: error.response?.data?.message || error.response?.data || 'Failed to submit application',
+        message,
+        errorData: rawErrorData,
       };
     }
   }
+
+  // (JSON submit method removed — keep FormData multipart submission for file uploads)
 
   async getApplication(applicationId: string): Promise<{ success: boolean; data?: any; message?: string }> {
     try {
@@ -143,11 +153,91 @@ class ApplicationService {
       };
     }
   }
+
+  async getAssessmentJobs(): Promise<{ success: boolean; data?: any[]; count?: number; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/jobs/assessments/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        return {
+          success: true,
+          data: response.data.results || response.data,
+          count: response.data.count || (response.data.results || response.data).length,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Failed to fetch assessment jobs',
+      };
+    } catch (error: any) {
+      console.error('Error fetching assessment jobs:', error.response?.data || error.message);
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to fetch assessment jobs',
+      };
+    }
+  }
+
+  async getCandidatesByJob(jobId: string): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/jobs/${jobId}/candidates/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        return {
+          success: true,
+          data: response.data,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Failed to fetch candidates',
+      };
+    } catch (error: any) {
+      console.error('Error fetching candidates:', error.response?.data || error.message);
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to fetch candidates',
+      };
+    }
+  }
+
+  async getCompanyUsers(): Promise<{ success: boolean; data?: any[]; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/company-users/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        return {
+          success: true,
+          data: response.data,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Failed to fetch company users',
+      };
+    } catch (error: any) {
+      console.error('Error fetching company users:', error.response?.data || error.message);
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to fetch company users',
+      };
+    }
+  }
 }
 
 export const applicationService = new ApplicationService();
 
 export interface ApiJobResponse {
+  id: number;
     job_title: string;
     Department: string;
     experience_level: string;
@@ -161,6 +251,8 @@ export interface ApiJobResponse {
     country: string;
     job_deadline: string;
     company_name: string;
+    status?: string;
+  linkedin_post_url?: string | null;
     
 }
 
@@ -173,28 +265,44 @@ export interface PaginatedJobsResponse {
 
 // Function to transform API response to our JobListing format
 export const transformApiJob = (apiJob: ApiJobResponse): JobListing => {
-    // Calculate average salary for display
-    const salaryFrom = parseFloat(apiJob.salary_from);
-    const salaryTo = parseFloat(apiJob.salary_to);
-    const averageSalary = ((salaryFrom + salaryTo) / 2).toFixed(2);
+  // Calculate average salary for display (return as number)
+  const salaryFrom = parseFloat(apiJob.salary_from as unknown as string || '0');
+  const salaryTo = parseFloat(apiJob.salary_to as unknown as string || '0');
+  const averageSalaryNumber = (salaryFrom + salaryTo) / 2;
 
     // Format the date (created_at)
     const createdDate = new Date(apiJob.created_at);
     const formattedDate = `${createdDate.toLocaleString('default', { month: 'short' })} ${createdDate.getDate()}, ${createdDate.getFullYear()}`;
 
-    // Generate a unique ID from job title and created date
-    const id = `job-${apiJob.job_title.replace(/\s+/g, '-').toLowerCase()}-${createdDate.getTime()}`;
+  // Prefer backend numeric id when available (stringified) so other APIs can use it
+  const id = apiJob.id ? String(apiJob.id) : `job-${apiJob.job_title.replace(/\s+/g, '-').toLowerCase()}-${createdDate.getTime()}`;
 
-    return {
-        id,
-        title: apiJob.job_title,
-        company: apiJob.company_name,
-        date: formattedDate,
-        salary: averageSalary,
-        location: `${apiJob.city}, ${apiJob.state}, ${apiJob.country}`,
-        salary_period: `${apiJob.period}`,
-        tags: [apiJob.experience_level, `${apiJob.currency} ${apiJob.salary_from}-${apiJob.salary_to}`]
-    };
+  // Build a clean location string (omit null/empty parts)
+  const locationParts = [apiJob.city, apiJob.state, apiJob.country].filter(part => part && String(part).trim() && String(part) !== 'null');
+  const location = locationParts.length > 0 ? locationParts.join(', ') : '';
+
+  // Build tags and omit null/undefined
+  const tags: string[] = [];
+  if (apiJob.experience_level !== null && apiJob.experience_level !== undefined) {
+    tags.push(String(apiJob.experience_level));
+  }
+  if ((apiJob.salary_from || apiJob.salary_to) && apiJob.currency) {
+    tags.push(`${apiJob.currency} ${apiJob.salary_from}-${apiJob.salary_to}`);
+  }
+
+  return {
+    id,
+    title: apiJob.job_title,
+    company: apiJob.company_name,
+    date: formattedDate,
+    salary: Number(averageSalaryNumber),
+    location,
+    salary_period: `${apiJob.period}`,
+    tags,
+    status: apiJob.status || undefined
+    ,
+    linkedin_post_url: apiJob.linkedin_post_url ?? null
+  };
 };
 
 // Function to fetch jobs with pagination
@@ -203,8 +311,8 @@ export const fetchJobs = async (page: number = 1, pageSize: number = 6): Promise
     totalCount: number;
 }> => {
     try {
-        // Use the full URL including localhost and port
-        const response = await fetch(`http://localhost:8000/api/jobs/list/?page=${page}&page_size=${pageSize}`);
+  // Use configured API base URL (falls back to local dev server)
+  const response = await fetch(`${API_BASE_URL}/jobs/list/?page=${page}&page_size=${pageSize}`);
 
         if (!response.ok) {
             throw new Error(`Error fetching jobs: ${response.status}`);
@@ -225,6 +333,55 @@ export const fetchJobs = async (page: number = 1, pageSize: number = 6): Promise
         return {
             jobs: [],
             totalCount: 0
+        };
+    }
+}
+
+// Fetch jobs for company endpoint with pagination
+export const fetchCompanyJobs = async (page: number = 1, pageSize: number = 6): Promise<{
+    jobs: JobListing[];
+    totalCount: number;
+    next: string | null;
+    previous: string | null;
+}> => {
+    try {
+  const url = `${API_BASE_URL}/jobs/company/?page=${page}&page_size=${pageSize}`;
+    const token = localStorage.getItem('access_token');
+
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    console.debug('[fetchCompanyJobs] Requesting', url, { headers });
+
+    const response = await fetch(url, { headers });
+
+    // Log non-OK responses for easier debugging
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      console.error('[fetchCompanyJobs] non-OK response', response.status, text);
+      throw new Error(`Error fetching company jobs: ${response.status}`);
+    }
+
+    const data: PaginatedJobsResponse = await response.json();
+    console.debug('[fetchCompanyJobs] Response data:', data);
+
+    const jobs = data.results.map(transformApiJob);
+
+    return {
+      jobs,
+      totalCount: data.count,
+      next: data.next,
+      previous: data.previous
+    };
+    } catch (error) {
+        console.error("Failed to fetch company jobs:", error);
+        return {
+            jobs: [],
+            totalCount: 0,
+            next: null,
+            previous: null
         };
     }
 }

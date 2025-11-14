@@ -81,7 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
       collapsed ? "w-[60px]" : "w-[240px]"
     )}>
       <SidebarHeader collapsed={collapsed} />
-      <SidebarSearch collapsed={collapsed} />
+      {/* <SidebarSearch collapsed={collapsed} /> */}
       
       <nav className={cn(
         "flex-1 px-2 py-2 space-y-1",

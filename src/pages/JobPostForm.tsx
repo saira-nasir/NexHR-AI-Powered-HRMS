@@ -4,16 +4,21 @@ import DashboardLayout from '@/layouts/DashboardLayout';
 import StepProgressBar from '../components/job-post/StepProgressBar';
 import GeneralInfoTab from '../components/job-post/GeneralInfoTab';
 import ApplicationFormTab from '../components/job-post/ApplicationFormTab';
+// Interview scheduling removed per UI update
 import ReviewTab from '../components/job-post/ReviewTab';
 import JobPostedModal from '../components/modals/JobPostedModal';
-import { jobService, JobPostData } from '@/services/JobService';
+import { jobService, JobPostData, RequiredSkill } from '@/services/JobService';
 import { linkedinService } from '@/services/linkedinService';
+// import { googleAuthService } from '@/services/googleAuth';
 import { useNavigate } from 'react-router-dom';
+import { Clock, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+// import GoogleCalendarConnectButton from '@/components/auth/GoogleCalendarConnectButton';
 
 
 import {
   countryData,
-  jobCategories,
   OptionType,
 } from "../data/formData";
 
@@ -38,7 +43,9 @@ interface FormData {
   screeningQuestions: string[];
   customFormQuestions: CustomFormQuestion[];
   customFormAnswers: CustomFormAnswers;
+  required_skills: RequiredSkill[];
 }
+
 
 interface CustomFormAnswers {
   [key: string]: string | Array<Record<string, string>>;
@@ -125,7 +132,7 @@ const JobPostForm: React.FC = () => {
       { id: 'candidate_lname', label: 'Last Name', type: 'text', enabled: false },
       { id: 'email', label: 'Email', type: 'email', enabled: false },
       { id: 'phone', label: 'Phone', type: 'telephone', enabled: false },
-      { id: 'resume_url', label: 'Resume URL', type: 'text', enabled: false },
+      { id: 'resume_url', label: 'Resume', type: 'text', enabled: false },
       { id: 'applied_at', label: 'Applied At', type: 'date', enabled: false },
       { id: 'gender', label: 'Gender', type: 'radio', enabled: false },
       { id: 'address', label: 'Address', type: 'text', enabled: false },
@@ -135,19 +142,25 @@ const JobPostForm: React.FC = () => {
       { id: 'experience', label: 'Experience', type: 'experience', enabled: false },
     ],
     customFormAnswers: {},
+    required_skills: [],
   });
   const [jobId, setJobId] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [currentStep, setCurrentStep] = useState(1);
+  const [prevStep, setPrevStep] = useState<number | null>(null);
   const [states, setStates] = useState<OptionType[]>([]);
   const [cities, setCities] = useState<OptionType[]>([]);
   const [isClient, setIsClient] = useState(false);
+  const [apiDepartments, setApiDepartments] = useState<OptionType[]>([]);
   const navigate = useNavigate();
 
   // --- State to Trigger Modal and Mark Review as Completed ---
   const [jobPostedModal, setJobPostedModal] = useState(false);
   
   const [reviewCompleted, setReviewCompleted] = useState(false);
+
+  // Loading state to prevent double submit and show loader
+  const [isPosting, setIsPosting] = useState(false);
 
   // --- Custom Form Builder State ---
   const [showCustomForm, setShowCustomForm] = useState(false);
@@ -166,6 +179,20 @@ const JobPostForm: React.FC = () => {
     setIsClient(true);
   }, []);
 
+  // Minimum selectable deadline (local datetime-local format) - now rounded up to next minute
+  const minDeadline = useMemo(() => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const d = new Date();
+    // add 1 minute to avoid immediate past due to seconds
+    d.setMinutes(d.getMinutes() + 1);
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const min = pad(d.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  }, []);
+
   // --- Validation Function ---
   const validateStep = (): boolean => {
     const errors: ValidationErrors = {};
@@ -178,6 +205,14 @@ const JobPostForm: React.FC = () => {
       }
       if (!formData.jobDescription.trim()) {
         errors.jobDescription = "Job Description cannot be empty";
+      }
+      // Validate deadline is in the future
+      if (formData.deadline) {
+        const deadlineDate = new Date(formData.deadline);
+        const now = new Date();
+        if (deadlineDate <= now) {
+          errors.deadline = "Deadline must be in the future";
+        }
       }
       if (formData.locationType !== "Remote") {
         if (!formData.country) {
@@ -198,6 +233,9 @@ const JobPostForm: React.FC = () => {
           errors.experienceLevel = "Experience Level must be a valid number between 0 and 50";
         }
       }
+      if (!formData.required_skills || formData.required_skills.length === 0) {
+        errors.required_skills = "At least one required skill must be selected";
+      }
     } else if (currentStep === 2) {
       // For Application Form tab, require that Education is selected.
       if (!formData.educationLevel.trim()) {
@@ -213,13 +251,38 @@ const JobPostForm: React.FC = () => {
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    if (validationErrors[name as keyof FormData]) {
-      setValidationErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[name as keyof FormData];
-        return newErrors;
-      });
+    // Special-case validation for deadline: if user picks a past date show immediate error
+    if (name === "deadline") {
+      if (value) {
+        const selected = new Date(value);
+        const now = new Date();
+        if (selected <= now) {
+          setValidationErrors((prev) => ({ ...prev, deadline: "Deadline must be in the future" }));
+        } else {
+          setValidationErrors((prev) => {
+            const copy = { ...prev };
+            delete copy.deadline;
+            return copy;
+          });
+        }
+      } else {
+        // clear deadline error when empty
+        setValidationErrors((prev) => {
+          const copy = { ...prev };
+          delete copy.deadline;
+          return copy;
+        });
+      }
+    } else {
+      if (validationErrors[name as keyof FormData]) {
+        setValidationErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[name as keyof FormData];
+          return newErrors;
+        });
+      }
     }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -268,6 +331,17 @@ const JobPostForm: React.FC = () => {
     }
   };
 
+  const handleSkillsChange = (skills: RequiredSkill[]) => {
+    if (validationErrors.required_skills) {
+      setValidationErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.required_skills;
+        return newErrors;
+      });
+    }
+    setFormData((prev) => ({ ...prev, required_skills: skills }));
+  };
+
   const handleScreeningQuestionChange = (index: number, value: string) => {
     const updatedQuestions = [...formData.screeningQuestions];
     updatedQuestions[index] = value;
@@ -292,7 +366,8 @@ const JobPostForm: React.FC = () => {
   // --- Navigation Logic ---
   const handleNext = () => {
     if (!validateStep()) return;
-    if (currentStep < 3) {
+    if (currentStep < 4) {
+      setPrevStep(currentStep);
       setCurrentStep(currentStep + 1);
       window.scrollTo(0, 0);
     }
@@ -307,6 +382,8 @@ const JobPostForm: React.FC = () => {
 
   // "Post Job" is now triggered only on Step 3.
   const handlePostJob = async () => {
+    if (isPosting) return; // prevent double submit
+    setIsPosting(true);
     // Convert datetime-local value to ISO string format
     const formatDeadline = (deadline: string | null): string | null => {
       if (!deadline) return null;
@@ -330,6 +407,7 @@ const JobPostForm: React.FC = () => {
       job_description: formData.jobDescription || null,
       experience_level: formData.experienceLevel ? Number(formData.experienceLevel) : null,
       job_deadline: formatDeadline(formData.deadline),
+      required_skills: formData.required_skills || [],
       job_schema: {
         name:
           !!(formData.customFormQuestions.find(q => q.id === 'candidate_fname' && q.enabled) ||
@@ -360,6 +438,7 @@ const JobPostForm: React.FC = () => {
       console.error('Failed to post job:', response.message);
       // optionally show error to user
     }
+    setIsPosting(false);
   };
 
 
@@ -372,9 +451,60 @@ const JobPostForm: React.FC = () => {
       })),
     []
   );
-  const DepartmentOptions = useMemo(() => jobCategories, []);
+
+  // Fetch departments from backend and map to OptionType
+  useEffect(() => {
+    const loadDepartments = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const headers: Record<string, string> = { Accept: 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const baseApi = import.meta.env.VITE_API_URL 
+          ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '') 
+          : 'http://127.0.0.1:8000/api';
+        const url = `${baseApi}/departments/`;
+
+        const res = await fetch(url, { headers });
+        if (!res.ok) {
+          console.error(`Failed to fetch departments: ${res.status}`);
+          setApiDepartments([]);
+          return;
+        }
+        const data = await res.json();
+
+        // Handle response format: { departments: ["name1", "name2", ...] }
+        if (data.departments && Array.isArray(data.departments)) {
+          const opts = data.departments.map((deptName: string, index: number) => ({
+            value: deptName, // Use department name as value
+            label: deptName  // Use department name as label
+          }));
+          setApiDepartments(opts);
+          console.log(`Loaded ${opts.length} departments from backend`);
+        } else if (Array.isArray(data)) {
+          // Fallback: if response is directly an array
+          const opts = data.map((d: any) => {
+            const label = d.name || d.department_name || d.title || String(d);
+            const value = d.id ? String(d.id) : String(d);
+            return { value, label } as OptionType;
+          });
+          setApiDepartments(opts);
+          console.log(`Loaded ${opts.length} departments from backend`);
+        } else {
+          console.warn('Unexpected departments API response format:', data);
+          setApiDepartments([]);
+        }
+      } catch (err) {
+        console.error('Failed to load departments:', err);
+        setApiDepartments([]);
+      }
+    };
+
+    loadDepartments();
+  }, []);
 
   const steps = ["General Info", "Application Form", "Review"];
+  const totalSteps = steps.length;
 
   // --- Custom Form Builder Component ---
   const CustomFormBuilder: React.FC = () => {
@@ -427,12 +557,12 @@ const JobPostForm: React.FC = () => {
           <form
             className="mt-6 space-y-4 p-4 border border-gray-200 rounded-lg bg-gray-50"
             action="#"
-            onSubmit={e => {
+            onSubmit={(e) => {
               e.preventDefault();
-              return false; // Do nothing, prevent navigation
-            }}
-          >
-            <h4 className="font-semibold text-gray-900 mb-2">Generated Application Form</h4>
+              if (currentStep === totalSteps) {
+                handlePostJob();
+              }
+            }}>
             {enabledQuestions.map(q => (
               <div key={q.id} className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-gray-700" htmlFor={q.id}>{q.label}</label>
@@ -620,15 +750,17 @@ const JobPostForm: React.FC = () => {
         className='container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl rounded-md shadow-lg my-10'
         style={{ backgroundColor: "#FFFFFF", color: "#2A2438" }}
       >
+        {/* Google Calendar connection removed from this form (moved to Assessment/Interview pages) */}
+
         <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">
           Post a New Job
         </h1>
 
-        <StepProgressBar currentStep={currentStep} steps={steps} reviewCompleted={reviewCompleted} />
+  <StepProgressBar currentStep={currentStep} steps={steps} reviewCompleted={reviewCompleted} prevStep={prevStep} />
 
         <form onSubmit={(e) => {
           e.preventDefault();
-          if (currentStep === 3) {
+          if (currentStep === 4) {
             handlePostJob();
           }
         }}>
@@ -641,10 +773,12 @@ const JobPostForm: React.FC = () => {
               states={states}
               cities={cities}
               countryOptions={countryOptions}
-              DepartmentOptions={DepartmentOptions}
+              DepartmentOptions={apiDepartments}
               selectStyles={selectStyles}
               handleInputChange={handleInputChange}
               handleSelectChange={handleSelectChange}
+              handleSkillsChange={handleSkillsChange}
+              minDeadline={minDeadline}
             />
           )}
 
@@ -663,8 +797,10 @@ const JobPostForm: React.FC = () => {
             />
           )}
 
-          {/* Step 3: Review */}
-          {currentStep === 3 && (
+          {/* Step 3: Interview Schedule removed - flow goes from Application Form -> Review */}
+
+          {/* Step 4: Review */}
+          {currentStep === totalSteps && (
             <ReviewTab
               formData={{
                 jobTitle: formData.jobTitle,
@@ -701,7 +837,7 @@ const JobPostForm: React.FC = () => {
                 Previous
               </button>
             )}
-            {currentStep < 3 ? (
+            {currentStep < totalSteps ? (
               <button
                 type="button"
                 onClick={handleNext}
@@ -714,10 +850,21 @@ const JobPostForm: React.FC = () => {
               <button
                 type="button"
                 onClick={handlePostJob}
-                className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md transition duration-150 ease-in-out"
+                className="inline-flex justify-center items-center gap-2 py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md transition duration-150 ease-in-out"
                 style={{ backgroundColor: "#352F44", color: "#FFFFFF" }}
+                disabled={isPosting}
               >
-                Post Job
+                {isPosting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    Posting...
+                  </>
+                ) : (
+                  'Post Job'
+                )}
               </button>
             )}
           </div>
