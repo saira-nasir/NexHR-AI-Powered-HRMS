@@ -11,7 +11,9 @@ import {
   CreditCard,
   Building2,
   Receipt,
-  FileText
+  FileText,
+  Clock,
+  UserCircle
 } from 'lucide-react';
 import { SidebarMenuItem } from '../../types/sidebar/types';
 
@@ -25,7 +27,13 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Attendance & Leave',
     path: '/attendance-leave',
     icon: Calendar,
-    allowedRoles: ['Employee'],
+    allowedRoles: ['Employee', 'HR', 'Admin', 'Finance Manager'],
+  },
+  {
+    title: 'Register Face',
+    path: '/register-face',
+    icon: UserCircle,
+    allowedRoles: ['Employee', 'HR', 'Admin', 'Finance Manager'],
   },
   {
     title: 'Loan & Expense',
@@ -63,6 +71,13 @@ export const sidebarItems: SidebarMenuItem[] = [
       { title: 'Checklist', path: '/checklist', allowedRoles: ['HR', 'Admin'] },
       { title: 'Time off', path: '/time-off', allowedRoles: ['HR', 'Admin'] },
     ],
+  },
+  {
+    title: 'HR Attendance Management',
+    path: '/hr-attendance-management',
+    icon: Clock,
+    // Visible to HR and Admin
+    allowedRoles: ['HR', 'Admin'],
   },
   {
     title: 'Hiring',

@@ -35,6 +35,8 @@ import AttendanceLeave from "@/pages/AttendanceLeave";
 import BankInfo from "@/pages/BankInfo";
 import EmployeeSalaryStructure from "@/pages/EmployeeSalaryStructure";
 import Payslips from "@/pages/Payslips";
+import { HRAttendanceManagement } from "@/pages/HRAttendanceManagement";
+import RegisterFace from "@/pages/RegisterFace";
 
 // Finance pages used in routes (ensure these files exist)
 import Expenses from "@/pages/Expenses";
@@ -230,6 +232,14 @@ export const routes: RouteObject[] = [
             path: "success",
             element: <PaymentSuccess />,
           },
+          {
+            path: "hr-attendance-management",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <HRAttendanceManagement />
+              </RoleBasedRoute>
+            ),
+          },
 
           // Finance Manager Routes
           { path: "finance", element: <Navigate to="/dashboard" replace /> },
@@ -289,8 +299,16 @@ export const routes: RouteObject[] = [
           {
             path: "attendance-leave",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin"]}>
+              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
                 <AttendanceLeave />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "register-face",
+            element: (
+              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
+                <RegisterFace />
               </RoleBasedRoute>
             ),
           },
