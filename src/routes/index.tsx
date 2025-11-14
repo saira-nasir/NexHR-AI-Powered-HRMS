@@ -2,6 +2,7 @@ import React from "react";
 import { RouteObject, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 // Pages
+
 import Index from "@/pages/Index";
 import LoginPage from "@/pages/Login";
 import RegisterPage from "@/pages/Register";
