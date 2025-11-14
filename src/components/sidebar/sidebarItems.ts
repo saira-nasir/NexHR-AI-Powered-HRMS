@@ -13,7 +13,8 @@ import {
   Receipt,
   FileText,
   Clock,
-  UserCircle
+  UserCircle,
+  MessageSquare
 } from 'lucide-react';
 import { SidebarMenuItem } from '../../types/sidebar/types';
 
@@ -60,6 +61,12 @@ export const sidebarItems: SidebarMenuItem[] = [
     allowedRoles: ['Employee'],
   },
   {
+    title: 'Interview',
+    path: '/interview',
+    icon: MessageSquare,
+    allowedRoles: ['Employee'],
+  },
+  {
     title: 'Teams',
     path: '/teams',
     icon: Users,
@@ -90,6 +97,7 @@ export const sidebarItems: SidebarMenuItem[] = [
       { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'] },
       { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR', 'Admin'] },
       { title: 'Assessment & Interview', path: '/hiring/assessment-interview', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Interview', path: '/hiring/interview', allowedRoles: ['HR', 'Admin'] },
     ],
   },
   {

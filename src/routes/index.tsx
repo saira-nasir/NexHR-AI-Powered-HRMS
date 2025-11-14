@@ -38,6 +38,8 @@ import EmployeeSalaryStructure from "@/pages/EmployeeSalaryStructure";
 import Payslips from "@/pages/Payslips";
 import { HRAttendanceManagement } from "@/pages/HRAttendanceManagement";
 import RegisterFace from "@/pages/RegisterFace";
+import Interview from "@/pages/Interview";
+import HiringInterview from "@/pages/HiringInterview";
 
 // Finance pages used in routes (ensure these files exist)
 import Expenses from "@/pages/Expenses";
@@ -206,6 +208,14 @@ export const routes: RouteObject[] = [
             ),
           },
           {
+            path: "hiring/interview",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <HiringInterview />
+              </RoleBasedRoute>
+            ),
+          },
+          {
             path: "job-candidates/:jobId",
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
@@ -342,6 +352,14 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
                 <Payslips />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "interview",
+            element: (
+              <RoleBasedRoute allowedRoles={["Employee"]}>
+                <Interview />
               </RoleBasedRoute>
             ),
           },
