@@ -48,7 +48,8 @@ const AssessmentAndInterview: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
 
-  const [activeView, setActiveView] = useState<'assessment' | 'interview'>('assessment');
+  // default to showing interview content and hide tab UI (assessment logic commented below)
+  const [activeView, setActiveView] = useState<'assessment' | 'interview'>('interview');
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
@@ -93,6 +94,48 @@ const AssessmentAndInterview: React.FC = () => {
     fetchStatus();
   }, []);
 
+  // Fetch jobs on mount so UI cards and tables have data even when assessment tab is hidden
+  useEffect(() => {
+    const fetchJobsOnMount = async () => {
+      setIsLoadingJobs(true);
+      try {
+        const response = await applicationService.getAssessmentJobs();
+        if (response.success && response.data) {
+          const transformedJobs: Job[] = response.data.map((job: any) => {
+            const location = [job.city, job.state, job.country].filter(Boolean).join(', ') || job.location_type || 'Remote';
+            return {
+              id: String(job.id),
+              title: job.job_title,
+              department: job.department_name || 'Unknown',
+              location,
+              type: job.job_type || 'Full-time',
+              postedDate: new Date(job.created_at),
+              status: job.status || 'active',
+              totalApplicants: job.application_count || 0,
+              shortlisted: job.screening_count || 0,
+              interviewed: 0,
+              selected: 0,
+              assessmentCount: job.assessment_count || 0,
+              screeningCount: job.screening_count || 0,
+            };
+          });
+          setJobs(transformedJobs);
+        } else {
+          console.error('Failed to fetch assessment jobs:', response.message);
+          setJobs([]);
+        }
+      } catch (error) {
+        console.error('Error fetching assessment jobs:', error);
+        setJobs([]);
+      } finally {
+        setIsLoadingJobs(false);
+      }
+    };
+
+    fetchJobsOnMount();
+  }, []);
+
+  /*
   // Fetch assessment jobs when activeView is 'assessment'
   useEffect(() => {
     const fetchAssessmentJobs = async () => {
@@ -135,6 +178,7 @@ const AssessmentAndInterview: React.FC = () => {
 
     fetchAssessmentJobs();
   }, [activeView]);
+  */
 
   const filteredJobs = jobs.filter((job) => {
     const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) || job.department.toLowerCase().includes(searchTerm.toLowerCase()) || job.location.toLowerCase().includes(searchTerm.toLowerCase());
@@ -406,81 +450,15 @@ const AssessmentAndInterview: React.FC = () => {
         {/* Content Area */}
         <div className="px-4 py-6 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
+            {/*
+              Assessment content commented out.
+              To re-enable the Assessment tab and its data fetching logic, uncomment
+              the block below and restore the fetch useEffect above.
+
             <TabsContent value="assessment">
-              <Card className="shadow-xl border-0">
-                <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50">
-                  <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <Briefcase className="h-5 w-5 text-indigo-600" />
-                    Assessment Jobs ({filteredJobs.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-gray-50/50">
-                          <TableHead className="font-semibold">Job Title</TableHead>
-                          <TableHead className="font-semibold">Department</TableHead>
-                          <TableHead className="font-semibold">Location</TableHead>
-                          <TableHead className="font-semibold">Posted Date</TableHead>
-                          <TableHead className="font-semibold">Status</TableHead>
-                          <TableHead className="font-semibold text-center">Applicants</TableHead>
-                          <TableHead className="font-semibold text-center">Shortlisted</TableHead>
-                          <TableHead className="font-semibold text-center">Assessment</TableHead>
-                          <TableHead className="font-semibold text-center">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {isLoadingJobs ? (
-                          <TableRow>
-                            <TableCell colSpan={9} className="text-center py-12">
-                              <div className="flex flex-col items-center gap-2">
-                                <RefreshCw className="h-8 w-8 text-indigo-600 animate-spin" />
-                                <p className="text-gray-500 font-medium">Loading assessment jobs...</p>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ) : filteredJobs.length > 0 ? filteredJobs.map((job) => (
-                          <TableRow key={job.id} className="hover:bg-gray-50/50">
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className="bg-gradient-to-br from-indigo-500 to-purple-500 text-white rounded-lg h-10 w-10 flex items-center justify-center"><Briefcase className="h-5 w-5" /></div>
-                                <div>
-                                  <p className="font-semibold text-gray-900">{job.title}</p>
-                                  <p className="text-xs text-gray-500">{job.type}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell><Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{job.department}</Badge></TableCell>
-                            <TableCell><div className="flex items-center gap-1 text-sm text-gray-600"><MapPin className="h-3 w-3" />{job.location}</div></TableCell>
-                            <TableCell><div className="flex items-center gap-1 text-sm text-gray-600"><Clock className="h-3 w-3" />{format(job.postedDate, "MMM dd, yyyy")}</div></TableCell>
-                            <TableCell>{getStatusBadge(job.status)}</TableCell>
-                            <TableCell className="text-center"><Badge className="bg-gray-100 text-gray-700 font-semibold">{job.totalApplicants}</Badge></TableCell>
-                            <TableCell className="text-center"><Badge className="bg-blue-100 text-blue-700 font-semibold">{job.shortlisted}</Badge></TableCell>
-                            <TableCell className="text-center"><Badge className="bg-amber-100 text-amber-700 font-semibold">{job.assessmentCount || 0}</Badge></TableCell>
-                            <TableCell>
-                              <div className="flex items-center justify-center">
-                                <Button size="sm" onClick={() => handleViewJob(job.id)} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"><Eye className="h-4 w-4 mr-2" />View Candidates<ChevronRight className="h-4 w-4 ml-1" /></Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )) : (
-                          <TableRow>
-                            <TableCell colSpan={9} className="text-center py-12">
-                              <div className="flex flex-col items-center gap-2">
-                                <Briefcase className="h-12 w-12 text-gray-300" />
-                                <p className="text-gray-500 font-medium">No jobs found</p>
-                                <p className="text-sm text-gray-400">Try adjusting your search or filters</p>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+              ... (assessment UI)
             </TabsContent>
+            */}
 
             <TabsContent value="interview">
               <Card className="shadow-xl border-0">
