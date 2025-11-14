@@ -9,6 +9,8 @@ const LINKEDIN_REDIRECT_URI = import.meta.env.VITE_LINKEDIN_REDIRECT_URI;
 export interface LinkedInConnectionStatus {
     isConnected: boolean;
     message?: string;
+    reason?: string;
+    expires_at?: string | null;
 }
 
 export interface AccessTokenResponse {
@@ -40,19 +42,31 @@ class LinkedInService {
     // to check weather the current company connects its linkedin or not
     async checkConnectionStatus(): Promise<LinkedInConnectionStatus> {
         try {
+            console.log('test');
+            const headers = this.getAuthHeader();
+            console.log('[linkedin] checkConnectionStatus -> requesting', { url: `${API_BASE_URL}/auth/linkedin/status/`, hasAuth: Boolean(headers.Authorization) });
             const response = await axios.get(`${API_BASE_URL}/auth/linkedin/status/`, {
-                headers: this.getAuthHeader()
+                headers
             });
-            
+
+            console.log('[linkedin] checkConnectionStatus <- response', { status: response.status, data: response.data });
+
+            // Prefer explicit reason/message from backend if available
+            const message = response.data.message || response.data.reason || (response.data.connected ? 'Connected' : 'Not connected');
+
             return {
-                isConnected: response.data.connected,
-                message: 'Connection checked successfully',
+                isConnected: Boolean(response.data.connected),
+                message,
+                reason: response.data.reason,
+                expires_at: response.data.expires_at ?? null,
             };
         } catch (error: any) {
-            console.error('Error checking LinkedIn connection status:', error);
+            console.error('[linkedin] Error checking LinkedIn connection status:', error?.response?.status, error?.response?.data || error.message || error);
             return {
                 isConnected: false,
-                message: error.response?.data?.message || 'Failed to check LinkedIn connection status'
+                message: error.response?.data?.message || 'Failed to check LinkedIn connection status',
+                reason: error.response?.data?.reason,
+                expires_at: error.response?.data?.expires_at ?? null,
             };
         }
     }
@@ -72,13 +86,15 @@ class LinkedInService {
             authUrl.searchParams.append('state', 'foobar');
             authUrl.searchParams.append('scope', 'email w_member_social openid profile');
 
-            const popup = window.open(authUrl.toString(), '_blank', 'width=600,height=600');
+            const urlStr = authUrl.toString();
+            console.log('[linkedin] connectLinkedIn -> opening auth URL', { url: urlStr });
+            const popup = window.open(urlStr, '_blank', 'width=600,height=600');
             return {
                 isConnected: true,
                 message: 'Opening LinkedIn authentication...'
             };
         } catch (error: any) {
-            console.error('Error connecting to LinkedIn:', error);
+            console.error('[linkedin] Error connecting to LinkedIn:', error?.message || error);
             return {
                 isConnected: false,
                 message: error.message || 'Failed to connect to LinkedIn'
@@ -90,16 +106,16 @@ class LinkedInService {
     //sends the request to beacked with code from linked in
     async getAccessToken(code: string): Promise<AccessTokenResponse> {
         try {
+            const headers = this.getAuthHeader();
+            console.log('[linkedin] getAccessToken -> requesting token with code', { code });
             const response = await axios.post(`${API_BASE_URL}/auth/linkedin/token/`, { code }, {
-                headers: this.getAuthHeader()
+                headers
             });
+
+            console.log('[linkedin] getAccessToken <- response', { status: response.status, data: response.data });
 
             if (response.status === 200) {
                 const { access_token: linkedin_token, expires_in } = response.data;
-
-                // // Store the token locally only after successful response
-                // localStorage.setItem('linkedin_access_token', linkedin_token);
-                // localStorage.setItem('linkedin_token_expires', String(Date.now() + expires_in * 1000));
 
                 return {
                     access_token: linkedin_token,
@@ -113,7 +129,7 @@ class LinkedInService {
                 message: 'Failed to obtain token from backend',
             };
         } catch (error: any) {
-            console.error('LinkedIn token error:', error);
+            console.error('[linkedin] LinkedIn token error:', error?.response?.status, error?.response?.data || error.message || error);
             return {
                 success: false,
                 message: error?.response?.data?.error || 'Unknown error',
@@ -124,18 +140,21 @@ class LinkedInService {
     // Post a job to LinkedIn
     async postJobToLinkedIn(jobId: string): Promise<{ message: string }> {
         try {
+            const headers = this.getAuthHeader();
+            const payload = { job_id: jobId } as PostJobToLinkedInPayload;
+            console.log('[linkedin] postJobToLinkedIn -> sending', { url: `${API_BASE_URL}/post-job-linkedin/`, payload, hasAuth: Boolean(headers.Authorization) });
             const response = await axios.post(
                 `${API_BASE_URL}/post-job-linkedin/`,
-                { job_id: jobId },
+                payload,
                 {
-                    headers: this.getAuthHeader(),
+                    headers,
                 }
             );
 
-            console.log('✅ Job posted to LinkedIn:', response.data.message);
+            console.log('[linkedin] postJobToLinkedIn <- response', { status: response.status, data: response.data });
             return response.data;
         } catch (error: any) {
-            console.error('❌ Failed to post job to LinkedIn:', error.response?.data || error.message);
+            console.error('[linkedin] ❌ Failed to post job to LinkedIn:', error?.response?.status, error?.response?.data || error.message || error);
             throw error;
         }
     }

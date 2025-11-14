@@ -1,7 +1,11 @@
 import React from 'react';
-import Select, { MultiValue, ActionMeta, StylesConfig } from "react-select";
+import Select, { components as RSComponents, MultiValue, ActionMeta, StylesConfig } from "react-select";
+import { ChevronDown } from 'lucide-react';
 import CreatableSelect from 'react-select/creatable';
 import { OptionType } from "../../data/formData";
+import RequiredSkillsField from './RequiredSkillsField';
+import { RequiredSkill } from '../../services/JobService';
+// SkillsTest removed — debug code cleaned up
 
 interface GeneralInfoTabProps {
   formData: {
@@ -20,6 +24,7 @@ interface GeneralInfoTabProps {
     deadline: string | null;
     experienceLevel: string;
     educationLevel: string;
+    required_skills: RequiredSkill[];
   };
   validationErrors: Record<string, string>;
   isClient: boolean;
@@ -30,6 +35,8 @@ interface GeneralInfoTabProps {
   selectStyles: StylesConfig<OptionType, boolean>;
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
   handleSelectChange: (name: string, selectedOption: OptionType | MultiValue<OptionType> | null) => void;
+  handleSkillsChange: (skills: RequiredSkill[]) => void;
+  minDeadline?: string;
 }
 
 const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
@@ -43,6 +50,8 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
   selectStyles,
   handleInputChange,
   handleSelectChange,
+  handleSkillsChange,
+  minDeadline,
 }) => {
   return (
     <div className="space-y-6">
@@ -87,9 +96,13 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
             value={formData.deadline || ''}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-1 focus:ring-[#352F44] focus:border-[#352F44] transition duration-150 ease-in-out"
-            style={{ borderColor: "#DBD8E3", backgroundColor: "#FFFFFF", color: "#2A2438" }}
+            style={{ borderColor: validationErrors.deadline ? "red" : "#DBD8E3", backgroundColor: "#FFFFFF", color: "#2A2438" }}
+            min={minDeadline}
           />
           <p className="mt-1 text-xs text-gray-500">Select both date and time for the application deadline</p>
+          {validationErrors.deadline && (
+            <p className="text-red-500 text-xs mt-1">{validationErrors.deadline}</p>
+          )}
         </div>
       </div>
 
@@ -152,29 +165,44 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
             Department <span className="text-red-500">*</span>
           </label>
           {isClient ? (
-            <Select<OptionType>
-              id="Department"
-              name="Department"
-              options={DepartmentOptions}
-              value={formData.Department}
-              onChange={(option) => handleSelectChange("Department", option)}
-              classNamePrefix="select"
-              placeholder="Select Department..."
-              isClearable
-              required
-              styles={{
-                ...selectStyles,
-                control: (base) => ({
-                  ...base,
-                  backgroundColor: "#FFFFFF",
-                  borderColor: validationErrors.Department ? "red" : "#DBD8E3",
-                  color: "#2A2438",
-                  "&:hover": {
+            <>
+              <Select<OptionType>
+                id="Department"
+                name="Department"
+                options={DepartmentOptions && DepartmentOptions.length > 0 ? DepartmentOptions : [{ value: '', label: 'No departments available', isDisabled: true } as any]}
+                value={formData.Department}
+                onChange={(option) => handleSelectChange("Department", option)}
+                classNamePrefix="select"
+                placeholder={DepartmentOptions && DepartmentOptions.length > 0 ? "Select Department..." : "No departments available"}
+                isClearable
+                isDisabled={!(DepartmentOptions && DepartmentOptions.length > 0)}
+                required
+                styles={{
+                  ...selectStyles,
+                  control: (base) => ({
+                    ...base,
+                    backgroundColor: "#FFFFFF",
                     borderColor: validationErrors.Department ? "red" : "#DBD8E3",
-                  },
-                }),
-              }}
-            />
+                    color: "#2A2438",
+                    "&:hover": {
+                      borderColor: validationErrors.Department ? "red" : "#DBD8E3",
+                    },
+                  }),
+                }}
+                components={{
+                  DropdownIndicator: (props) => (
+                    <RSComponents.DropdownIndicator {...props}>
+                      <ChevronDown className="w-4 h-4 text-[#5C5470]" />
+                    </RSComponents.DropdownIndicator>
+                  ),
+                }}
+              />
+              {DepartmentOptions && DepartmentOptions.length === 0 && (
+                <p className="text-amber-600 text-xs mt-1">
+                  ⚠️ To create a job post, first create a department for that job.
+                </p>
+              )}
+            </>
           ) : (
             <div className="w-full h-[42px] rounded-md animate-pulse" style={{ backgroundColor: "#F2F1F7", border: "1px solid #DBD8E3" }} />
           )}
@@ -431,6 +459,18 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
         {validationErrors.jobDescription && (
           <p className="text-red-500 text-xs mt-1">{validationErrors.jobDescription}</p>
         )}
+      </div>
+
+      
+
+      {/* Required Skills */}
+      <div>
+        <RequiredSkillsField
+          value={formData.required_skills}
+          onChange={handleSkillsChange}
+          validationError={validationErrors.required_skills}
+          selectStyles={selectStyles}
+        />
       </div>
     </div>
   );

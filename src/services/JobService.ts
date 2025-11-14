@@ -17,7 +17,11 @@ export interface JobSchema {
   skills: boolean;
 }
 
-// Expected job post structure
+export interface RequiredSkill {
+  id?: number;
+  name: string;
+}
+
 export interface JobPostData {
   job_title: string | null;
   department: string | null;
@@ -33,6 +37,7 @@ export interface JobPostData {
   job_description: string | null;
   experience_level: number | null;
   job_deadline: string | null;
+  required_skills: RequiredSkill[];
   job_schema: JobSchema;
 }
 

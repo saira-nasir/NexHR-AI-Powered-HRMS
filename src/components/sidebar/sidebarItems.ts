@@ -11,7 +11,9 @@ import {
   CreditCard,
   Building2,
   Receipt,
-  FileText
+  FileText,
+  Clock,
+  UserCircle
 } from 'lucide-react';
 import { SidebarMenuItem } from '../../types/sidebar/types';
 
@@ -25,7 +27,13 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Attendance & Leave',
     path: '/attendance-leave',
     icon: Calendar,
-    allowedRoles: ['Employee'],
+    allowedRoles: ['Employee', 'HR', 'Admin', 'Finance Manager'],
+  },
+  {
+    title: 'Register Face',
+    path: '/register-face',
+    icon: UserCircle,
+    allowedRoles: ['Employee', 'HR', 'Admin', 'Finance Manager'],
   },
   {
     title: 'Loan & Expense',
@@ -65,6 +73,13 @@ export const sidebarItems: SidebarMenuItem[] = [
     ],
   },
   {
+    title: 'HR Attendance Management',
+    path: '/hr-attendance-management',
+    icon: Clock,
+    // Visible to HR and Admin
+    allowedRoles: ['HR', 'Admin'],
+  },
+  {
     title: 'Hiring',
     path: '/hiring',
     icon: Briefcase,
@@ -72,8 +87,9 @@ export const sidebarItems: SidebarMenuItem[] = [
     allowedRoles: ['HR', 'Admin'],
     submenu: [
       { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'] },
-      { title: 'Hiring handbook', path: '/hiring-handbook', allowedRoles: ['HR', 'Admin'] },
       { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Assessment & Interview', path: '/hiring/assessment-interview', allowedRoles: ['HR', 'Admin'] },
     ],
   },
   {

@@ -22,20 +22,29 @@ import EmployeeDashboard from "@/pages/EmployeeDashboard";
 import PayrollPage from "@/pages/Payroll";
 import FinanceDashboard from "@/pages/FinanceDashboard";
 import HiringHandbook from "@/pages/HiringHandbook";
-import Expenses from "@/pages/Expenses";
-import Loans from "@/pages/Loans";
-import LoanExpense from "@/pages/LoanExpense";
-import BulkPayments from "@/pages/BulkPayments";
-import SalaryStructures from "@/pages/SalaryStructures";
-import TaxManagement from "@/pages/TaxManagement";
+import JobScreening from "@/pages/JobScreening";
+import AssessmentAndInterview from "@/pages/AssessmentInterview";
+import JobCandidatesDetail from "@/pages/JobCandidatesDetail";
+import Onboarding from "@/pages/Onboarding";
 import LinkedInAuth from "@/pages/LinkedInAuth";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import TestModal from "@/pages/TestModal";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import NotFound from "@/pages/NotFound";
 import AttendanceLeave from "@/pages/AttendanceLeave";
 import BankInfo from "@/pages/BankInfo";
 import EmployeeSalaryStructure from "@/pages/EmployeeSalaryStructure";
 import Payslips from "@/pages/Payslips";
+import { HRAttendanceManagement } from "@/pages/HRAttendanceManagement";
+import RegisterFace from "@/pages/RegisterFace";
+
+// Finance pages used in routes (ensure these files exist)
+import Expenses from "@/pages/Expenses";
+import Loans from "@/pages/Loans";
+import BulkPayments from "@/pages/BulkPayments";
+import SalaryStructures from "@/pages/SalaryStructures";
+import TaxManagement from "@/pages/TaxManagement";
+import LoanExpense from "@/pages/LoanExpense";
 
 // Route Guards
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -85,11 +94,15 @@ export const routes: RouteObject[] = [
     element: <JobPortal />,
   },
   {
-    path: "/job-detail",
+    path: "/privacy-policy",
+    element: <PrivacyPolicy />,
+  },
+  {
+    path: "/job-detail/:jobId",
     element: <JobDetail />,
   },
   {
-    path: "/application",
+    path: "/application/:jobId",
     element: <JobApplicationForm />,
   },
   {
@@ -172,6 +185,58 @@ export const routes: RouteObject[] = [
               </RoleBasedRoute>
             ),
           },
+          {
+            path: "hiring/job-screening",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <JobScreening />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "hiring/assessment-interview",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <AssessmentAndInterview />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "job-candidates/:jobId",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <JobCandidatesDetail />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "onboarding",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <Onboarding />
+              </RoleBasedRoute>
+            ),
+          },
+          // Finance Manager Routes (keeping finance-specific routes)
+          {
+            path: "finance",
+            element: <Navigate to="/dashboard" replace />,
+          },
+          // Stripe return handler: render a friendly success page which will
+          // attempt to confirm payment and rely on webhook polling to update
+          // the payroll status across the app.
+          {
+            path: "success",
+            element: <PaymentSuccess />,
+          },
+          {
+            path: "hr-attendance-management",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <HRAttendanceManagement />
+              </RoleBasedRoute>
+            ),
+          },
 
           // Finance Manager Routes
           { path: "finance", element: <Navigate to="/dashboard" replace /> },
@@ -231,8 +296,16 @@ export const routes: RouteObject[] = [
           {
             path: "attendance-leave",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin"]}>
+              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
                 <AttendanceLeave />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "register-face",
+            element: (
+              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
+                <RegisterFace />
               </RoleBasedRoute>
             ),
           },

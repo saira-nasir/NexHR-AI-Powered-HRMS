@@ -121,7 +121,7 @@ const Templates: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Enhanced Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      {/* <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl">
@@ -143,7 +143,7 @@ const Templates: React.FC = () => {
             </Button>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Template Usage Guide */}
       <Card className="border-l-4 border-l-blue-500 shadow-lg">
@@ -282,7 +282,7 @@ const Templates: React.FC = () => {
                        <span>Template ready to use</span>
                      </div>
                     <div className="flex gap-2">
-                      <Button
+                      {/* <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleSendMock(template)}
@@ -290,8 +290,8 @@ const Templates: React.FC = () => {
                       >
                         <Send className="w-4 h-4 mr-1" />
                         Send Test
-                      </Button>
-                      <Button
+                      </Button> */}
+                      {/* <Button
                         variant="outline"
                         size="sm"
                         onClick={() => navigator.clipboard.writeText(template.body)}
@@ -299,7 +299,7 @@ const Templates: React.FC = () => {
                       >
                         <Copy className="w-4 h-4 mr-1" />
                         Copy
-                      </Button>
+                      </Button> */}
                     </div>
                   </div>
                 </div>
@@ -355,34 +355,7 @@ const Templates: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                                 <div className="flex items-center gap-4 text-sm text-gray-600">
-                   <div className="flex items-center gap-2">
-                     <Clock className="w-4 h-4" />
-                     <span>Template available</span>
-                   </div>
-                   <div className="flex items-center gap-2">
-                     <TrendingUp className="w-4 h-4" />
-                     <span>Ready to use</span>
-                   </div>
-                 </div>
-                <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleEdit(selectedTemplate)}
-                  >
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Edit Template
-                  </Button>
-                  <Button
-                    onClick={() => handleSendMock(selectedTemplate)}
-                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    Send Test Email
-                  </Button>
-                </div>
-              </div>
+              
             </CardContent>
           </Card>
         </div>
