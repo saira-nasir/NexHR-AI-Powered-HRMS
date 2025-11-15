@@ -327,7 +327,7 @@ const AssessmentAndInterview: React.FC = () => {
               </div>
 
               {/* Tabs */}
-              <TabsList className="bg-white/10 backdrop-blur-sm border border-white/20 p-1">
+              {/* <TabsList className="bg-white/10 backdrop-blur-sm border border-white/20 p-1">
                 <TabsTrigger value="assessment" className="data-[state=active]:bg-white data-[state=active]:text-indigo-600 text-white">
                   <Briefcase className="h-4 w-4 mr-2" />
                   Assessments
@@ -338,7 +338,7 @@ const AssessmentAndInterview: React.FC = () => {
                   Interviews
                   <Badge className="ml-2 bg-white/20 text-white data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700">{jobs.reduce((sum, j) => sum + j.interviewed, 0)}</Badge>
                 </TabsTrigger>
-              </TabsList>
+              </TabsList> */}
             </div>
           </div>
         </div>
