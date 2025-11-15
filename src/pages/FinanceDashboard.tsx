@@ -3,6 +3,7 @@ import DashboardLayout from '@/layouts/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, FileText } from 'lucide-react';
+import jsPDF from 'jspdf';
 import {
   TotalPayrollCard,
   ActiveEmployeesCard,
@@ -166,43 +167,129 @@ const FinanceDashboard: React.FC = () => {
     }
   };
 
+  // Helper function to convert data to CSV format with proper escaping
+  const convertToCSV = (data: any[]): string => {
+    if (data.length === 0) return '';
+    
+    // Get headers from first object
+    const headers = Object.keys(data[0]);
+    
+    // Create CSV header row
+    const csvHeaders = headers.map(h => `"${h}"`).join(',');
+    
+    // Create CSV data rows
+    const csvRows = data.map(row => {
+      return headers.map(header => {
+        const value = row[header];
+        // Escape commas and quotes in values
+        if (value === null || value === undefined) return '""';
+        const stringValue = String(value);
+        // Always wrap in quotes for consistency and proper Excel handling
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }).join(',');
+    });
+    
+    return [csvHeaders, ...csvRows].join('\n');
+  };
+
+  // Helper function to format currency values
+  const formatCurrency = (value: number): string => {
+    return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // Helper function to format date for CSV
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+      return dateString;
+    }
+  };
+
   const handleExportData = async () => {
     try {
-      const exportData = {
-        payrolls: payrolls.map(p => ({
-          id: p.id,
-          employee: p.employee,
-          employeeName: employeeMap[p.employee]?.name || `Employee ${p.employee}`,
-          period: `${p.period_start} to ${p.period_end}`,
-          grossSalary: Number(p.gross_salary || 0),
-          taxAmount: Number(p.tax_amount || 0),
-          statutoryDeductions: Number(p.statutory_deductions || 0),
-          netSalary: Number(p.net_salary || 0),
-          status: p.payment_status,
-          paidOn: p.paid_on
-        })),
-        summary: {
-          totalEmployees: payrolls.length,
-          totalGrossSalary: payrolls.reduce((sum, p) => sum + Number(p.gross_salary || 0), 0),
-          totalTaxAmount: payrolls.reduce((sum, p) => sum + Number(p.tax_amount || 0), 0),
-          totalNetSalary: payrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0),
-          paidCount: payrolls.filter(p => p.payment_status === 'PAID').length,
-          pendingCount: payrolls.filter(p => p.payment_status === 'PENDING').length
-        },
-        exportedAt: new Date().toISOString()
-      };
+      // Prepare payroll data for CSV with better formatting
+      const payrollData = payrolls.map(p => ({
+        'Payroll ID': p.id,
+        'Employee ID': p.employee,
+        'Employee Name': employeeMap[p.employee]?.name || `Employee ${p.employee}`,
+        'Department': employeeMap[p.employee]?.department || 'Unknown',
+        'Period Start': formatDate(p.period_start),
+        'Period End': formatDate(p.period_end),
+        'Gross Salary': formatCurrency(Number(p.gross_salary || 0)),
+        'Tax Amount': formatCurrency(Number(p.tax_amount || 0)),
+        'Statutory Deductions': formatCurrency(Number(p.statutory_deductions || 0)),
+        'Net Salary': formatCurrency(Number(p.net_salary || 0)),
+        'Payment Status': p.payment_status || 'N/A',
+        'Paid On': formatDate(p.paid_on)
+      }));
 
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      // Prepare summary data
+      const totalGross = payrolls.reduce((sum, p) => sum + Number(p.gross_salary || 0), 0);
+      const totalTax = payrolls.reduce((sum, p) => sum + Number(p.tax_amount || 0), 0);
+      const totalDeductions = payrolls.reduce((sum, p) => sum + Number(p.statutory_deductions || 0), 0);
+      const totalNet = payrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0);
+      const paidCount = payrolls.filter(p => p.payment_status === 'PAID').length;
+      const pendingCount = payrolls.filter(p => p.payment_status === 'PENDING').length;
+      const failedCount = payrolls.filter(p => p.payment_status === 'FAILED').length;
+
+      // Build well-formatted CSV content
+      const exportDate = new Date().toLocaleString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      let csvContent = '';
+      
+      // Header section with metadata
+      csvContent += '"FINANCE DATA EXPORT"\n';
+      csvContent += `"Generated: ${exportDate}"\n`;
+      csvContent += `"Company: NexHR"\n`;
+      csvContent += '"\n'; // Empty row for spacing
+      
+      // Summary section
+      csvContent += '"SUMMARY"\n';
+      csvContent += '"Metric","Value"\n';
+      csvContent += `"Total Employees","${payrolls.length}"\n`;
+      csvContent += `"Total Gross Salary","${formatCurrency(totalGross)}"\n`;
+      csvContent += `"Total Tax Amount","${formatCurrency(totalTax)}"\n`;
+      csvContent += `"Total Statutory Deductions","${formatCurrency(totalDeductions)}"\n`;
+      csvContent += `"Total Net Salary","${formatCurrency(totalNet)}"\n`;
+      csvContent += '"\n'; // Empty row
+      csvContent += '"Payment Status Breakdown"\n';
+      csvContent += '"Status","Count"\n';
+      csvContent += `"Paid","${paidCount}"\n`;
+      csvContent += `"Pending","${pendingCount}"\n`;
+      csvContent += `"Failed","${failedCount}"\n`;
+      csvContent += '"\n'; // Empty row
+      csvContent += '"\n'; // Extra spacing
+      
+      // Payroll data section
+      csvContent += '"PAYROLL DETAILS"\n';
+      csvContent += convertToCSV(payrollData);
+      csvContent += '\n';
+
+      // Add BOM for Excel UTF-8 compatibility (helps Excel recognize special characters)
+      const BOM = '\uFEFF';
+      const csvWithBOM = BOM + csvContent;
+
+      // Create and download CSV file
+      const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `finance_export_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `finance_export_${new Date().toISOString().split('T')[0]}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       
-      toast({ title: 'Data exported', description: 'Finance data exported successfully.' });
+      toast({ title: 'Data exported', description: 'Finance data exported as CSV successfully.' });
     } catch (e: any) {
       toast({ title: 'Export failed', description: e?.message || 'Please try again.', variant: 'destructive' });
     }
@@ -210,46 +297,136 @@ const FinanceDashboard: React.FC = () => {
 
   const handleGenerateReport = async () => {
     try {
-      const reportData = {
-        title: 'Finance Dashboard Report',
-        generatedAt: new Date().toISOString(),
-        period: 'Current Period',
-        summary: {
-          totalPayroll: totalNet,
-          activeEmployees: payrolls.length,
-          taxCompliance: taxCompliance[0].value,
-          pendingDisbursements: pending.length,
-          pendingAmount: pending.reduce((s, p) => s + Number(p.net_salary || 0), 0)
-        },
-        breakdown: {
-          byStatus: {
-            paid: payrolls.filter(p => p.payment_status === 'PAID').length,
-            pending: payrolls.filter(p => p.payment_status === 'PENDING').length,
-            failed: payrolls.filter(p => p.payment_status === 'FAILED').length
-          },
-          byDepartment: Object.entries(employeeMap).reduce((acc, [id, emp]) => {
-            const dept = emp.department || 'Unknown';
-            if (!acc[dept]) acc[dept] = { count: 0, total: 0 };
-            acc[dept].count++;
-            const payroll = payrolls.find(p => p.employee === Number(id));
-            if (payroll) acc[dept].total += Number(payroll.net_salary || 0);
-            return acc;
-          }, {} as Record<string, { count: number; total: number }>)
-        },
-        recentDisbursements: recentDisbursements.slice(0, 10)
+      // Calculate report data
+      const summary = {
+        totalPayroll: totalNet,
+        activeEmployees: payrolls.length,
+        taxCompliance: taxCompliance[0].value,
+        pendingDisbursements: pending.length,
+        pendingAmount: pending.reduce((s, p) => s + Number(p.net_salary || 0), 0)
       };
 
-      const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `finance_report_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      const breakdownByStatus = {
+        paid: payrolls.filter(p => p.payment_status === 'PAID').length,
+        pending: payrolls.filter(p => p.payment_status === 'PENDING').length,
+        failed: payrolls.filter(p => p.payment_status === 'FAILED').length
+      };
+
+      const breakdownByDepartment = Object.entries(employeeMap).reduce((acc, [id, emp]) => {
+        const dept = emp.department || 'Unknown';
+        if (!acc[dept]) acc[dept] = { count: 0, total: 0 };
+        acc[dept].count++;
+        const payroll = payrolls.find(p => p.employee === Number(id));
+        if (payroll) acc[dept].total += Number(payroll.net_salary || 0);
+        return acc;
+      }, {} as Record<string, { count: number; total: number }>);
+
+      const recentDisbursementsData = recentDisbursements.slice(0, 10);
+
+      // Create PDF document
+      const pdf = new jsPDF();
+      let yPosition = 20;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 20;
+      const maxWidth = pageWidth - (margin * 2);
+
+      // Title
+      pdf.setFontSize(20);
+      pdf.setTextColor(108, 99, 255); // Primary color
+      pdf.text('Finance Dashboard Report', margin, yPosition);
+      yPosition += 10;
+
+      // Date
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Generated: ${new Date().toLocaleString()}`, margin, yPosition);
+      yPosition += 15;
+
+      // Summary Section
+      pdf.setFontSize(16);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Summary', margin, yPosition);
+      yPosition += 10;
+
+      pdf.setFontSize(11);
+      pdf.setTextColor(60, 60, 60);
+      pdf.text(`Total Payroll: $${summary.totalPayroll.toLocaleString(undefined, { maximumFractionDigits: 2 })}`, margin, yPosition);
+      yPosition += 7;
+      pdf.text(`Active Employees: ${summary.activeEmployees}`, margin, yPosition);
+      yPosition += 7;
+      pdf.text(`Tax Compliance: ${summary.taxCompliance}%`, margin, yPosition);
+      yPosition += 7;
+      pdf.text(`Pending Disbursements: ${summary.pendingDisbursements}`, margin, yPosition);
+      yPosition += 7;
+      pdf.text(`Pending Amount: $${summary.pendingAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`, margin, yPosition);
+      yPosition += 15;
+
+      // Breakdown by Status
+      pdf.setFontSize(16);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Breakdown by Status', margin, yPosition);
+      yPosition += 10;
+
+      pdf.setFontSize(11);
+      pdf.setTextColor(60, 60, 60);
+      pdf.text(`Paid: ${breakdownByStatus.paid}`, margin, yPosition);
+      yPosition += 7;
+      pdf.text(`Pending: ${breakdownByStatus.pending}`, margin, yPosition);
+      yPosition += 7;
+      pdf.text(`Failed: ${breakdownByStatus.failed}`, margin, yPosition);
+      yPosition += 15;
+
+      // Breakdown by Department
+      if (Object.keys(breakdownByDepartment).length > 0) {
+        pdf.setFontSize(16);
+        pdf.setTextColor(0, 0, 0);
+        pdf.text('Breakdown by Department', margin, yPosition);
+        yPosition += 10;
+
+        pdf.setFontSize(11);
+        pdf.setTextColor(60, 60, 60);
+        
+        Object.entries(breakdownByDepartment).forEach(([dept, data]) => {
+          if (yPosition > 250) {
+            pdf.addPage();
+            yPosition = 20;
+          }
+          pdf.text(`${dept}: ${data.count} employees, $${data.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}`, margin, yPosition);
+          yPosition += 7;
+        });
+        yPosition += 10;
+      }
+
+      // Recent Disbursements
+      if (recentDisbursementsData.length > 0) {
+        if (yPosition > 220) {
+          pdf.addPage();
+          yPosition = 20;
+        }
+
+        pdf.setFontSize(16);
+        pdf.setTextColor(0, 0, 0);
+        pdf.text('Recent Disbursements', margin, yPosition);
+        yPosition += 10;
+
+        pdf.setFontSize(10);
+        pdf.setTextColor(60, 60, 60);
+        
+        recentDisbursementsData.forEach((disbursement) => {
+          if (yPosition > 250) {
+            pdf.addPage();
+            yPosition = 20;
+          }
+          const line = `${disbursement.employee}: $${disbursement.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} - ${disbursement.date || 'N/A'}`;
+          pdf.text(line, margin, yPosition, { maxWidth });
+          yPosition += 7;
+        });
+      }
+
+      // Save PDF
+      pdf.save(`finance_report_${new Date().toISOString().split('T')[0]}.pdf`);
       
-      toast({ title: 'Report generated', description: 'Finance report generated successfully.' });
+      toast({ title: 'Report generated', description: 'Finance report generated as PDF successfully.' });
     } catch (e: any) {
       toast({ title: 'Report generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
     }
