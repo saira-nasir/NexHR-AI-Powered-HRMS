@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import ScheduleInterviewModal from "@/components/modals/ScheduleInterviewModal";
+import CandidateScheduleDrawer from "@/components/modals/CandidateScheduleDrawer";
 import {
   Table,
   TableBody,
@@ -63,7 +64,9 @@ const JobCandidatesDetail: React.FC = () => {
   // Candidates data from API
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   
-  // Scheduling modal state
+  // Drawer and modal state
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [schedulingCandidate, setSchedulingCandidate] = useState<Candidate | null>(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
 
@@ -146,8 +149,21 @@ const JobCandidatesDetail: React.FC = () => {
     fetchCandidates();
   }, [jobId]);
 
-  const openScheduleModal = (candidate: Candidate) => {
-    setSchedulingCandidate(candidate);
+  // Open drawer when Schedule button is clicked
+  const openDrawer = (candidate: Candidate) => {
+    setSelectedCandidate(candidate);
+    setIsDrawerOpen(true);
+  };
+
+  const closeDrawer = () => {
+    setIsDrawerOpen(false);
+    setSelectedCandidate(null);
+  };
+
+  // Open modal when Schedule Round is clicked from drawer
+  const handleScheduleRound = (round: any) => {
+    // Keep drawer open and open modal
+    setSchedulingCandidate(selectedCandidate);
     setIsScheduleModalOpen(true);
   };
 
@@ -384,7 +400,7 @@ const JobCandidatesDetail: React.FC = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => openScheduleModal(candidate)}
+                              onClick={() => openDrawer(candidate)}
                               className="hover:bg-indigo-50"
                             >
                               Schedule
@@ -398,6 +414,14 @@ const JobCandidatesDetail: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Candidate Schedule Drawer */}
+          <CandidateScheduleDrawer
+            isOpen={isDrawerOpen}
+            onClose={closeDrawer}
+            candidate={selectedCandidate}
+            onScheduleRound={handleScheduleRound}
+          />
 
           {/* Schedule Interview Modal */}
           <ScheduleInterviewModal

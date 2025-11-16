@@ -171,7 +171,10 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-3xl max-h-[90vh] overflow-y-auto z-[80]" 
+        overlayClassName="z-[75]"
+      >
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-gray-900">Schedule Interview</DialogTitle>
           <DialogDescription className="text-gray-600">
@@ -234,7 +237,7 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-96 p-0" align="start">
+                <PopoverContent className="w-96 p-0 z-[90]" align="start">
                   <div className="p-3 border-b">
                     <Input 
                       placeholder="Search by name or email..." 
@@ -313,7 +316,7 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                     {scheduleDate ? format(scheduleDate, "PPP") : <span className="text-gray-500">Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0 z-[90]" align="start">
                   <Calendar
                     mode="single"
                     selected={scheduleDate}

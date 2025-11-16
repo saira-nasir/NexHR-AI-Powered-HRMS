@@ -61,7 +61,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     allowedRoles: ['Employee'],
   },
   {
-    title: 'Interview',
+    title: 'Scheduled interviews',
     path: '/interview',
     icon: MessageSquare,
     allowedRoles: ['Employee'],
@@ -93,11 +93,11 @@ export const sidebarItems: SidebarMenuItem[] = [
     // Visible to HR and Admin
     allowedRoles: ['HR', 'Admin'],
     submenu: [
-      { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'] },
-      { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'] },
-      { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR', 'Admin'] },
-      { title: 'Assessment & Interview', path: '/hiring/assessment-interview', allowedRoles: ['HR', 'Admin'] },
-      { title: 'Interview', path: '/hiring/interview', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'], step: 1 },
+      { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR', 'Admin'], step: 2 },
+      { title: 'Scheduled interviews', path: '/hiring/assessment-interview', allowedRoles: ['HR', 'Admin'], step: 3 },
+      { title: 'Conduct & Score', path: '/hiring/interview', allowedRoles: ['HR', 'Admin'], step: 4 },
+      { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'], step: 5 },
     ],
   },
   {

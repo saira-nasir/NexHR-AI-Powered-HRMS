@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { Download, RotateCcw, AlertCircle, CheckCircle2 } from 'lucide-react'
 import ScoringTable from './ScoringTable'
 import SummarySection from './SummarySection'
+import { CandidateDetailsCard } from './CandidateDetailsCard'
+import { ReferenceGuideBanner } from './ReferenceGuideBanner'
 
 type InterviewStage = 'phone' | 'first' | 'second' | 'final'
 type InterviewType = 'technical' | 'behavioral' | 'panel'
@@ -46,14 +48,26 @@ const initialCulturalSkills: Competency[] = [
   { id: 'c2', name: 'Motivation for Role', weight: 2, rating: 0, evidence: '' },
 ]
 
-export default function InterviewScoringForm() {
+interface InterviewScoringFormProps {
+  initialData?: {
+    candidateName?: string;
+    positionAppliedFor?: string;
+    interviewDate?: Date;
+    interviewStage?: InterviewStage;
+    interviewType?: InterviewType;
+  };
+}
+
+export default function InterviewScoringForm({ initialData }: InterviewScoringFormProps = {}) {
   // Candidate & Interview Details
-  const [candidateName, setCandidateName] = useState('')
-  const [positionAppliedFor, setPositionAppliedFor] = useState('')
+  const [candidateName, setCandidateName] = useState(initialData?.candidateName || '')
+  const [positionAppliedFor, setPositionAppliedFor] = useState(initialData?.positionAppliedFor || '')
   const [interviewerName, setInterviewerName] = useState('')
-  const [interviewDate, setInterviewDate] = useState('')
-  const [interviewStage, setInterviewStage] = useState<InterviewStage>('phone')
-  const [interviewType, setInterviewType] = useState<InterviewType>('technical')
+  const [interviewDate, setInterviewDate] = useState(
+    initialData?.interviewDate ? initialData.interviewDate.toISOString().split('T')[0] : ''
+  )
+  const [interviewStage, setInterviewStage] = useState<InterviewStage>(initialData?.interviewStage || 'phone')
+  const [interviewType, setInterviewType] = useState<InterviewType>(initialData?.interviewType || 'technical')
 
   // Scoring Data
   const [scores, setScores] = useState<SectionScores>({
@@ -70,6 +84,7 @@ export default function InterviewScoringForm() {
   const [justification, setJustification] = useState('')
 
   const [showValidation, setShowValidation] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Calculate weighted scores
   const calculateSectionTotal = (competencies: Competency[]) => {
@@ -181,8 +196,73 @@ export default function InterviewScoringForm() {
     setShowValidation(false)
   }
 
+  const handleSubmit = async () => {
+    if (!isFormComplete) {
+      setShowValidation(true)
+      return
+    }
+
+    setIsSubmitting(true)
+    
+    try {
+      // Prepare the data for submission
+      const submissionData = {
+        candidate: {
+          name: candidateName,
+          position: positionAppliedFor,
+        },
+        interview: {
+          interviewer: interviewerName,
+          date: interviewDate,
+          stage: interviewStage,
+          type: interviewType,
+        },
+        scores: {
+          technical: scores.technical,
+          behavioral: scores.behavioral,
+          cultural: scores.cultural,
+          technicalSubtotal,
+          behavioralSubtotal,
+          culturalSubtotal,
+          finalWeightedScore,
+          maxPossibleScore,
+          percentage,
+        },
+        summary: {
+          keyStrengths,
+          keyWeaknesses,
+          generalNotes,
+          justification,
+          recommendation,
+        },
+        submittedAt: new Date().toISOString(),
+      }
+
+      // TODO: Replace with actual API call
+      console.log('Submitting interview scoring:', submissionData)
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
+      // Show success message (you can add a toast notification here)
+      alert('Interview scoring submitted successfully!')
+      
+      // Optionally reset the form
+      // resetForm()
+      
+    } catch (error) {
+      console.error('Error submitting interview scoring:', error)
+      alert('Failed to submit interview scoring. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
+      {/* Reference Guide Banner */}
+      <ReferenceGuideBanner />
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-primary mb-2">Interview Scoring</h1>
@@ -203,13 +283,13 @@ export default function InterviewScoringForm() {
       </div>
 
       {/* Main Form */}
-      <Tabs defaultValue="details" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 bg-gray-100 p-1 h-auto rounded-lg">
+      <Tabs defaultValue="candidate" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3 bg-gray-100 p-1 h-auto rounded-lg">
           <TabsTrigger 
-            value="details"
+            value="candidate"
             className="data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm rounded-md transition-all"
           >
-            Details
+            Candidate Details
           </TabsTrigger>
           <TabsTrigger 
             value="scoring"
@@ -223,45 +303,47 @@ export default function InterviewScoringForm() {
           >
             Summary
           </TabsTrigger>
-          <TabsTrigger 
-            value="reference"
-            className="data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm rounded-md transition-all"
-          >
-            Reference
-          </TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Candidate & Interview Details */}
-        <TabsContent value="details">
-          <Card>
+        {/* Tab 1: Candidate Details */}
+        <TabsContent value="candidate">
+          <CandidateDetailsCard
+            candidateName={candidateName || 'Candidate Name'}
+            positionAppliedFor={positionAppliedFor || 'Position Not Specified'}
+            candidateEmail="candidate@example.com"
+            candidatePhone="+1 (555) 123-4567"
+            location="San Francisco, CA"
+            experience="5+ years"
+            education={[
+              'Bachelor of Science in Computer Science - Stanford University (2016)',
+              'Master of Science in Software Engineering - MIT (2018)'
+            ]}
+            skills={[
+              'JavaScript',
+              'TypeScript',
+              'React',
+              'Node.js',
+              'Python',
+              'SQL',
+              'MongoDB',
+              'AWS',
+              'Docker',
+              'Kubernetes',
+              'Git',
+              'Agile/Scrum'
+            ]}
+            resumeUrl="#"
+            appliedDate={interviewDate ? new Date(interviewDate) : new Date()}
+            matchScore={87}
+          />
+
+          {/* Interview Configuration */}
+          <Card className="mt-6">
             <CardHeader>
-              <CardTitle>Candidate & Interview Details</CardTitle>
-              <CardDescription>Enter information about the candidate and interview</CardDescription>
+              <CardTitle>Interview Configuration</CardTitle>
+              <CardDescription>Set up the interview details and interviewer information</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="candidateName">Candidate Name *</Label>
-                  <Input
-                    id="candidateName"
-                    placeholder="Full name"
-                    value={candidateName}
-                    onChange={(e) => setCandidateName(e.target.value)}
-                    className={showValidation && !candidateName ? 'border-red-500' : ''}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="position">Position Applied For *</Label>
-                  <Input
-                    id="position"
-                    placeholder="e.g., Senior Developer"
-                    value={positionAppliedFor}
-                    onChange={(e) => setPositionAppliedFor(e.target.value)}
-                    className={showValidation && !positionAppliedFor ? 'border-red-500' : ''}
-                  />
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="interviewer">Interviewer Name *</Label>
@@ -443,115 +525,11 @@ export default function InterviewScoringForm() {
             finalWeightedScore={finalWeightedScore}
             maxPossibleScore={maxPossibleScore}
             percentage={percentage}
+            onSubmit={handleSubmit}
+            isSubmitting={isSubmitting}
           />
         </TabsContent>
-
-        {/* Tab 4: Reference */}
-        <TabsContent value="reference">
-          <Card>
-            <CardHeader>
-              <CardTitle>Rating Scale & How to Use Weights</CardTitle>
-              <CardDescription>Reference guide for consistent scoring</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold mb-4 text-primary">Rating Scale Definition</h3>
-                <div className="space-y-3">
-                  {[
-                    {
-                      score: 5,
-                      title: 'Exceptional',
-                      description: 'Far exceeds expectations. Provides multiple, strong, and highly relevant examples. Demonstrates deep mastery.',
-                    },
-                    {
-                      score: 4,
-                      title: 'Strong',
-                      description: 'Exceeds expectations. Provides clear and relevant examples. Demonstrates solid understanding and capability.',
-                    },
-                    {
-                      score: 3,
-                      title: 'Meets Expectations',
-                      description: 'Meets core requirements. Provides adequate examples. Capable and solid performer.',
-                    },
-                    {
-                      score: 2,
-                      title: 'Below Expectations',
-                      description: 'Shows some gaps. Examples are weak, irrelevant, or not provided. Would require significant training.',
-                    },
-                    {
-                      score: 1,
-                      title: 'Poor/Red Flag',
-                      description: 'Does not meet requirements. No evidence of competency. Serious concerns were raised.',
-                    },
-                  ].map((item) => (
-                    <div key={item.score} className="pb-3 border-b last:border-0">
-                      <div className="flex items-start gap-3">
-                        <Badge className="bg-primary text-white mt-1">{item.score}</Badge>
-                        <div>
-                          <p className="font-semibold">{item.title}</p>
-                          <p className="text-sm text-muted-foreground">{item.description}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-semibold mb-4 text-primary">How to Use Weights</h3>
-                <ol className="space-y-2 text-sm list-decimal list-inside text-muted-foreground">
-                  <li>Before the interview, set a Weight (1-5) for each competency based on importance</li>
-                  <li>During the interview, assign a Rating (1-5) and record evidence</li>
-                  <li>Weighted Score = Rating × Weight</li>
-                  <li>Sum all Weighted Scores to get the Final Score</li>
-                  <li>Percentage = (Final Score / Maximum Possible Score) × 100</li>
-                </ol>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-semibold mb-4 text-primary">Suggested Thresholds</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                    <p className="text-xs text-muted-foreground">Strong Hire</p>
-                    <p className="font-bold text-green-700">≥85%</p>
-                  </div>
-                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-xs text-muted-foreground">Hire</p>
-                    <p className="font-bold text-blue-700">70-84%</p>
-                  </div>
-                  <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <p className="text-xs text-muted-foreground">Hold/Discuss</p>
-                    <p className="font-bold text-yellow-700">50-69%</p>
-                  </div>
-                  <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                    <p className="text-xs text-muted-foreground">No Hire</p>
-                    <p className="font-bold text-red-700">{'<'}50%</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
-
-      {/* Export Button */}
-      <div className="mt-8 flex gap-3">
-        <Button
-          onClick={handleExportToSheets}
-          className="bg-primary text-white hover:bg-primary/90 flex items-center gap-2"
-        >
-          <Download size={18} />
-          Export to CSV
-        </Button>
-        <Button 
-          onClick={resetForm}
-          variant="outline"
-          className="flex items-center gap-2"
-        >
-          <RotateCcw size={18} />
-          Reset Form
-        </Button>
-      </div>
     </div>
   )
 }

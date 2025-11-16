@@ -2,6 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { CheckCircle2, Send } from 'lucide-react'
 
 interface SummarySectionProps {
   keyStrengths: string
@@ -16,6 +18,8 @@ interface SummarySectionProps {
   finalWeightedScore: number
   maxPossibleScore: number
   percentage: number
+  onSubmit?: () => void
+  isSubmitting?: boolean
 }
 
 export default function SummarySection({
@@ -31,7 +35,15 @@ export default function SummarySection({
   finalWeightedScore,
   maxPossibleScore,
   percentage,
+  onSubmit,
+  isSubmitting = false,
 }: SummarySectionProps) {
+  const isFormComplete = !!(
+    recommendation && 
+    finalWeightedScore > 0 && 
+    keyStrengths.trim() && 
+    justification.trim()
+  );
   return (
     <div className="space-y-6">
       {/* Summary Card */}
@@ -125,6 +137,53 @@ export default function SummarySection({
             onChange={(e) => setJustification(e.target.value)}
             className="min-h-24 resize-none"
           />
+        </CardContent>
+      </Card>
+
+      {/* Submit Button */}
+      <Card className="border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-start gap-3">
+              {isFormComplete ? (
+                <>
+                  <CheckCircle2 className="w-6 h-6 text-green-600 mt-1" />
+                  <div>
+                    <p className="font-semibold text-gray-900">Ready to Submit</p>
+                    <p className="text-sm text-gray-600">All required fields are complete</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-6 h-6 text-amber-600 mt-1" />
+                  <div>
+                    <p className="font-semibold text-gray-900">Complete Required Fields</p>
+                    <p className="text-sm text-gray-600">
+                      Please ensure: Recommendation selected, Scoring completed, Key strengths and Justification filled
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+            <Button
+              onClick={onSubmit}
+              disabled={!isFormComplete || isSubmitting}
+              size="lg"
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="w-5 h-5 mr-2" />
+                  Submit Interview Score
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

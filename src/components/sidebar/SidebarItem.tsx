@@ -69,11 +69,23 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
                   key={subItem.title}
                   to={subItem.path}
                   className={cn(
-                    "flex items-center px-3 py-2 text-sm hover:bg-lavender",
+                    "flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-lavender",
                     isActive(subItem.path) && "bg-ghost-white font-medium text-primary"
                   )}
                 >
-                  {subItem.title}
+                  {subItem.step && (
+                    <span 
+                      className={cn(
+                        "flex items-center justify-center w-5 h-5 rounded-full text-xs font-semibold",
+                        isActive(subItem.path)
+                          ? "bg-primary text-white shadow-sm"
+                          : "bg-lavender text-english-violet"
+                      )}
+                    >
+                      {subItem.step}
+                    </span>
+                  )}
+                  <span className="flex-1">{subItem.title}</span>
                 </Link>
               ))}
             </div>
