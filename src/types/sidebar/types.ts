@@ -5,6 +5,7 @@ export type SidebarSubmenu = {
   title: string;
   path: string;
   allowedRoles?: string[];
+  step?: number;
 };
 
 export type SidebarMenuItem = {
