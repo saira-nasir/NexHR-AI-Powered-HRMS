@@ -306,13 +306,28 @@ export const fetchJobs = async (page: number = 1, pageSize: number = 6): Promise
     totalCount: number;
 }> => {
     try {
-  // Use configured API base URL (falls back to local dev server)
-  const response = await fetch(`${API_BASE_URL}/jobs/list/?page=${page}&page_size=${pageSize}`);
+        // Use configured API base URL (falls back to local dev server)
+        const response = await fetch(`${API_BASE_URL}/jobs/list/?page=${page}&page_size=${pageSize}`);
 
-    if (!response.ok) {
-      throw new Error(`Error fetching jobs: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`Error fetching jobs: ${response.status}`);
+        }
+
+        const data: PaginatedJobsResponse = await response.json();
+        const jobs = data.results.map(transformApiJob);
+
+        return {
+            jobs,
+            totalCount: data.count,
+        };
+    } catch (error) {
+        console.error("Failed to fetch jobs:", error);
+        return {
+            jobs: [],
+            totalCount: 0,
+        };
     }
-}
+};
 
 // Fetch jobs for company endpoint with pagination
 export const fetchCompanyJobs = async (page: number = 1, pageSize: number = 6): Promise<{
@@ -322,36 +337,36 @@ export const fetchCompanyJobs = async (page: number = 1, pageSize: number = 6): 
     previous: string | null;
 }> => {
     try {
-  const url = `${API_BASE_URL}/jobs/company/?page=${page}&page_size=${pageSize}`;
-    const token = localStorage.getItem('access_token');
+        const url = `${API_BASE_URL}/jobs/company/?page=${page}&page_size=${pageSize}`;
+        const token = localStorage.getItem('access_token');
 
-    const headers: Record<string, string> = {
-      'Accept': 'application/json',
-    };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+        const headers: Record<string, string> = {
+            'Accept': 'application/json',
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    console.debug('[fetchCompanyJobs] Requesting', url, { headers });
+        console.debug('[fetchCompanyJobs] Requesting', url, { headers });
 
-    const response = await fetch(url, { headers });
+        const response = await fetch(url, { headers });
 
-    // Log non-OK responses for easier debugging
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      console.error('[fetchCompanyJobs] non-OK response', response.status, text);
-      throw new Error(`Error fetching company jobs: ${response.status}`);
-    }
+        // Log non-OK responses for easier debugging
+        if (!response.ok) {
+            const text = await response.text().catch(() => '');
+            console.error('[fetchCompanyJobs] non-OK response', response.status, text);
+            throw new Error(`Error fetching company jobs: ${response.status}`);
+        }
 
-    const data: PaginatedJobsResponse = await response.json();
-    console.debug('[fetchCompanyJobs] Response data:', data);
+        const data: PaginatedJobsResponse = await response.json();
+        console.debug('[fetchCompanyJobs] Response data:', data);
 
-    const jobs = data.results.map(transformApiJob);
+        const jobs = data.results.map(transformApiJob);
 
-    return {
-      jobs,
-      totalCount: data.count,
-      next: data.next,
-      previous: data.previous
-    };
+        return {
+            jobs,
+            totalCount: data.count,
+            next: data.next,
+            previous: data.previous
+        };
     } catch (error) {
         console.error("Failed to fetch company jobs:", error);
         return {
@@ -361,4 +376,4 @@ export const fetchCompanyJobs = async (page: number = 1, pageSize: number = 6): 
             previous: null
         };
     }
-}
+};
