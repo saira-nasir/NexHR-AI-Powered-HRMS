@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from 'framer-motion';
 import { 
   Users, 
@@ -268,31 +269,35 @@ export default function NexHRProductPage() {
             </div>
             
             {/* Right Section - CTA Buttons */}
-            <div className="hidden md:flex items-center space-x-4">
-              {/* Login Button */}
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Button 
-                  variant="ghost" 
-                  className="bg-white/95 backdrop-blur-md border border-white/20 text-[#342f43] hover:text-[#5d5471] hover:bg-white rounded-full px-6 py-2.5 shadow-lg hover:shadow-xl transition-all duration-300"
-                >
-                  Login
-                </Button>
-              </motion.div>
-              
-              {/* Book Demo Button - Primary CTA */}
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Button className="bg-gradient-to-r from-[#342f43] to-[#5d5471] hover:from-[#5d5471] hover:to-[#342f43] text-white rounded-full px-8 py-2.5 shadow-lg hover:shadow-xl transition-all duration-300 font-semibold">
-                  Book Demo
-                </Button>
-              </motion.div>
-            </div>
-            
+<div className="hidden md:flex items-center space-x-4">
+  {/* Login Button */}
+  <motion.div
+    whileHover={{ scale: 1.02 }}
+    whileTap={{ scale: 0.98 }}
+  >
+    <Link to="/login">
+      <Button 
+        variant="ghost" 
+        className="bg-white/95 backdrop-blur-md border border-white/20 text-[#342f43] hover:text-[#5d5471] hover:bg-white rounded-full px-6 py-2.5 shadow-lg hover:shadow-xl transition-all duration-300"
+      >
+        Login
+      </Button>
+    </Link>
+  </motion.div>
+
+  {/* Book Demo Button - Primary CTA */}
+  <motion.div
+    whileHover={{ scale: 1.05 }}
+    whileTap={{ scale: 0.95 }}
+  >
+    <Link to="/demo">
+      <Button className="bg-gradient-to-r from-[#342f43] to-[#5d5471] hover:from-[#5d5471] hover:to-[#342f43] text-white rounded-full px-8 py-2.5 shadow-lg hover:shadow-xl transition-all duration-300 font-semibold">
+        Book Demo
+      </Button>
+    </Link>
+  </motion.div>
+</div>
+
             {/* Mobile Menu Button */}
             <div className="md:hidden">
               <motion.div

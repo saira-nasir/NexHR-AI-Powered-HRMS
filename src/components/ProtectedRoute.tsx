@@ -25,6 +25,7 @@ const ProtectedRoute = () => {
             description: "Your session has expired. Please log in again.",
             variant: "destructive",
           });
+          setRedirectPath(location.pathname);
         }
       } else {
         setRedirectPath(location.pathname);

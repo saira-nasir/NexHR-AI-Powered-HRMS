@@ -14,7 +14,7 @@ export default function Header() {
   const [sliderPosition, setSliderPosition] = useState({ left: 10, right: 90 });
   const [activeDropdown, setActiveDropdown] = useState(null);
   const sliderRef = useRef(null);
-  const dropdownRefs = useRef({});
+  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const navigate = useNavigate();
   // Filter options
   const jobTypes = ["Designer", "Developer", "Manager", "Marketing", "Sales"];

@@ -17,7 +17,6 @@ const api = axios.create({
   timeout: 15000, // Increased timeout for slower connections
 });
 
-// Request interceptor to add auth token
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token');
@@ -51,7 +50,6 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle token refresh
 api.interceptors.response.use(
   (response: AxiosResponse) => {
     console.log(`API Response from ${response.config.url}:`, {
@@ -69,8 +67,7 @@ api.interceptors.response.use(
       url: originalRequest?.url,
       method: originalRequest?.method,
       status: error.response?.status,
-      statusText: error.response?.statusText,
-      responseData: error.response?.data
+      data: error.response?.data,
     });
     try {
       console.error('API Response Error (stringified):', JSON.stringify(error.response?.data, null, 2));

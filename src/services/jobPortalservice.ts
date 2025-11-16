@@ -1,10 +1,14 @@
-// services/job-service.ts
+import axios from "axios";
 import { JobListing } from "@/types/jobPortal/types";
-import axios from 'axios';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+// ==============================
+// 🔧 Base Configuration
+// ==============================
+const API_BASE_URL = "http://127.0.0.1:8000/api";
 
-// Interfaces for job application data
+// ==============================
+// 📘 Data Interfaces
+// ==============================
 export interface Skill {
   name: string;
 }
@@ -25,30 +29,29 @@ export interface Education {
   description: string;
 }
 
-// Updated payload structure matching backend requirements
 export interface JobApplicationData {
   job: number;
   candidate_fname: string;
   candidate_lname: string;
   email: string;
   phone: string;
-  status: string; // "pending" for new applications
-  gender: string; // lowercase: "male", "female", "other"
+  status: string; // e.g., "pending"
+  gender: string; // "male" | "female" | "other"
   address: string;
   dob: string;
   skills: Skill[];
   experiences: Experience[];
   educations: Education[];
-  // Note: resume_text is auto-filled by backend when resume_file is uploaded
 }
 
+// ==============================
+// 🧱 Application Service
+// ==============================
 class ApplicationService {
   private getAuthHeader() {
-    const access_token = localStorage.getItem('access_token');
+    const access_token = localStorage.getItem("access_token");
     return access_token
-      ? {
-          Authorization: `Bearer ${access_token}`,
-        }
+      ? { Authorization: `Bearer ${access_token}` }
       : {};
   }
 
@@ -64,7 +67,7 @@ class ApplicationService {
       const response = await axios.post(endpoint, applicationData, {
         headers: {
           ...this.getAuthHeader(),
-          // Don't set Content-Type - let browser set it for multipart/form-data
+          // Do NOT set Content-Type manually for multipart/form-data
         },
       });
 
@@ -72,14 +75,11 @@ class ApplicationService {
         return {
           success: true,
           applicationId: response.data.id || response.data.application_id,
-          message: 'Application submitted successfully',
+          message: "Application submitted successfully",
         };
       }
 
-      return {
-        success: false,
-        message: 'Failed to submit application',
-      };
+      return { success: false, message: "Failed to submit application" };
     } catch (error: any) {
       console.error('Error submitting application:', error);
       console.error('Response data:', error.response?.data);
@@ -109,47 +109,38 @@ class ApplicationService {
       });
 
       if (response.status === 200) {
-        return {
-          success: true,
-          data: response.data,
-        };
+        return { success: true, data: response.data };
       }
 
-      return {
-        success: false,
-        message: 'Failed to fetch application',
-      };
+      return { success: false, message: "Failed to fetch application" };
     } catch (error: any) {
-      console.error('Error fetching application:', error.response?.data || error.message);
+      console.error("Error fetching application:", error.response?.data || error.message);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to fetch application',
+        message: error.response?.data?.message || "Failed to fetch application",
       };
     }
   }
 
-  async getApplicationsByJob(jobId: string): Promise<{ success: boolean; data?: any[]; message?: string }> {
+  // Get all applications for a given job
+  async getApplicationsByJob(
+    jobId: string
+  ): Promise<{ success: boolean; data?: any[]; message?: string }> {
     try {
       const response = await axios.get(`${API_BASE_URL}/applications/?job=${jobId}`, {
         headers: this.getAuthHeader(),
       });
 
       if (response.status === 200) {
-        return {
-          success: true,
-          data: response.data.results || response.data,
-        };
+        return { success: true, data: response.data.results || response.data };
       }
 
-      return {
-        success: false,
-        message: 'Failed to fetch applications',
-      };
+      return { success: false, message: "Failed to fetch applications" };
     } catch (error: any) {
-      console.error('Error fetching applications:', error.response?.data || error.message);
+      console.error("Error fetching applications:", error.response?.data || error.message);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to fetch applications',
+        message: error.response?.data?.message || "Failed to fetch applications",
       };
     }
   }
@@ -236,6 +227,9 @@ class ApplicationService {
 
 export const applicationService = new ApplicationService();
 
+// ==============================
+// 📗 Job Fetching Utilities
+// ==============================
 export interface ApiJobResponse {
   id: number;
     job_title: string;
@@ -257,22 +251,23 @@ export interface ApiJobResponse {
 }
 
 export interface PaginatedJobsResponse {
-    results: ApiJobResponse[];
-    count: number;
-    next: string | null;
-    previous: string | null;
+  results: ApiJobResponse[];
+  count: number;
+  next: string | null;
+  previous: string | null;
 }
 
-// Function to transform API response to our JobListing format
+// ==============================
+// 🔄 Transform API Job to Frontend Model
+// ==============================
 export const transformApiJob = (apiJob: ApiJobResponse): JobListing => {
   // Calculate average salary for display (return as number)
   const salaryFrom = parseFloat(apiJob.salary_from as unknown as string || '0');
   const salaryTo = parseFloat(apiJob.salary_to as unknown as string || '0');
   const averageSalaryNumber = (salaryFrom + salaryTo) / 2;
 
-    // Format the date (created_at)
-    const createdDate = new Date(apiJob.created_at);
-    const formattedDate = `${createdDate.toLocaleString('default', { month: 'short' })} ${createdDate.getDate()}, ${createdDate.getFullYear()}`;
+  const createdDate = new Date(apiJob.created_at);
+  const formattedDate = `${createdDate.toLocaleString("default", { month: "short" })} ${createdDate.getDate()}, ${createdDate.getFullYear()}`;
 
   // Prefer backend numeric id when available (stringified) so other APIs can use it
   const id = apiJob.id ? String(apiJob.id) : `job-${apiJob.job_title.replace(/\s+/g, '-').toLowerCase()}-${createdDate.getTime()}`;
@@ -311,31 +306,28 @@ export const fetchJobs = async (page: number = 1, pageSize: number = 6): Promise
     totalCount: number;
 }> => {
     try {
-  // Use configured API base URL (falls back to local dev server)
-  const response = await fetch(`${API_BASE_URL}/jobs/list/?page=${page}&page_size=${pageSize}`);
+        // Use configured API base URL (falls back to local dev server)
+        const response = await fetch(`${API_BASE_URL}/jobs/list/?page=${page}&page_size=${pageSize}`);
 
         if (!response.ok) {
             throw new Error(`Error fetching jobs: ${response.status}`);
         }
 
         const data: PaginatedJobsResponse = await response.json();
-
-        // Transform the API response to our JobListing format
-        console.log("==================kkkk===========",data)
         const jobs = data.results.map(transformApiJob);
 
         return {
             jobs,
-            totalCount: data.count
+            totalCount: data.count,
         };
     } catch (error) {
         console.error("Failed to fetch jobs:", error);
         return {
             jobs: [],
-            totalCount: 0
+            totalCount: 0,
         };
     }
-}
+};
 
 // Fetch jobs for company endpoint with pagination
 export const fetchCompanyJobs = async (page: number = 1, pageSize: number = 6): Promise<{
@@ -345,36 +337,36 @@ export const fetchCompanyJobs = async (page: number = 1, pageSize: number = 6): 
     previous: string | null;
 }> => {
     try {
-  const url = `${API_BASE_URL}/jobs/company/?page=${page}&page_size=${pageSize}`;
-    const token = localStorage.getItem('access_token');
+        const url = `${API_BASE_URL}/jobs/company/?page=${page}&page_size=${pageSize}`;
+        const token = localStorage.getItem('access_token');
 
-    const headers: Record<string, string> = {
-      'Accept': 'application/json',
-    };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+        const headers: Record<string, string> = {
+            'Accept': 'application/json',
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    console.debug('[fetchCompanyJobs] Requesting', url, { headers });
+        console.debug('[fetchCompanyJobs] Requesting', url, { headers });
 
-    const response = await fetch(url, { headers });
+        const response = await fetch(url, { headers });
 
-    // Log non-OK responses for easier debugging
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      console.error('[fetchCompanyJobs] non-OK response', response.status, text);
-      throw new Error(`Error fetching company jobs: ${response.status}`);
-    }
+        // Log non-OK responses for easier debugging
+        if (!response.ok) {
+            const text = await response.text().catch(() => '');
+            console.error('[fetchCompanyJobs] non-OK response', response.status, text);
+            throw new Error(`Error fetching company jobs: ${response.status}`);
+        }
 
-    const data: PaginatedJobsResponse = await response.json();
-    console.debug('[fetchCompanyJobs] Response data:', data);
+        const data: PaginatedJobsResponse = await response.json();
+        console.debug('[fetchCompanyJobs] Response data:', data);
 
-    const jobs = data.results.map(transformApiJob);
+        const jobs = data.results.map(transformApiJob);
 
-    return {
-      jobs,
-      totalCount: data.count,
-      next: data.next,
-      previous: data.previous
-    };
+        return {
+            jobs,
+            totalCount: data.count,
+            next: data.next,
+            previous: data.previous
+        };
     } catch (error) {
         console.error("Failed to fetch company jobs:", error);
         return {
@@ -384,4 +376,4 @@ export const fetchCompanyJobs = async (page: number = 1, pageSize: number = 6): 
             previous: null
         };
     }
-}
+};

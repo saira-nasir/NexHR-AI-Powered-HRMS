@@ -1,64 +1,66 @@
-import api from '@/lib/api';
+// src/services/employeeService.ts
+import api from "@/lib/api";
 
 export interface Employee {
-    id: number;
-    fname?: string;
-    lname?: string;
-    first_name?: string;
-    last_name?: string;
-    firstName?: string;
-    lastName?: string;
-    email: string;
-    phone?: string;
-    phone_number?: string;
-    mobile?: string;
-    company?: string;
-    department?: string;
-    branch?: string;
-    // Additional fields that might come from different endpoints
-    name?: string;
-    username?: string;
-    is_active?: boolean;
-    is_verified?: boolean;
+  id: number;
+  fname?: string;
+  lname?: string;
+  first_name?: string;
+  last_name?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  phone_number?: string;
+  mobile?: string;
+  company?: string;
+  department?: string;
+  branch?: string;
+  name?: string;
+  username?: string;
+  is_active?: boolean;
+  is_verified?: boolean;
 }
 
-// Normalize various backend user shapes into the Employee interface
 const normalizeEmployee = (raw: any): Employee => {
-    if (!raw) return raw as Employee;
+  if (!raw) return raw as Employee;
 
-    const id = raw.id ?? raw.pk ?? raw.user_id ?? raw.uid;
-    const email = raw.email || raw.user_email || raw.username || '';
-    const phone = raw.phone || raw.phone_number || raw.mobile || '';
+  const id = raw.id ?? raw.pk ?? raw.user_id ?? raw.uid ?? raw.employee_id;
+  const email = raw.email || raw.user_email || raw.username || "";
+  const phone = raw.phone || raw.phone_number || raw.mobile || "";
 
-    // Name resolution: prefer 'name', then fname/lname combos, then username
-    const fname = raw.fname || raw.first_name || raw.firstName || '';
-    const lname = raw.lname || raw.last_name || raw.lastName || '';
-    const name = raw.name || `${fname} ${lname}`.trim() || raw.username;
+  const fname = raw.fname || raw.first_name || raw.firstName || "";
+  const lname = raw.lname || raw.last_name || raw.lastName || "";
+  const name = raw.name || `${fname} ${lname}`.trim() || raw.username || "";
 
-    const company = raw.company || (raw.company && typeof raw.company === 'object' ? raw.company.name : raw.company) || raw.company_name;
-    const department = raw.department || raw.dept || raw.department_name;
-    const branch = raw.branch || raw.branch_name;
+  const company =
+    raw.company && typeof raw.company === "object"
+      ? raw.company.name
+      : raw.company || raw.company_name;
 
-    return {
-        id: Number(id),
-        fname: fname || 'Unknown',
-        lname: lname || 'User',
-        first_name: raw.first_name,
-        last_name: raw.last_name,
-        firstName: raw.firstName,
-        lastName: raw.lastName,
-        email,
-        phone,
-        phone_number: raw.phone_number,
-        mobile: raw.mobile,
-        company: typeof company === 'string' ? company : company?.name || undefined,
-        department: department,
-        branch: branch,
-        name: name,
-        username: raw.username,
-        is_active: raw.is_active,
-        is_verified: raw.is_verified,
-    } as Employee;
+  const department = raw.department || raw.dept || raw.department_name;
+  const branch = raw.branch || raw.branch_name;
+
+  return {
+    id: Number(id),
+    fname: fname || 'Unknown',
+    lname: lname || 'User',
+    first_name: raw.first_name,
+    last_name: raw.last_name,
+    firstName: raw.firstName,
+    lastName: raw.lastName,
+    email,
+    phone,
+    phone_number: raw.phone_number,
+    mobile: raw.mobile,
+    company: typeof company === 'string' ? company : company?.name || undefined,
+    department: department,
+    branch: branch,
+    name: name,
+    username: raw.username,
+    is_active: raw.is_active,
+    is_verified: raw.is_verified,
+  } as Employee;
 };
 
 export const employeeService = {
@@ -219,8 +221,8 @@ export const probeEmployeeEndpoints = async () => {
         '/payroll/attendance/',
         '/payroll/bank-info/',
     ];
-
-    const results: Array<any> = [];
+    const results: any[] = [];
+    
     for (const endpoint of endpoints) {
         try {
             const res = await api.get(endpoint);
@@ -243,15 +245,8 @@ export const probeEmployeeEndpoints = async () => {
             });
         }
     }
+    
     return results;
 };
 
-// Attach to window in development for quick manual probing from browser console
-try {
-    if (typeof window !== 'undefined' && import.meta.env.DEV) {
-        // @ts-ignore
-        window.__employeeProbe = probeEmployeeEndpoints;
-    }
-} catch (e) {
-    // ignore in non-browser environments
-}
+export default employeeService;
