@@ -1,17 +1,20 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import { Bot, X, Send, Plus, MessageSquare, Sparkles } from "lucide-react";
+import { Bot, X, Send, Plus, MessageSquare, Sparkles, StopCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import chatService from "@/services/chatService";
 
 interface Message {
   id: string;
   sender: "user" | "bot";
   text: string;
   timestamp: Date;
+  isStreaming?: boolean;
+  error?: boolean;
 }
 
 interface ChatHistory {
@@ -42,8 +45,10 @@ export const Chatbot: React.FC = () => {
   ]);
   const [activeChatId, setActiveChatId] = useState<string>("1");
   const [input, setInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const streamingMessageIdRef = useRef<string | null>(null);
 
   const activeChat = chatHistories.find((chat) => chat.id === activeChatId);
 
@@ -60,23 +65,24 @@ export const Chatbot: React.FC = () => {
   }, [isOpen]);
 
   const handleSend = () => {
-    if (!input.trim() || !activeChat) return;
+    if (!input.trim() || !activeChat || isStreaming) return;
 
+    const userQuery = input;
     const newMessage: Message = {
       id: `msg-${Date.now()}`,
       sender: "user",
-      text: input,
+      text: userQuery,
       timestamp: new Date(),
     };
 
-    // Update chat history
+    // Update chat history with user message
     setChatHistories((prev) =>
       prev.map((chat) =>
         chat.id === activeChatId
           ? {
               ...chat,
               messages: [...chat.messages, newMessage],
-              preview: input.slice(0, 50),
+              preview: userQuery.slice(0, 50),
               timestamp: new Date(),
             }
           : chat
@@ -84,24 +90,128 @@ export const Chatbot: React.FC = () => {
     );
 
     setInput("");
+    setIsStreaming(true);
 
-    // Simulate bot response
-    setTimeout(() => {
-      const botMessage: Message = {
-        id: `msg-${Date.now()}`,
-        sender: "bot",
-        text: "🤖 Thanks! I'm processing your query...",
-        timestamp: new Date(),
-      };
+    // Create placeholder bot message for streaming
+    const botMessageId = `msg-${Date.now()}-bot`;
+    streamingMessageIdRef.current = botMessageId;
 
-      setChatHistories((prev) =>
-        prev.map((chat) =>
-          chat.id === activeChatId
-            ? { ...chat, messages: [...chat.messages, botMessage] }
-            : chat
-        )
-      );
-    }, 600);
+    const placeholderMessage: Message = {
+      id: botMessageId,
+      sender: "bot",
+      text: "",
+      timestamp: new Date(),
+      isStreaming: true,
+    };
+
+    setChatHistories((prev) =>
+      prev.map((chat) =>
+        chat.id === activeChatId
+          ? { ...chat, messages: [...chat.messages, placeholderMessage] }
+          : chat
+      )
+    );
+
+    // Start SSE streaming
+    chatService.streamChat(
+      userQuery,
+      {
+        onConnected: () => {
+          console.log("Connected to chat stream");
+        },
+        onToken: (text: string) => {
+          // Append token to the streaming message
+          setChatHistories((prev) =>
+            prev.map((chat) =>
+              chat.id === activeChatId
+                ? {
+                    ...chat,
+                    messages: chat.messages.map((msg) =>
+                      msg.id === botMessageId
+                        ? { ...msg, text: msg.text + text }
+                        : msg
+                    ),
+                  }
+                : chat
+            )
+          );
+        },
+        onDone: () => {
+          console.log("Stream completed");
+          setIsStreaming(false);
+          streamingMessageIdRef.current = null;
+
+          // Mark message as complete
+          setChatHistories((prev) =>
+            prev.map((chat) =>
+              chat.id === activeChatId
+                ? {
+                    ...chat,
+                    messages: chat.messages.map((msg) =>
+                      msg.id === botMessageId
+                        ? { ...msg, isStreaming: false }
+                        : msg
+                    ),
+                  }
+                : chat
+            )
+          );
+        },
+        onError: (error: string) => {
+          console.error("Stream error:", error);
+          setIsStreaming(false);
+          streamingMessageIdRef.current = null;
+
+          // Update message with error
+          setChatHistories((prev) =>
+            prev.map((chat) =>
+              chat.id === activeChatId
+                ? {
+                    ...chat,
+                    messages: chat.messages.map((msg) =>
+                      msg.id === botMessageId
+                        ? {
+                            ...msg,
+                            text: msg.text || `❌ Error: ${error}`,
+                            isStreaming: false,
+                            error: true,
+                          }
+                        : msg
+                    ),
+                  }
+                : chat
+            )
+          );
+        },
+      },
+      true // Use fetch-based streaming (supports POST + auth headers)
+    );
+  };
+
+  const handleStopStreaming = () => {
+    chatService.stopStream();
+    setIsStreaming(false);
+    streamingMessageIdRef.current = null;
+
+    // Mark current streaming message as stopped
+    setChatHistories((prev) =>
+      prev.map((chat) =>
+        chat.id === activeChatId
+          ? {
+              ...chat,
+              messages: chat.messages.map((msg) =>
+                msg.isStreaming
+                  ? {
+                      ...msg,
+                      text: msg.text || "⏸️ Response stopped",
+                      isStreaming: false,
+                    }
+                  : msg
+              ),
+            }
+          : chat
+      )
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -110,6 +220,13 @@ export const Chatbot: React.FC = () => {
       handleSend();
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      chatService.stopStream();
+    };
+  }, []);
 
   const createNewChat = () => {
     const newChat: ChatHistory = {
@@ -283,13 +400,24 @@ export const Chatbot: React.FC = () => {
                     >
                       <div
                         className={cn(
-                          "rounded-2xl px-4 py-3 text-sm max-w-[75%] shadow-sm",
+                          "rounded-2xl px-4 py-3 text-sm max-w-[75%] shadow-sm relative",
                           msg.sender === "user"
                             ? "bg-gradient-to-br from-[#2A2438] to-[#3d3358] text-white"
+                            : msg.error
+                            ? "bg-red-50 border border-red-200 text-red-800"
                             : "bg-white border border-gray-200/80 text-gray-800"
                         )}
                       >
-                        {msg.text}
+                        {msg.text || (msg.isStreaming ? "●●●" : "")}
+                        {msg.isStreaming && (
+                          <motion.span
+                            className="inline-block ml-1"
+                            animate={{ opacity: [1, 0.3, 1] }}
+                            transition={{ duration: 1, repeat: Infinity }}
+                          >
+                            ▊
+                          </motion.span>
+                        )}
                       </div>
                     </motion.div>
                   ))}
@@ -301,21 +429,32 @@ export const Chatbot: React.FC = () => {
                   <div className="flex items-end gap-2 max-w-4xl mx-auto">
                     <Textarea
                       ref={textareaRef}
-                      placeholder="Type your message..."
-                      className="resize-none min-h-[52px] max-h-[120px] rounded-xl border-gray-200 focus:ring-2 focus:ring-[#2A2438]/20 bg-white shadow-sm"
+                      placeholder={isStreaming ? "Streaming response..." : "Type your message..."}
+                      className="resize-none min-h-[52px] max-h-[120px] rounded-xl border-gray-200 focus:ring-2 focus:ring-[#2A2438]/20 bg-white shadow-sm disabled:opacity-50"
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
                       rows={1}
+                      disabled={isStreaming}
                     />
-                    <Button
-                      size="icon"
-                      disabled={!input.trim()}
-                      className="bg-gradient-to-br from-[#2A2438] to-[#3d3358] hover:opacity-90 text-white rounded-xl h-[52px] w-[52px] shadow-sm disabled:opacity-50"
-                      onClick={handleSend}
-                    >
-                      <Send size={20} />
-                    </Button>
+                    {isStreaming ? (
+                      <Button
+                        size="icon"
+                        className="bg-red-500 hover:bg-red-600 text-white rounded-xl h-[52px] w-[52px] shadow-sm"
+                        onClick={handleStopStreaming}
+                      >
+                        <StopCircle size={20} />
+                      </Button>
+                    ) : (
+                      <Button
+                        size="icon"
+                        disabled={!input.trim()}
+                        className="bg-gradient-to-br from-[#2A2438] to-[#3d3358] hover:opacity-90 text-white rounded-xl h-[52px] w-[52px] shadow-sm disabled:opacity-50"
+                        onClick={handleSend}
+                      >
+                        <Send size={20} />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
