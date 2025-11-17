@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Chatbot SSE Client (Test)</title>
+</head>
+<body>
+  <h1>Chatbot SSE Client (Test)</h1>
+  <textarea id="output" cols="80" rows="20" readonly></textarea><br>
+  <input id="query" type="text" size="80" placeholder="Type your query here" value="Explain the software release lifecycle in detail." />
+  <button id="start">Start Stream</button>
+  <button id="stop">Stop</button>
+
+  <script>
+    let es;
+    document.getElementById('start').onclick = () => {
+      const q = document.getElementById('query').value;
+      if (!q) return alert('Enter query');
+
+      // Using POST via fetch + EventSource is tricky; we'll use GET for quick test
+      const url = '/api/chat/stream/?q=' + encodeURIComponent(q);
+      document.getElementById('output').value = '';
+
+      es = new EventSource(url);
+      es.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload.type === 'token') {
+            document.getElementById('output').value += payload.text;
+          } else if (payload.type === 'connected') {
+            document.getElementById('output').value += '\n[connected]\n';
+          } else if (payload.type === 'done') {
+            document.getElementById('output').value += '\n[done]\n';
+            es.close();
+          } else if (payload.type === 'error') {
+            document.getElementById('output').value += '\n[error] ' + payload.error + '\n';
+            es.close();
+          }
+        } catch (err) {
+          console.log('invalid event data', e.data, err);
+        }
+      };
+      es.onerror = (err) => {
+        console.log('EventSource error', err);
+        es.close();
+      }
+    };
+
+    document.getElementById('stop').onclick = () => {
+      if (es) es.close();
+    };
+  </script>
+</body>
+</html>

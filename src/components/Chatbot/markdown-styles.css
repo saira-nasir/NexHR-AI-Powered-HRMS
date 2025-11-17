@@ -1,0 +1,99 @@
+/* src/components/Chatbot/markdown-styles.css */
+
+/* Markdown content container */
+.markdown-content {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #374151;
+}
+
+/* Bot message specific styles */
+.bot-markdown {
+  color: #1f2937;
+}
+
+.bot-markdown h1,
+.bot-markdown h2,
+.bot-markdown h3 {
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.25rem;
+}
+
+/* User message markdown (if needed) */
+.user-markdown {
+  color: #ffffff;
+}
+
+/* Code block scrollbar styling */
+.markdown-content pre::-webkit-scrollbar {
+  height: 8px;
+}
+
+.markdown-content pre::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 4px;
+}
+
+.markdown-content pre::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+.markdown-content pre::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Ensure links are visible in both light and dark message backgrounds */
+.markdown-content a {
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.bot-markdown a {
+  color: #2563eb;
+}
+
+.bot-markdown a:hover {
+  color: #1d4ed8;
+}
+
+/* List styling improvements */
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.5rem;
+}
+
+.markdown-content ul ul,
+.markdown-content ol ol,
+.markdown-content ul ol,
+.markdown-content ol ul {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Table responsiveness */
+.markdown-content table {
+  font-size: 0.875rem;
+}
+
+/* Blockquote styling */
+.markdown-content blockquote p {
+  margin: 0;
+}
+
+/* Code highlighting adjustments */
+.markdown-content code[class*="language-"],
+.markdown-content pre[class*="language-"] {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Inline code in lists */
+.markdown-content li code {
+  font-size: 0.85em;
+}
+
+/* Smooth rendering during streaming */
+.markdown-content {
+  transition: all 0.1s ease-out;
+}

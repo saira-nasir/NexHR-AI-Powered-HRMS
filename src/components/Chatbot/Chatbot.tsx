@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import chatService from "@/services/chatService";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface Message {
   id: string;
@@ -408,15 +409,40 @@ export const Chatbot: React.FC = () => {
                             : "bg-white border border-gray-200/80 text-gray-800"
                         )}
                       >
-                        {msg.text || (msg.isStreaming ? "●●●" : "")}
-                        {msg.isStreaming && (
-                          <motion.span
-                            className="inline-block ml-1"
-                            animate={{ opacity: [1, 0.3, 1] }}
-                            transition={{ duration: 1, repeat: Infinity }}
-                          >
-                            ▊
-                          </motion.span>
+                        {msg.sender === "bot" && !msg.error ? (
+                          // Render bot messages with Markdown support
+                          <div className="prose prose-sm max-w-none">
+                            {msg.text || msg.isStreaming ? (
+                              <>
+                                <MarkdownRenderer content={msg.text} isBot={true} />
+                                {msg.isStreaming && (
+                                  <motion.span
+                                    className="inline-block ml-1 text-gray-400"
+                                    animate={{ opacity: [1, 0.3, 1] }}
+                                    transition={{ duration: 1, repeat: Infinity }}
+                                  >
+                                    ▊
+                                  </motion.span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-gray-400">●●●</span>
+                            )}
+                          </div>
+                        ) : (
+                          // User messages or error messages - plain text
+                          <>
+                            {msg.text || (msg.isStreaming ? "●●●" : "")}
+                            {msg.isStreaming && (
+                              <motion.span
+                                className="inline-block ml-1"
+                                animate={{ opacity: [1, 0.3, 1] }}
+                                transition={{ duration: 1, repeat: Infinity }}
+                              >
+                                ▊
+                              </motion.span>
+                            )}
+                          </>
                         )}
                       </div>
                     </motion.div>
