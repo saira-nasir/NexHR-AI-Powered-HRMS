@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import { Bot, X, Send, Plus, MessageSquare, Sparkles, StopCircle } from "lucide-react";
+import { Bot, X, Send, StopCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -16,47 +16,45 @@ interface Message {
   timestamp: Date;
   isStreaming?: boolean;
   error?: boolean;
-}
-
-interface ChatHistory {
-  id: string;
-  title: string;
-  preview: string;
-  timestamp: Date;
-  messages: Message[];
+  toolExecution?: {
+    toolName: string;
+    isExecuting: boolean;
+    result?: any;
+  };
+  messageIds?: {
+    userMessageId?: string;
+    assistantMessageId?: string;
+  };
 }
 
 export const Chatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [chatHistories, setChatHistories] = useState<ChatHistory[]>([
+  // Single message stream state (no chat sessions)
+  const [messages, setMessages] = useState<Message[]>([
     {
-      id: "1",
-      title: "Welcome Chat",
-      preview: "Hi, I'm NexHR Assistant!",
+      id: "msg-1",
+      sender: "bot",
+      text: "👋 Hi, I'm NexHR Assistant! How can I help you today?",
       timestamp: new Date(),
-      messages: [
-        {
-          id: "msg-1",
-          sender: "bot",
-          text: "👋 Hi, I'm NexHR Assistant! How can I help you today?",
-          timestamp: new Date(),
-        },
-      ],
+      isStreaming: false,
     },
   ]);
-  const [activeChatId, setActiveChatId] = useState<string>("1");
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
+  // Lottie refs for chatbot animation
+  const lottieChatContainer = useRef<HTMLDivElement | null>(null);
+  const lottieChatAnimRef = useRef<any | null>(null);
 
-  const activeChat = chatHistories.find((chat) => chat.id === activeChatId);
+  // no chat sessions - single active message thread
+  const activeChat = null;
 
   // Auto-scroll on new message
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeChat?.messages]);
+  }, [messages]);
 
   // Focus textarea when chat opens
   useEffect(() => {
@@ -65,8 +63,120 @@ export const Chatbot: React.FC = () => {
     }
   }, [isOpen]);
 
+  // Load chatbot lottie when modal opens (same pattern as ScheduleInterviewModal)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let mounted = true;
+
+    const loadLottie = async () => {
+      try {
+        const lottieModule = await import('lottie-web');
+        const lottie = (lottieModule as any).default || lottieModule;
+
+        if (lottieChatContainer.current && mounted) {
+          const anim = lottie.loadAnimation({
+            container: lottieChatContainer.current,
+            renderer: 'svg',
+            loop: true,
+            autoplay: true,
+            path: '/lottieFiles/chatbot.json',
+          });
+          lottieChatAnimRef.current = anim;
+        }
+      } catch (err) {
+        console.error('Failed to load chatbot lottie:', err);
+      }
+    };
+
+    loadLottie();
+
+    return () => {
+      mounted = false;
+      if (lottieChatAnimRef.current && typeof lottieChatAnimRef.current.destroy === 'function') {
+        lottieChatAnimRef.current.destroy();
+        lottieChatAnimRef.current = null;
+      }
+    };
+  }, [isOpen]);
+
+  const handleToolExecution = async (userQuery: string, toolName: string, toolArgs: Record<string, any>) => {
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      sender: "user",
+      text: userQuery,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setIsStreaming(true);
+
+    // Create waiting message
+    const botMessageId = `msg-${Date.now()}-bot`;
+    const waitingMessage: Message = {
+      id: botMessageId,
+      sender: "bot",
+      text: "⏳ Executing requested action — please wait...",
+      timestamp: new Date(),
+      toolExecution: {
+        toolName,
+        isExecuting: true,
+      },
+    };
+
+    setMessages((prev) => [...prev, waitingMessage]);
+
+    try {
+      const response = await chatService.executeTool(userQuery, {
+        name: toolName,
+        arguments: toolArgs,
+      });
+
+      // Update message with tool result
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === botMessageId
+            ? {
+                ...msg,
+                text: response.content,
+                toolExecution: {
+                  toolName,
+                  isExecuting: false,
+                  result: response.tool_calls,
+                },
+                messageIds: {
+                  userMessageId: response.user_message_id,
+                  assistantMessageId: response.assistant_message_id,
+                },
+              }
+            : msg
+        )
+      );
+    } catch (error: any) {
+      console.error("Tool execution error:", error);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === botMessageId
+            ? {
+                ...msg,
+                text: `❌ Tool execution failed: ${error.message}`,
+                error: true,
+                toolExecution: {
+                  toolName,
+                  isExecuting: false,
+                },
+              }
+            : msg
+        )
+      );
+    } finally {
+      setIsStreaming(false);
+    }
+  };
+
   const handleSend = () => {
-    if (!input.trim() || !activeChat || isStreaming) return;
+    if (!input.trim() || isStreaming) return;
 
     const userQuery = input;
     const newMessage: Message = {
@@ -76,19 +186,8 @@ export const Chatbot: React.FC = () => {
       timestamp: new Date(),
     };
 
-    // Update chat history with user message
-    setChatHistories((prev) =>
-      prev.map((chat) =>
-        chat.id === activeChatId
-          ? {
-              ...chat,
-              messages: [...chat.messages, newMessage],
-              preview: userQuery.slice(0, 50),
-              timestamp: new Date(),
-            }
-          : chat
-      )
-    );
+    // Update messages with user message
+    setMessages((prev) => [...prev, newMessage]);
 
     setInput("");
     setIsStreaming(true);
@@ -105,13 +204,7 @@ export const Chatbot: React.FC = () => {
       isStreaming: true,
     };
 
-    setChatHistories((prev) =>
-      prev.map((chat) =>
-        chat.id === activeChatId
-          ? { ...chat, messages: [...chat.messages, placeholderMessage] }
-          : chat
-      )
-    );
+    setMessages((prev) => [...prev, placeholderMessage]);
 
     // Start SSE streaming
     chatService.streamChat(
@@ -122,41 +215,24 @@ export const Chatbot: React.FC = () => {
         },
         onToken: (text: string) => {
           // Append token to the streaming message
-          setChatHistories((prev) =>
-            prev.map((chat) =>
-              chat.id === activeChatId
-                ? {
-                    ...chat,
-                    messages: chat.messages.map((msg) =>
-                      msg.id === botMessageId
-                        ? { ...msg, text: msg.text + text }
-                        : msg
-                    ),
-                  }
-                : chat
-            )
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === botMessageId ? { ...msg, text: msg.text + text } : msg))
           );
         },
-        onDone: () => {
-          console.log("Stream completed");
+        onDone: (assistantMessageId?: string) => {
+          console.log("Stream completed", assistantMessageId);
           setIsStreaming(false);
           streamingMessageIdRef.current = null;
 
-          // Mark message as complete
-          setChatHistories((prev) =>
-            prev.map((chat) =>
-              chat.id === activeChatId
-                ? {
-                    ...chat,
-                    messages: chat.messages.map((msg) =>
-                      msg.id === botMessageId
-                        ? { ...msg, isStreaming: false }
-                        : msg
-                    ),
-                  }
-                : chat
-            )
-          );
+          // Mark message as complete and store message IDs
+          setMessages((prev) => prev.map((m) => (m.id === botMessageId ? { 
+            ...m, 
+            isStreaming: false,
+            messageIds: {
+              ...m.messageIds,
+              assistantMessageId,
+            }
+          } : m)));
         },
         onError: (error: string) => {
           console.error("Stream error:", error);
@@ -164,28 +240,15 @@ export const Chatbot: React.FC = () => {
           streamingMessageIdRef.current = null;
 
           // Update message with error
-          setChatHistories((prev) =>
-            prev.map((chat) =>
-              chat.id === activeChatId
-                ? {
-                    ...chat,
-                    messages: chat.messages.map((msg) =>
-                      msg.id === botMessageId
-                        ? {
-                            ...msg,
-                            text: msg.text || `❌ Error: ${error}`,
-                            isStreaming: false,
-                            error: true,
-                          }
-                        : msg
-                    ),
-                  }
-                : chat
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === botMessageId
+                ? { ...msg, text: msg.text || `❌ Error: ${error}`, isStreaming: false, error: true }
+                : msg
             )
           );
         },
-      },
-      true // Use fetch-based streaming (supports POST + auth headers)
+      }
     );
   };
 
@@ -195,24 +258,7 @@ export const Chatbot: React.FC = () => {
     streamingMessageIdRef.current = null;
 
     // Mark current streaming message as stopped
-    setChatHistories((prev) =>
-      prev.map((chat) =>
-        chat.id === activeChatId
-          ? {
-              ...chat,
-              messages: chat.messages.map((msg) =>
-                msg.isStreaming
-                  ? {
-                      ...msg,
-                      text: msg.text || "⏸️ Response stopped",
-                      isStreaming: false,
-                    }
-                  : msg
-              ),
-            }
-          : chat
-      )
-    );
+    setMessages((prev) => prev.map((msg) => (msg.isStreaming ? { ...msg, text: msg.text || "⏸️ Response stopped", isStreaming: false } : msg)));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -229,24 +275,7 @@ export const Chatbot: React.FC = () => {
     };
   }, []);
 
-  const createNewChat = () => {
-    const newChat: ChatHistory = {
-      id: `chat-${Date.now()}`,
-      title: "New Chat",
-      preview: "Start a conversation...",
-      timestamp: new Date(),
-      messages: [
-        {
-          id: `msg-${Date.now()}`,
-          sender: "bot",
-          text: "👋 Hi! How can I assist you today?",
-          timestamp: new Date(),
-        },
-      ],
-    };
-    setChatHistories((prev) => [newChat, ...prev]);
-    setActiveChatId(newChat.id);
-  };
+  // chat sessions removed - single conversation only
 
   const toggleChat = () => setIsOpen((prev) => !prev);
   const closeChat = () => setIsOpen(false);
@@ -292,69 +321,56 @@ export const Chatbot: React.FC = () => {
               className="fixed inset-4 md:inset-8 lg:inset-16 z-[101] flex overflow-hidden rounded-2xl shadow-2xl bg-white/95 backdrop-blur-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Left Sidebar - Chat History */}
+              {/* Left Sidebar - Quick feature list (no chat sessions) */}
               <div className="w-72 border-r border-gray-200/80 bg-gray-50/50 backdrop-blur-xl flex flex-col">
-                {/* Sidebar Header */}
                 <div className="p-4 border-b border-gray-200/80">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <Sparkles size={20} className="text-[#2A2438]" />
-                      NexHR AI
-                    </h2>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={createNewChat}
-                      className="h-8 w-8 rounded-lg hover:bg-white/80"
-                    >
-                      <Plus size={18} />
-                    </Button>
-                  </div>
+                  <h3 className="text-sm font-semibold text-gray-800">Try NexHR AI</h3>
+                  <p className="text-xs text-gray-500 mt-1">Quick examples to get started</p>
                 </div>
 
-                {/* Chat History List */}
-                <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                  {chatHistories.map((chat) => (
-                    <motion.button
-                      key={chat.id}
-                      onClick={() => setActiveChatId(chat.id)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={cn(
-                        "w-full text-left p-3 rounded-lg transition-all duration-200",
-                        activeChatId === chat.id
-                          ? "bg-white shadow-sm border border-gray-200/80"
-                          : "hover:bg-white/60"
-                      )}
-                    >
-                      <div className="flex items-start gap-2">
-                        <MessageSquare
-                          size={16}
-                          className={cn(
-                            "mt-1 flex-shrink-0",
-                            activeChatId === chat.id
-                              ? "text-[#2A2438]"
-                              : "text-gray-400"
-                          )}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <h3
-                            className={cn(
-                              "text-sm font-medium truncate",
-                              activeChatId === chat.id
-                                ? "text-gray-900"
-                                : "text-gray-700"
-                            )}
-                          >
-                            {chat.title}
-                          </h3>
-                          <p className="text-xs text-gray-500 truncate mt-0.5">
-                            {chat.preview}
-                          </p>
-                        </div>
-                      </div>
-                    </motion.button>
-                  ))}
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  <div className="text-xs font-semibold text-gray-600 mb-2 px-2">Quick Prompts</div>
+                  <button className="w-full text-left p-3 rounded-lg hover:bg-white shadow-sm transition-colors" onClick={() => { setInput('Summarize the following text:'); textareaRef.current?.focus(); }}>
+                    <div className="text-sm font-medium">Summarize text</div>
+                    <div className="text-xs text-gray-500">Get a concise summary</div>
+                  </button>
+                  <button className="w-full text-left p-3 rounded-lg hover:bg-white shadow-sm transition-colors" onClick={() => { setInput('Draft a professional email to a client about a project delay.'); textareaRef.current?.focus(); }}>
+                    <div className="text-sm font-medium">Draft an email</div>
+                    <div className="text-xs text-gray-500">Create professional messages</div>
+                  </button>
+                  
+                  <div className="text-xs font-semibold text-gray-600 mb-2 px-2 mt-4">Tool Actions</div>
+                  <button 
+                    className="w-full text-left p-3 rounded-lg hover:bg-white shadow-sm transition-colors border-l-2 border-blue-500"
+                    onClick={() => !isStreaming && handleToolExecution('Fetch employee with ID 1', 'get_employee_by_id', { employee_id: 1 })}
+                    disabled={isStreaming}
+                  >
+                    <div className="text-sm font-medium">Get Employee #1</div>
+                    <div className="text-xs text-gray-500">Fetch employee details</div>
+                  </button>
+                  <button 
+                    className="w-full text-left p-3 rounded-lg hover:bg-white shadow-sm transition-colors border-l-2 border-green-500"
+                    onClick={() => !isStreaming && handleToolExecution('Search for employees matching "Ali"', 'get_employees', { search: 'Ali', limit: 10 })}
+                    disabled={isStreaming}
+                  >
+                    <div className="text-sm font-medium">Search Employees</div>
+                    <div className="text-xs text-gray-500">Find matching employees</div>
+                  </button>
+                  <button 
+                    className="w-full text-left p-3 rounded-lg hover:bg-white shadow-sm transition-colors border-l-2 border-purple-500"
+                    onClick={() => !isStreaming && handleToolExecution('List open jobs', 'execute_custom_select', { 
+                      table: 'recruitment_jobdetails',
+                      columns: ['id', 'job_title', 'city'],
+                      filters: {},
+                      limit: 20
+                    })}
+                    disabled={isStreaming}
+                  >
+                    <div className="text-sm font-medium">List Open Jobs</div>
+                    <div className="text-xs text-gray-500">Query job postings</div>
+                  </button>
+                  
+                  <div className="text-xs text-gray-400 mt-4 px-2">💡 Tool actions execute synchronously and show results</div>
                 </div>
               </div>
 
@@ -362,18 +378,12 @@ export const Chatbot: React.FC = () => {
               <div className="flex-1 flex flex-col bg-white">
                 {/* Chat Header */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200/80 bg-white/80 backdrop-blur-xl">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9 ring-2 ring-gray-100">
-                      <AvatarImage src="/bot-avatar.png" />
-                      <AvatarFallback className="bg-gradient-to-br from-[#2A2438] to-[#3d3358] text-white">
-                        AI
-                      </AvatarFallback>
-                    </Avatar>
+                  <div className="flex items-center gap-4">
+                    {/* Lottie animation (larger) */}
+                    <div ref={lottieChatContainer} className="w-24 h-24 flex-shrink-0 mr-2" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
                     <div>
-                      <h2 className="font-semibold text-gray-900">
-                        {activeChat?.title || "NexHR Assistant"}
-                      </h2>
-                      <p className="text-xs text-gray-500">Always here to help</p>
+                      <h2 className="font-semibold text-2xl text-gray-900">NEXHR AI</h2>
+                      <p className="text-sm text-gray-500">Always here to help</p>
                     </div>
                   </div>
                   <Button
@@ -388,7 +398,7 @@ export const Chatbot: React.FC = () => {
 
                 {/* Chat Messages */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-white to-gray-50/30">
-                  {activeChat?.messages.map((msg) => (
+                  {messages.map((msg) => (
                     <motion.div
                       key={msg.id}
                       initial={{ opacity: 0, y: 10 }}
@@ -406,13 +416,45 @@ export const Chatbot: React.FC = () => {
                             ? "bg-gradient-to-br from-[#2A2438] to-[#3d3358] text-white"
                             : msg.error
                             ? "bg-red-50 border border-red-200 text-red-800"
+                            : msg.toolExecution
+                            ? "bg-blue-50 border border-blue-200 text-gray-800"
                             : "bg-white border border-gray-200/80 text-gray-800"
                         )}
                       >
                         {msg.sender === "bot" && !msg.error ? (
                           // Render bot messages with Markdown support
                           <div className="prose prose-sm max-w-none">
-                            {msg.text || msg.isStreaming ? (
+                            {msg.toolExecution?.isExecuting ? (
+                              // Show waiting UI for tool execution
+                              <div className="flex items-center gap-2">
+                                <motion.div
+                                  animate={{ rotate: 360 }}
+                                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                  className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"
+                                />
+                                <span>{msg.text}</span>
+                              </div>
+                            ) : msg.toolExecution && !msg.toolExecution.isExecuting ? (
+                              // Show tool result
+                              <div>
+                                <MarkdownRenderer content={msg.text} isBot={true} />
+                                {msg.toolExecution.result && msg.toolExecution.result.length > 0 && (
+                                  <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200 text-xs">
+                                    <div className="font-semibold text-gray-700 mb-2">🔧 Tool Execution Result:</div>
+                                    {msg.toolExecution.result.map((tool: any, idx: number) => (
+                                      <div key={idx} className="mb-2">
+                                        <div className="font-medium text-blue-600">{tool.tool_name}</div>
+                                        {tool.success ? (
+                                          <div className="text-gray-600">✓ Success</div>
+                                        ) : (
+                                          <div className="text-red-600">✗ Error: {tool.error}</div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : msg.text || msg.isStreaming ? (
                               <>
                                 <MarkdownRenderer content={msg.text} isBot={true} />
                                 {msg.isStreaming && (
