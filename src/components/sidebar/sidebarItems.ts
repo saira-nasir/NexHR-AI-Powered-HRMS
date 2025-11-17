@@ -75,8 +75,8 @@ export const sidebarItems: SidebarMenuItem[] = [
     submenu: [
       { title: 'Employees', path: '/employees', allowedRoles: ['HR', 'Admin'] },
       { title: 'Attendance', path: '/attendance', allowedRoles: ['HR', 'Admin'] },
-      { title: 'Checklist', path: '/checklist', allowedRoles: ['HR', 'Admin'] },
-      { title: 'Time off', path: '/time-off', allowedRoles: ['HR', 'Admin'] },
+  // { title: 'Checklist', path: '/checklist', allowedRoles: ['HR', 'Admin'] },
+  // { title: 'Time off', path: '/time-off', allowedRoles: ['HR', 'Admin'] },
     ],
   },
   {
@@ -84,6 +84,12 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/hr-attendance-management',
     icon: Clock,
     // Visible to HR and Admin
+    allowedRoles: ['HR', 'Admin'],
+  },
+  {
+    title: 'Company Policy',
+    path: '/company-policy',
+    icon: FileText,
     allowedRoles: ['HR', 'Admin'],
   },
   {

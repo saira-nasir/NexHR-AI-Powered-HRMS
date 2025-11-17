@@ -285,7 +285,6 @@ const AssessmentAndInterview: React.FC = () => {
                     <p className="text-indigo-100 mt-1 text-sm sm:text-base">Manage job postings and schedule candidate interviews</p>
                   </div>
                 </div>
-                <Button variant="outline" className="hidden md:flex bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm"><Download className="h-4 w-4 mr-2" />Export Report</Button>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
                 <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
