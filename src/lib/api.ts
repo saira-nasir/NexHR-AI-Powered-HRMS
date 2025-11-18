@@ -28,15 +28,39 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
+    // ✅ Improved logging (combines File 1's full URL + File 2's data)
+    const fullUrl = `${config.baseURL}${config.url}`;
+    
     // Handle FormData: remove Content-Type header so axios can set it with boundary
     if (config.data instanceof FormData) {
       if (config.headers) {
         delete (config.headers as any)['Content-Type'];
       }
+      // Debug FormData contents
+      console.log('📤 Sending FormData:', {
+        url: fullUrl,
+        hasData: config.data instanceof FormData,
+      });
+      // Log FormData entries for debugging
+      try {
+        const formData = config.data as FormData;
+        for (const [key, value] of formData.entries()) {
+          if (value && typeof value === 'object' && 'name' in value && 'size' in value && 'type' in value) {
+            // It's a File
+            const file = value as File;
+            console.log(`  FormData[${key}]: File(${file.name}, ${file.size} bytes, ${file.type})`);
+          } else if (value && typeof value === 'object' && 'size' in value && 'type' in value) {
+            // It's a Blob
+            const blob = value as Blob;
+            console.log(`  FormData[${key}]: Blob(${blob.size} bytes, ${blob.type})`);
+          } else {
+            console.log(`  FormData[${key}]:`, value);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not iterate FormData entries:', e);
+      }
     }
-    
-    // ✅ Improved logging (combines File 1's full URL + File 2's data)
-    const fullUrl = `${config.baseURL}${config.url}`;
     console.log(`➡️ API Request: ${config.method?.toUpperCase()} ${fullUrl}`, {
       data: config.data,
       headers: config.headers,
@@ -52,10 +76,15 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response: AxiosResponse) => {
-    console.log(`API Response from ${response.config.url}:`, {
-      status: response.status,
-      data: response.data
-    });
+    // Don't log successful responses for polling endpoints (reduces noise)
+    const url = response.config.url || '';
+    const isPollingEndpoint = url.includes('/notifications/') || url.includes('/payroll/notifications/');
+    
+    if (!isPollingEndpoint) {
+      console.log(`✅ API Response from ${url}:`, {
+        status: response.status,
+      });
+    }
     
     return response;
   },

@@ -83,6 +83,14 @@ export const employeeService = {
                 // Add company users to our collection
                 companyUsers.forEach((user: any) => {
                     const normalized = normalizeEmployee(user);
+                    // ✅ Log raw backend data to see what department field is being returned
+                    console.log(`📥 Raw user data from /company-users/ for ID ${normalized.id}:`, {
+                        rawDepartment: user.department,
+                        rawDept: user.dept,
+                        rawDepartmentName: user.department_name,
+                        normalizedDepartment: normalized.department,
+                        fullUser: user
+                    });
                     allEmployees.set(normalized.id, normalized);
                 });
                 
@@ -179,6 +187,11 @@ export const employeeService = {
                 }
             } catch (error: any) {
                 const status = error?.response?.status;
+                // Don't log 404s for company-users endpoint as it's expected to not exist
+                if (endpoint.includes('/company-users/') && status === 404) {
+                    // Silently continue - this endpoint may not exist, we'll try others
+                    continue;
+                }
                 console.log(`❌ Employee ${id} not found in ${endpoint}: status=${status}`);
             }
         }

@@ -297,6 +297,12 @@ const payrollService = {
     return data;
   },
 
+  // Attendance
+  listAttendance: async () => {
+    const { data } = await api.get<EmployeeAttendance[]>(`${BASE}/attendance/`);
+    return data;
+  },
+
   // Leaves
   listLeaves: async () => {
     const { data } = await api.get<LeaveRecord[]>(`${BASE}/leaves/`);

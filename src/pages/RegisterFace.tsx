@@ -28,12 +28,18 @@ const RegisterFace = () => {
       const formData = new FormData();
       formData.append('reference_image', file);
       
+      // ✅ IMPORTANT: This endpoint should ONLY register the face, NOT check in
+      // If you're being automatically checked in, the backend /attendance/register-face/ endpoint
+      // is creating a check-in record, which it should NOT do.
+      // Registration and check-in are separate operations:
+      // - Registration: /attendance/register-face/ (this endpoint)
+      // - Check-in: /attendance/mark-attendance-face/ (separate endpoint)
       const response = await apiPostFormData('/attendance/register-face/', formData);
       
       // Backend returns: { created, employee, reference_image_url, message }
       setIsRegistered(true);
       toast.success('Face Registered Successfully', {
-        description: response.message || 'Your face has been registered in the system',
+        description: response.message || 'Your face has been registered in the system. You can now use it to check in.',
       });
     } catch (error: any) {
       // Handle different error formats from backend

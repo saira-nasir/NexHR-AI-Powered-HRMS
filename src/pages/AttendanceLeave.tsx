@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { apiGet, apiPost, apiPostFormData, apiPatch, apiDelete } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +24,7 @@ interface Attendance {
   date: string;
   check_in: string;
   check_out?: string;
-  work_hours?: number;
+  work_hours?: number | string; // Can be number or string from backend
   photo?: string;
 }
 
@@ -72,6 +72,7 @@ const AttendanceLeave: React.FC = () => {
   const [checkOutTime, setCheckOutTime] = useState<Date | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<Attendance | null>(null);
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
+  const fetchInProgress = useRef(false); // ✅ Prevent concurrent fetches
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     leave_type: 'Casual',
@@ -159,14 +160,40 @@ const AttendanceLeave: React.FC = () => {
     });
 
     // Carry over optimistic records that backend hasn't confirmed yet (only for current user)
+    // This ensures optimistic updates (negative IDs) are preserved even if backend hasn't returned them yet
     userExisting.forEach((record) => {
       const key = normalizeDate(record.date) ?? record.date;
       if (!mergedByDate.has(key)) {
+        // Keep optimistic record if backend hasn't returned it yet
         mergedByDate.set(key, record);
+        console.log('✅ Preserving optimistic record:', record);
+      } else {
+        // If backend returned a record, prefer backend data but merge optimistic fields
+        const backendRecord = mergedByDate.get(key);
+        if (backendRecord && record.id < 0) {
+          // Optimistic record exists, merge any missing fields
+          const merged = {
+            ...backendRecord,
+            // Prefer optimistic check_in if backend doesn't have it
+            check_in: backendRecord.check_in || record.check_in,
+            // Prefer optimistic check_out if backend doesn't have it
+            check_out: backendRecord.check_out || record.check_out,
+            // Prefer optimistic work_hours if backend doesn't have it
+            work_hours: backendRecord.work_hours !== undefined ? backendRecord.work_hours : record.work_hours,
+            // Prefer optimistic photo if backend doesn't have it
+            photo: backendRecord.photo || record.photo,
+          };
+          mergedByDate.set(key, merged);
+          console.log('✅ Merged optimistic record with backend:', merged);
+        }
       }
     });
 
-    return Array.from(mergedByDate.values()).sort((a, b) => dateValue(b.date) - dateValue(a.date));
+    const sorted = Array.from(mergedByDate.values()).sort((a, b) => dateValue(b.date) - dateValue(a.date));
+    console.log('✅ Final merged attendance list:', sorted);
+    console.log('📊 Total records after merge:', sorted.length);
+    console.log('📊 First 3 records:', sorted.slice(0, 3).map(r => ({ date: r.date, check_in: r.check_in, check_out: r.check_out })));
+    return sorted;
   };
 
   // Decode user id from JWT access token with validation
@@ -209,6 +236,14 @@ const AttendanceLeave: React.FC = () => {
 
   // Fetch attendance data
   const fetchAttendance = async (skipMerge: boolean = false) => {
+    // ✅ Prevent concurrent fetches
+    if (fetchInProgress.current) {
+      console.log('⏳ Fetch already in progress, skipping...');
+      return;
+    }
+    
+    fetchInProgress.current = true;
+    
     try {
       const userId = getUserId();
       if (!userId) {
@@ -271,6 +306,23 @@ const AttendanceLeave: React.FC = () => {
             console.log('📋 Check-out:', todayRecord.check_out);
             console.log('📋 Full record:', JSON.stringify(todayRecord, null, 2));
             
+            // ✅ IMPORTANT: If check-in exists but user hasn't explicitly checked in via frontend,
+            // this might be from backend auto-checkin during registration (which should NOT happen)
+            // We'll still show it, but log a warning
+            if (todayRecord.check_in && !todayAttendance?.check_in) {
+              const checkInTime = new Date(todayRecord.check_in);
+              const now = new Date();
+              const timeDiff = Math.abs(now.getTime() - checkInTime.getTime()) / (1000 * 60); // minutes
+              
+              // If check-in was created very recently (within last 2 minutes) and user wasn't checking in,
+              // it might be from registration
+              if (timeDiff < 2 && !attendanceResult) {
+                console.warn('⚠️ WARNING: Check-in record found that may have been created during face registration.');
+                console.warn('⚠️ The backend /attendance/register-face/ endpoint should NOT create check-in records.');
+                console.warn('⚠️ Registration and check-in are separate operations.');
+              }
+            }
+            
             const sanitizedRecord: Attendance = {
               ...todayRecord,
               check_out: todayRecord.check_out || undefined,
@@ -321,36 +373,46 @@ const AttendanceLeave: React.FC = () => {
               console.log('➡️ No check-out found');
               setCheckOutTime(null);
             } else {
+              // ✅ CRITICAL: Only set checkout time if user hasn't explicitly checked out in this session
+              // This prevents automatic checkout from backend data during active session
+              const wasCheckedOutBefore = todayAttendance?.check_out;
               console.log('✅ Check-out exists in record:', sanitizedRecord.check_out);
-              try {
-                let checkOut: Date | null = null;
-                const rawCheckOut = sanitizedRecord.check_out;
-                const cleanOut = String(rawCheckOut).split('.')[0];
+              console.log('🔍 Previous checkout state:', wasCheckedOutBefore);
+              
+              // Only update if this is a new checkout (not just a refresh)
+              if (!wasCheckedOutBefore || wasCheckedOutBefore !== sanitizedRecord.check_out) {
+                try {
+                  let checkOut: Date | null = null;
+                  const rawCheckOut = sanitizedRecord.check_out;
+                  const cleanOut = String(rawCheckOut).split('.')[0];
 
-                if (/^\d{2}:\d{2}:\d{2}/.test(cleanOut)) {
-                  let dateStr = normalizeDate(sanitizedRecord.date) ?? new Date().toISOString().split('T')[0];
-                  const combined = `${dateStr}T${cleanOut}`;
-                      checkOut = new Date(combined);
-                    } else {
-                  checkOut = new Date(rawCheckOut);
-                }
-                
-                if (checkOut && !isNaN(checkOut.getTime())) {
-                  const parsedCheckIn = sanitizedRecord.check_in ? new Date(sanitizedRecord.check_in) : null;
-                  if (parsedCheckIn && !isNaN(parsedCheckIn.getTime()) && checkOut < parsedCheckIn) {
-                    console.warn('⚠️ Check-out time is before check-in time, using current time instead');
-                    setCheckOutTime(new Date());
+                  if (/^\d{2}:\d{2}:\d{2}/.test(cleanOut)) {
+                    let dateStr = normalizeDate(sanitizedRecord.date) ?? new Date().toISOString().split('T')[0];
+                    const combined = `${dateStr}T${cleanOut}`;
+                    checkOut = new Date(combined);
                   } else {
-                    console.log('✅ Setting check-out time:', checkOut);
-                    setCheckOutTime(checkOut);
+                    checkOut = new Date(rawCheckOut);
                   }
-                } else {
-                  console.warn('⚠️ Failed to parse check-out time, clearing local state');
+                  
+                  if (checkOut && !isNaN(checkOut.getTime())) {
+                    const parsedCheckIn = sanitizedRecord.check_in ? new Date(sanitizedRecord.check_in) : null;
+                    if (parsedCheckIn && !isNaN(parsedCheckIn.getTime()) && checkOut < parsedCheckIn) {
+                      console.warn('⚠️ Check-out time is before check-in time, using current time instead');
+                      setCheckOutTime(new Date());
+                    } else {
+                      console.log('✅ Setting check-out time from backend:', checkOut);
+                      setCheckOutTime(checkOut);
+                    }
+                  } else {
+                    console.warn('⚠️ Failed to parse check-out time, clearing local state');
+                    setCheckOutTime(null);
+                  }
+                } catch (error) {
+                  console.error('❌ Error parsing check-out time:', error);
                   setCheckOutTime(null);
                 }
-              } catch (error) {
-                console.error('❌ Error parsing check-out time:', error);
-                setCheckOutTime(null);
+              } else {
+                console.log('⏸️ Checkout already set, skipping update to prevent automatic checkout');
               }
 
               setAttendanceMode('checkin');
@@ -444,11 +506,16 @@ const AttendanceLeave: React.FC = () => {
     
     // Set up periodic refresh to keep data in sync (every 30 seconds)
     const refreshInterval = setInterval(() => {
-      fetchAttendance().catch((error) => {
-        console.error('❌ Error in periodic attendance fetch:', error);
-        // Silently fail - don't disrupt user experience
-      });
-    }, 30000);
+      // ✅ Only refresh if not in the middle of checkout process
+      if (!markAttendanceLoading && !showCheckoutConfirm) {
+        fetchAttendance().catch((error) => {
+          console.error('❌ Error in periodic attendance fetch:', error);
+          // Silently fail - don't disrupt user experience
+        });
+      } else {
+        console.log('⏸️ Skipping periodic refresh - checkout in progress');
+      }
+    }, 60000); // ✅ Changed from 30 seconds to 60 seconds to reduce conflicts
     
     return () => clearInterval(refreshInterval);
   }, []);
@@ -658,7 +725,15 @@ const AttendanceLeave: React.FC = () => {
     };
   };
 
-  const timeCards: TimeCardData[] = useMemo(() => attendance.map(mapToTimeCard).sort((a, b) => (a.date < b.date ? 1 : -1)), [attendance]);
+  const timeCards: TimeCardData[] = useMemo(() => {
+    const mapped = attendance.map(mapToTimeCard);
+    const sorted = mapped.sort((a, b) => (a.date < b.date ? 1 : -1));
+    console.log('📋 TimeCards generated:', {
+      total: sorted.length,
+      first3: sorted.slice(0, 3).map(r => ({ id: r.id, date: r.date, checkIn: r.checkIn, checkOut: r.checkOut }))
+    });
+    return sorted;
+  }, [attendance]);
 
   // Build calendar map for current month
   const attendanceMap = useMemo(() => {
@@ -704,7 +779,7 @@ const AttendanceLeave: React.FC = () => {
   };
 
   // Handle check-in with face recognition
-  const handleCheckIn = async (file: File) => {
+  const handleCheckIn = async (file: File | Blob) => {
     setMarkAttendanceLoading(true);
     setAttendanceResult(null);
 
@@ -729,11 +804,109 @@ const AttendanceLeave: React.FC = () => {
       }
       
       console.log('👤 Checking in for user ID:', userId);
+      const isFile = file instanceof File;
+      const isBlob = file instanceof Blob;
+      console.log('📸 Image details:', {
+        name: isFile ? (file as File).name : 'blob',
+        size: file.size,
+        type: file.type,
+        lastModified: isFile ? (file as File).lastModified : undefined,
+        isFile: isFile,
+        isBlob: isBlob,
+      });
+      
+      // Validate image before sending
+      if (!file) {
+        toast.error('Invalid Image File', { 
+          description: 'The captured image is not a valid file. Please try capturing again.' 
+        });
+        setMarkAttendanceLoading(false);
+        return;
+      }
+      
+      // Type guard check (isFile and isBlob already declared above)
+      if (!isFile && !isBlob) {
+        toast.error('Invalid Image File', { 
+          description: 'The captured image is not a valid file type. Please try capturing again.' 
+        });
+        setMarkAttendanceLoading(false);
+        return;
+      }
+      
+      if (file.size === 0) {
+        toast.error('Invalid Image', { 
+          description: 'The captured image is empty. Please try capturing again.' 
+        });
+        setMarkAttendanceLoading(false);
+        return;
+      }
+      
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        toast.error('Image Too Large', { 
+          description: 'The image is too large. Please try capturing again with better lighting.' 
+        });
+        setMarkAttendanceLoading(false);
+        return;
+      }
+      
+      // Ensure we have a proper File object (not just a Blob)
+      let fileToSend: File;
+      if (isFile) {
+        fileToSend = file as File;
+      } else {
+        // Convert Blob to File if needed
+        const blob = file as Blob;
+        fileToSend = new File([blob], `capture-${Date.now()}.jpg`, { 
+          type: blob.type || 'image/jpeg',
+          lastModified: Date.now()
+        });
+      }
       
       const formData = new FormData();
-      formData.append('captured_image', file); // ⚠️ Field name: captured_image (NOT photo)
+      formData.append('photo', fileToSend, fileToSend.name); // ✅ Field name: 'photo' (matches backend request.FILES.get("photo"))
       
+      // Debug: Verify FormData contents
+      console.log('📦 FormData contents:', {
+        hasFile: formData.has('photo'),
+        fileField: formData.get('photo'),
+        fileSize: fileToSend.size,
+        fileName: fileToSend.name,
+        fileType: fileToSend.type,
+      });
+      
+      // Log all FormData entries for debugging
+      console.log('🔍 DEBUGGING: FormData entries:');
+      for (const [key, value] of formData.entries()) {
+        if (value && typeof value === 'object' && 'name' in value && 'size' in value && 'type' in value) {
+          // It's a File
+          const file = value as File;
+          console.log(`  ✅ FormData["${key}"] = File:`, {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: file.lastModified,
+          });
+        } else if (value && typeof value === 'object' && 'size' in value && 'type' in value) {
+          // It's a Blob
+          const blob = value as Blob;
+          console.log(`  ✅ FormData["${key}"] = Blob:`, {
+            size: blob.size,
+            type: blob.type,
+          });
+        } else {
+          console.log(`  📝 FormData["${key}"] =`, value);
+        }
+      }
+      
+      console.log('📤 Sending request to /attendance/mark-attendance-face/');
+      console.log('📤 File being sent:', {
+        name: fileToSend.name,
+        size: fileToSend.size,
+        type: fileToSend.type,
+        isFile: fileToSend instanceof File,
+      });
       const response = await apiPostFormData('/attendance/mark-attendance-face/', formData) as AttendanceMarkResponse;
+      console.log('📥 Response received:', response);
       
       // Note: Backend validates user via JWT token, so response.employee is just informational
       // (usually email/name, not ID). Security is handled server-side.
@@ -790,31 +963,47 @@ const AttendanceLeave: React.FC = () => {
 
           if (existingIndex >= 0) {
             records[existingIndex] = updatedRecord;
-            return records.sort((a, b) => dateValue(b.date) - dateValue(a.date));
+            const sorted = records.sort((a, b) => dateValue(b.date) - dateValue(a.date));
+            console.log('✅ Updated attendance list after check-in:', sorted);
+            console.log('📊 First record in sorted list:', sorted[0]);
+            return sorted;
           }
-          return [updatedRecord, ...records].sort((a, b) => dateValue(b.date) - dateValue(a.date));
+          const sorted = [updatedRecord, ...records].sort((a, b) => dateValue(b.date) - dateValue(a.date));
+          console.log('✅ Added new attendance record to list:', sorted);
+          console.log('📊 First record in sorted list (new):', sorted[0]);
+          return sorted;
         });
 
         setCheckInTime(now);
         setCheckOutTime(null);
         
-        // Stay in checkin mode - checkout happens via button
+        // After check-in, keep mode as 'checkin' but checkout button will be enabled
+        // The UI will show checkout button as active/focused
+        // Don't change mode - this allows checkout button to be clicked
         setAttendanceMode('checkin');
 
         // Allow backend a moment to persist, then refresh
-        // Use setTimeout to avoid blocking the UI
+        // Use merge (skipMerge: false) to preserve optimistic update if backend hasn't persisted yet
         setTimeout(async () => {
           try {
-            await fetchAttendance(true);
+            await fetchAttendance(false); // Use merge to preserve optimistic update
           } catch (refreshError) {
             console.error('❌ Error refreshing attendance after check-in:', refreshError);
             // Don't show error - just log it
           }
-        }, 500);
+        }, 1000); // Increased timeout to give backend more time to persist
         
         toast.success('Check-In Successful', { 
           description: response.message || `Face verified (${((response.similarity || 0) * 100).toFixed(1)}% match). Check-in recorded.` 
         });
+
+        // Auto-dismiss success result after 2 seconds to show checkout prompt immediately
+        setTimeout(() => {
+          setAttendanceResult(null);
+        }, 2000);
+
+        // Dispatch custom event to notify HR Attendance Management
+        window.dispatchEvent(new CustomEvent('attendance-updated'));
       } else {
         // Already checked in or face not recognized
         if (response.message?.includes('already checked in')) {
@@ -828,23 +1017,106 @@ const AttendanceLeave: React.FC = () => {
     } catch (error: any) {
       // Handle different error formats from backend
       let errorMessage = 'Failed to check in. Please try again.';
+      let shouldShowRegisterLink = false;
+      
+      console.error('❌ Face recognition error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+        fileSize: file.size,
+        fileType: file.type,
+        fullError: error,
+      });
       
       if (error.response?.data) {
         const errorData = error.response.data;
+        const similarity = errorData.similarity || errorData.similarity_score || 0;
+        const similarityPercent = (similarity * 100).toFixed(1);
         
         // Handle specific status codes from API guide
         if (error.response.status === 404) {
           errorMessage = 'No face profile registered. Please register your face first.';
+          shouldShowRegisterLink = true;
         } else if (error.response.status === 403) {
-          errorMessage = errorData.message || `Face not recognized (${((errorData.similarity || 0) * 100).toFixed(1)}% match).`;
+          // Face not recognized - provide detailed feedback
+          const baseMessage = errorData.message || `Face not recognized (${similarityPercent}% match).`;
+          
+          // Add helpful suggestions based on similarity score
+          let suggestions = '';
+          if (similarity > 0) {
+            if (similarity < 0.5) {
+              suggestions = '\n\nPossible reasons:\n• Multiple face registrations may be causing confusion\n• Face appearance changed significantly\n• Poor lighting or image quality\n• Try re-registering your face with a clear, well-lit photo';
+            } else if (similarity < 0.7) {
+              suggestions = '\n\nTips:\n• Ensure good lighting matches your registration photo\n• Look directly at the camera\n• Remove glasses/hats if you weren\'t wearing them during registration\n• If you registered multiple faces, the system may be using a different one';
+            } else {
+              suggestions = '\n\nYou\'re close! Try:\n• Better lighting\n• Looking directly at the camera\n• Removing any face coverings';
+            }
+          } else {
+            suggestions = '\n\nPossible issues:\n• Multiple face registrations may be conflicting\n• Try re-registering with a clear, recent photo\n• Ensure consistent lighting and angle';
+          }
+          
+          errorMessage = baseMessage + suggestions;
+          shouldShowRegisterLink = true;
+          
+          // Log detailed info for debugging
+          console.warn('🔍 Face recognition failed:', {
+            similarity: similarityPercent + '%',
+            threshold: 'Likely ~85%',
+            errorData: errorData,
+            suggestion: 'If you registered multiple faces, try re-registering with one clear photo',
+          });
         } else if (error.response.status === 400) {
-          errorMessage = errorData.message || 'No face detected in image. Please ensure your face is clearly visible.';
+          // Check for specific error messages
+          const backendMessage = errorData.message || errorData.error || errorData.detail || '';
+          console.error('🔴 Backend 400 error details:', {
+            message: backendMessage,
+            fullErrorData: errorData,
+            responseStatus: error.response.status,
+            responseHeaders: error.response.headers,
+          });
+          
+          if (backendMessage.toLowerCase().includes('no photo') || backendMessage.toLowerCase().includes('no image') || backendMessage.toLowerCase().includes('not uploaded')) {
+            errorMessage = `Photo upload failed: ${backendMessage}\n\nPossible causes:\n• File was not sent correctly\n• File size is 0 bytes\n• Network issue during upload\n• Backend expecting different field name\n\nPlease check the browser console for details and try again.`;
+            const fileIsFile = file instanceof File;
+            console.error('❌ File upload issue detected:', {
+              fileSize: file.size,
+              fileName: fileIsFile ? (file as File).name : 'blob',
+              fileType: file.type,
+              formDataSent: true,
+            });
+          } else if (backendMessage.toLowerCase().includes('face') && backendMessage.toLowerCase().includes('detect')) {
+            errorMessage = 'No face detected in image. Please:\n• Ensure your face is clearly visible\n• Look directly at the camera\n• Ensure good lighting\n• Remove any face coverings';
+          } else {
+            errorMessage = backendMessage || 'Invalid image. Please ensure your face is clearly visible and try again.';
+          }
+        } else if (error.response.status === 500) {
+          errorMessage = 'Server error. The face recognition service may be temporarily unavailable. Please try again later.';
         } else {
           errorMessage = errorData.error || errorData.detail || errorData.message || errorMessage;
         }
+      } else if (error.message) {
+        // Network or other errors
+        if (error.message.includes('Network')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else {
+          errorMessage = error.message;
+        }
       }
       
-      toast.error('Error', { description: errorMessage });
+      toast.error('Check-In Failed', { 
+        description: errorMessage,
+        duration: 8000, // Increased duration for longer messages
+      });
+      
+      // If face not registered or not recognized, suggest registering
+      if (shouldShowRegisterLink) {
+        setTimeout(() => {
+          toast.info('Troubleshooting Tips', {
+            description: 'If you registered multiple faces, try re-registering with one clear photo. Visit the Register Face page to update your registration.',
+            duration: 6000,
+          });
+        }, 2000);
+      }
     } finally {
       setMarkAttendanceLoading(false);
     }
@@ -852,8 +1124,19 @@ const AttendanceLeave: React.FC = () => {
 
   // Handle check-out (no face recognition required)
   const handleCheckOut = async () => {
+    // ✅ CRITICAL: Only allow checkout if confirmation dialog was shown
+    if (!showCheckoutConfirm) {
+      console.warn('🚫 Checkout attempted without confirmation dialog');
+      toast.error('Checkout Error', { 
+        description: 'Please use the checkout button to confirm checkout.' 
+      });
+      return;
+    }
+
+    console.log('✅ Checkout confirmed by user, proceeding...');
     setMarkAttendanceLoading(true);
     setAttendanceResult(null);
+    setShowCheckoutConfirm(false); // Close dialog immediately
 
     try {
       const userId = getUserId();
@@ -952,9 +1235,27 @@ const AttendanceLeave: React.FC = () => {
               check_out: checkoutIso,
               work_hours: workHours,
             };
-            return records.sort((a, b) => dateValue(b.date) - dateValue(a.date));
+            const sorted = records.sort((a, b) => dateValue(b.date) - dateValue(a.date));
+            console.log('✅ Updated attendance list after check-out:', sorted);
+            console.log('📊 First record in sorted list (after checkout):', sorted[0]);
+            console.log('📊 Today\'s record:', sorted.find(r => sameDate(r.date, todayKey)));
+            return sorted;
+          } else {
+            // If record doesn't exist, add it (shouldn't happen, but just in case)
+            const newRecord: Attendance = {
+              id: todayAttendance.id,
+              employee: userId,
+              date: todayKey,
+              check_in: todayAttendance.check_in,
+              check_out: checkoutIso,
+              work_hours: workHours,
+              photo: todayAttendance.photo,
+            };
+            const sorted = [newRecord, ...records].sort((a, b) => dateValue(b.date) - dateValue(a.date));
+            console.log('✅ Added new attendance record with check-out:', sorted);
+            console.log('📊 First record in sorted list (new with checkout):', sorted[0]);
+            return sorted;
           }
-          return records;
         });
 
         setCheckOutTime(checkoutTime);
@@ -967,19 +1268,22 @@ const AttendanceLeave: React.FC = () => {
         });
 
         // Refresh to get final data from backend
-        // Use setTimeout to avoid blocking the UI
+        // Use merge to preserve optimistic update if backend hasn't persisted yet
         setTimeout(async () => {
           try {
-            await fetchAttendance(true);
+            await fetchAttendance(false); // Use merge to preserve optimistic update
           } catch (refreshError) {
             console.error('❌ Error refreshing attendance after checkout:', refreshError);
             // Don't show error - just log it
           }
-        }, 500);
+        }, 1000); // Increased timeout to give backend more time to persist
         
         toast.success('Check-Out Successful', { 
           description: checkoutResponse.message || `Checked out successfully. Work duration: ${workHours.toFixed(1)} hours.` 
         });
+
+        // Dispatch custom event to notify HR Attendance Management
+        window.dispatchEvent(new CustomEvent('attendance-updated'));
       } else {
         // Checkout failed or already checked out
         if (checkoutResponse.message?.includes('already')) {
@@ -1249,13 +1553,14 @@ const AttendanceLeave: React.FC = () => {
                       const canCheckIn = !todayAttendance?.check_in || (todayAttendance?.check_in && todayAttendance?.check_out);
                       if (canCheckIn) {
                         setAttendanceMode('checkin');
+                        setAttendanceResult(null); // Clear any previous result
                       }
                     }}
                     disabled={!!todayAttendance?.check_in && !todayAttendance?.check_out}
                     className={`
                       w-40 h-14 text-sm font-semibold
                       transition-all duration-200 shadow-md hover:shadow-lg
-                      ${attendanceMode === 'checkin' 
+                      ${attendanceMode === 'checkin' && (!todayAttendance?.check_in || (todayAttendance?.check_in && todayAttendance?.check_out))
                         ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border-0' 
                         : 'bg-white hover:bg-green-50 text-green-700 border-2 border-green-300 hover:border-green-400'
                       }
@@ -1288,7 +1593,10 @@ const AttendanceLeave: React.FC = () => {
                     className={`
                       w-40 h-14 text-sm font-semibold
                       transition-all duration-200 shadow-md hover:shadow-lg
-                      bg-white hover:bg-blue-50 text-blue-700 border-2 border-blue-300 hover:border-blue-400
+                      ${todayAttendance?.check_in && !todayAttendance?.check_out
+                        ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-0 ring-2 ring-orange-300 ring-offset-2' // ✅ Focus state without blinking
+                        : 'bg-white hover:bg-blue-50 text-blue-700 border-2 border-blue-300 hover:border-blue-400'
+                      }
                       ${(!todayAttendance?.check_in || !!todayAttendance?.check_out) 
                         ? 'opacity-50 cursor-not-allowed' 
                         : ''
@@ -1302,130 +1610,119 @@ const AttendanceLeave: React.FC = () => {
                   </Button>
                 </div>
 
-                {/* Mark Attendance Section - Show webcam for check-in only */}
-                {attendanceMode === 'checkin' && !todayAttendance?.check_out && (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                    <div className="lg:col-span-2">
-                      {!attendanceResult || (attendanceResult && todayAttendance?.check_out) ? (
-                        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-                          <CardHeader>
-                            <div className="flex items-center gap-2">
-                              <CalendarIcon className="w-5 h-5 text-blue-600" />
-                              <CardTitle>Check In</CardTitle>
-                            </div>
-                            <CardDescription>
-                              Capture your photo to check in via facial recognition
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            <WebcamCapture 
-                              key="webcam-checkin" 
-                              onCapture={handleCheckIn} 
-                              isLoading={markAttendanceLoading} 
-                            />
-                            
-                            {/* Instructions */}
-                            <Card className="mt-4 bg-primary/5 border-primary/20">
-                              <CardHeader>
-                                <CardTitle className="text-lg">Before You Capture</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <ul className="space-y-2 text-sm text-muted-foreground">
-                                  <li>✓ Make sure you're in a well-lit area</li>
-                                  <li>✓ Look directly at the camera</li>
-                                  <li>✓ Remove any face coverings</li>
-                                  <li>✓ Ensure your full face is visible</li>
-                                </ul>
-                              </CardContent>
-                            </Card>
-                          </CardContent>
-                        </Card>
-                      ) : (
-                      <Card className={`shadow-lg ${attendanceResult.verified ? 'border-green-500' : 'border-red-500'}`}>
-                        <CardContent className="pt-12 pb-12">
-                          <div className="text-center space-y-6">
-                            {/* Success/Failure Icon */}
-                            <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center ${
-                              attendanceResult.verified ? 'bg-green-500' : 'bg-red-500'
-                            }`}>
-                              {attendanceResult.verified ? (
-                                <CheckCircle2 className="h-12 w-12 text-white" />
-                              ) : (
-                                <XCircle className="h-12 w-12 text-white" />
-                              )}
-                            </div>
-
-                            {/* Result Title - Only show for check-in (not checkout) */}
-                            {!todayAttendance?.check_out && (
-                              <div>
-                                <h2 className="text-3xl font-bold mb-2">
-                                  {attendanceResult.verified ? 'Check-In Successful!' : 'Verification Failed'}
-                                </h2>
-                                <p className="text-muted-foreground">
-                                  {attendanceResult.verified 
-                                    ? `Face verified. Check-in recorded.${attendanceResult.similarity ? ` (${((attendanceResult.similarity || 0) * 100).toFixed(1)}% match)` : ''}`
-                                    : attendanceResult.message}
-                                </p>
+                {/* Mark Attendance Section - Show webcam for check-in only when not checked in */}
+                {/* Face recognition card should always be visible */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                  <div className="lg:col-span-2">
+                    {attendanceMode === 'checkin' && !todayAttendance?.check_out ? (
+                      <>
+                        {(!attendanceResult && !todayAttendance?.check_in) ? (
+                          /* Show webcam when no check-in yet */
+                          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+                            <CardHeader>
+                              <div className="flex items-center gap-2">
+                                <CalendarIcon className="w-5 h-5 text-blue-600" />
+                                <CardTitle>Check In</CardTitle>
                               </div>
-                            )}
+                              <CardDescription>
+                                Capture your photo to check in via facial recognition
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                              <WebcamCapture 
+                                key="webcam-checkin" 
+                                onCapture={handleCheckIn} 
+                                isLoading={markAttendanceLoading} 
+                              />
+                              
+                              {/* Instructions */}
+                              <Card className="mt-4 bg-primary/5 border-primary/20">
+                                <CardHeader>
+                                  <CardTitle className="text-lg">Before You Capture</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <ul className="space-y-2 text-sm text-muted-foreground">
+                                    <li>✓ Make sure you're in a well-lit area</li>
+                                    <li>✓ Look directly at the camera</li>
+                                    <li>✓ Remove any face coverings</li>
+                                    <li>✓ Ensure your full face is visible</li>
+                                  </ul>
+                                </CardContent>
+                              </Card>
+                            </CardContent>
+                          </Card>
+                        ) : attendanceResult && !attendanceResult.verified && todayAttendance?.check_in && !todayAttendance?.check_out ? (
+                          /* Show error card only if verification failed */
+                          <Card className="shadow-lg border-red-500">
+                            <CardContent className="pt-12 pb-12">
+                              <div className="text-center space-y-6">
+                                {/* Failure Icon */}
+                                <div className="mx-auto w-24 h-24 rounded-full flex items-center justify-center bg-red-500">
+                                  <XCircle className="h-12 w-12 text-white" />
+                                </div>
 
-                            {/* Employee Info */}
-                            {attendanceResult.employee && (
-                              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
-                                <span className="text-sm text-muted-foreground">Employee:</span>
-                                <span className="font-medium">{attendanceResult.employee}</span>
+                                {/* Result Title */}
+                                <div>
+                                  <h2 className="text-3xl font-bold mb-2">Verification Failed</h2>
+                                  <p className="text-muted-foreground">
+                                    {attendanceResult.message || 'Face not recognized. Please try again.'}
+                                  </p>
+                                </div>
+
+                                {/* Action Button */}
+                                <Button
+                                  onClick={async () => {
+                                    await resetAttendanceResult();
+                                  }}
+                                  variant="default"
+                                  size="lg"
+                                >
+                                  Try Again
+                                </Button>
                               </div>
-                            )}
-
-                            {/* Payroll Sync Badge */}
-                            {attendanceResult.verified && (
-                              <div className="p-6 rounded-lg bg-green-50 border border-green-200">
-                                <Badge className="bg-green-500 mb-3">
-                                  ✓ Synced to Payroll
-                                </Badge>
-                                <p className="text-sm text-green-700 font-medium">
-                                  Your attendance has been automatically synced to the payroll system
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-2">
-                                  Check-in time: {new Date().toLocaleTimeString('en-US', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    second: '2-digit',
-                                  })}
-                                </p>
+                            </CardContent>
+                          </Card>
+                        ) : todayAttendance?.check_in && !attendanceResult ? (
+                          /* Show checkout prompt when checked in but no result card (after clicking Done) */
+                          <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200">
+                            <CardContent className="pt-12 pb-12 text-center">
+                              <div className="space-y-6">
+                                <div className="mx-auto w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+                                  <CheckCircle2 className="h-10 w-10 text-green-600" />
+                                </div>
+                                <div>
+                                  <h3 className="text-2xl font-semibold mb-2">You are checked in</h3>
+                                  <p className="text-muted-foreground mb-4">Check-in completed successfully!</p>
+                                  {checkInTime && (
+                                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-green-200 mb-4">
+                                      <Clock className="h-4 w-4 text-green-600" />
+                                      <span className="text-sm text-muted-foreground">Check-in time:</span>
+                                      <span className="font-semibold text-green-700">{checkInTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="pt-4 border-t">
+                                  <p className="text-lg font-medium mb-4 text-gray-700">Do you want to check out?</p>
+                                  <Button
+                                    onClick={() => {
+                                      // Show checkout confirmation dialog
+                                      setShowCheckoutConfirm(true);
+                                    }}
+                                    size="lg"
+                                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200"
+                                  >
+                                    <XCircle className="h-5 w-5 mr-2" />
+                                    Confirm Check Out
+                                  </Button>
+                                  <p className="text-sm text-muted-foreground mt-3">Or use the Check Out button above</p>
+                                </div>
                               </div>
-                            )}
-
-                            {/* Action Button */}
-                            <Button
-                              onClick={async () => {
-                                if (!attendanceResult.verified) {
-                                  await resetAttendanceResult();
-                                  return;
-                                }
-                                // After successful check-in, just reset to show normal view
-                                await resetAttendanceResult('checkin');
-                              }}
-                              variant={attendanceResult.verified ? "outline" : "default"}
-                              size="lg"
-                            >
-                              {attendanceResult.verified ? 'Done' : 'Try Again'}
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                  <div className="lg:col-span-1">
-                    <EmployeeProfile employee={recognizedEmployee} timestamp={recognitionTime} />
-                  </div>
-                </div>
-                )}
-
-                {/* Checkout Success/Error Display - Show only after checkout */}
-                {attendanceResult && attendanceMode === 'checkin' && todayAttendance?.check_out && (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                    <div className="lg:col-span-2">
+                            </CardContent>
+                          </Card>
+                        ) : null}
+                      </>
+                    ) : attendanceResult && attendanceMode === 'checkin' && todayAttendance?.check_out ? (
+                      /* Show checkout success card */
                       <Card className={`shadow-lg ${attendanceResult.verified ? 'border-green-500' : 'border-red-500'}`}>
                         <CardContent className="pt-12 pb-12">
                           <div className="text-center space-y-6">
@@ -1457,7 +1754,11 @@ const AttendanceLeave: React.FC = () => {
                               <div className="p-6 rounded-lg bg-blue-50 border border-blue-200">
                                 <p className="text-sm text-muted-foreground mb-1">Total Work Hours</p>
                                 <p className="text-3xl font-bold text-blue-700">
-                                  {todayAttendance.work_hours.toFixed(1)} hours
+                                  {typeof todayAttendance.work_hours === 'number' 
+                                    ? todayAttendance.work_hours.toFixed(1)
+                                    : typeof todayAttendance.work_hours === 'string'
+                                    ? parseFloat(todayAttendance.work_hours).toFixed(1)
+                                    : '0.0'} hours
                                 </p>
                               </div>
                             )}
@@ -1465,7 +1766,9 @@ const AttendanceLeave: React.FC = () => {
                             {/* Action Button */}
                             <Button
                               onClick={async () => {
-                                await resetAttendanceResult('checkin');
+                                // After checkout, just hide the result card
+                                // EmployeeProfile will stay visible showing both check-in and check-out times
+                                setAttendanceResult(null);
                               }}
                               variant="outline"
                               size="lg"
@@ -1475,50 +1778,49 @@ const AttendanceLeave: React.FC = () => {
                           </div>
                         </CardContent>
                       </Card>
-                    </div>
-                    <div className="lg:col-span-1">
-                      {todayAttendance?.check_in && (
-                        <Card>
-                          <CardHeader>
-                            <CardTitle>Today's Summary</CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div>
-                              <p className="text-sm text-muted-foreground">Check-in</p>
-                              <p className="text-lg font-semibold">
-                                {checkInTime ? checkInTime.toLocaleTimeString('en-US', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                }) : 'N/A'}
-                              </p>
+                    ) : todayAttendance?.check_out && !attendanceResult ? (
+                      /* Show message when checked out but no result card (after clicking Done) */
+                      <Card>
+                        <CardContent className="pt-12 pb-12 text-center">
+                          <div className="space-y-4">
+                            <div className="mx-auto w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+                              <CheckCircle2 className="h-8 w-8 text-blue-600" />
                             </div>
-                            {todayAttendance?.check_out && checkOutTime && (
-                              <>
-                                <div>
-                                  <p className="text-sm text-muted-foreground">Check-out</p>
-                                  <p className="text-lg font-semibold">
-                                    {checkOutTime.toLocaleTimeString('en-US', {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}
-                                  </p>
-                                </div>
-                                {todayAttendance.work_hours && (
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">Work Hours</p>
-                                    <p className="text-lg font-semibold text-green-600">
-                                      {todayAttendance.work_hours.toFixed(1)} hours
-                                    </p>
-                                  </div>
-                                )}
-                              </>
+                            <div>
+                              <h3 className="text-xl font-semibold mb-2">Check-out complete</h3>
+                              <p className="text-muted-foreground">Your attendance for today has been recorded.</p>
+                            </div>
+                            {todayAttendance.work_hours && (
+                              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-muted">
+                                <span className="text-sm text-muted-foreground">Total work hours:</span>
+                                <span className="font-medium">
+                                  {typeof todayAttendance.work_hours === 'number' 
+                                    ? todayAttendance.work_hours.toFixed(1)
+                                    : typeof todayAttendance.work_hours === 'string'
+                                    ? parseFloat(todayAttendance.work_hours).toFixed(1)
+                                    : '0.0'} hours
+                                </span>
+                              </div>
                             )}
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ) : null}
                   </div>
-                )}
+                  <div className="lg:col-span-1">
+                    {/* EmployeeProfile card - ALWAYS visible */}
+                    <EmployeeProfile 
+                      employee={recognizedEmployee} 
+                      timestamp={recognitionTime}
+                      checkInTime={checkInTime ? checkInTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : undefined}
+                      checkOutTime={checkOutTime ? checkOutTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : undefined}
+                      isCheckedOut={!!todayAttendance?.check_out}
+                    />
+                  </div>
+                </div>
+
+                {/* Remove the duplicate checkout success section since we moved it above */}
+
 
                 {/* Checkout Confirmation Dialog */}
                 <Dialog open={showCheckoutConfirm} onOpenChange={setShowCheckoutConfirm}>
@@ -1539,7 +1841,8 @@ const AttendanceLeave: React.FC = () => {
                       </Button>
                       <Button
                         onClick={async () => {
-                          setShowCheckoutConfirm(false);
+                          // Dialog is already open (showCheckoutConfirm is true)
+                          // Just call handleCheckOut directly
                           await handleCheckOut();
                         }}
                         disabled={markAttendanceLoading}
@@ -1657,10 +1960,16 @@ const AttendanceLeave: React.FC = () => {
                         <CardTitle>Recent Attendance</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {timeCards.slice(0, 10).map((record) => (
-                          <TimeCard key={record.id} data={record} onClick={() => { setSelectedRecord(record); setShowDetailModal(true); }} compact />
-                        ))}
-                        {timeCards.length === 0 && (
+                        {timeCards.length > 0 ? (
+                          timeCards.slice(0, 10).map((record, index) => (
+                            <TimeCard 
+                              key={`${record.id}-${record.date}-${index}`} 
+                              data={record} 
+                              onClick={() => { setSelectedRecord(record); setShowDetailModal(true); }} 
+                              compact 
+                            />
+                          ))
+                        ) : (
                           <div className="text-sm text-muted-foreground">No recent records</div>
                         )}
                       </CardContent>
