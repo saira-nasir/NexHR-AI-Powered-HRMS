@@ -2,14 +2,13 @@ import React from "react";
 import { RouteObject, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 // Pages
-
 import Index from "@/pages/Index";
 import LoginPage from "@/pages/Login";
 import RegisterPage from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import CompanyInfoForm from "@/pages/CompanyInfo";
-import Dashboard from "@/pages/Dasboard";
+// ... other imports ...
 import JobPostForm from "@/pages/JobPostForm";
 import Calendar from "@/pages/Calendar";
 import Team from "@/pages/Team";
@@ -19,9 +18,7 @@ import Employees from "@/pages/Employees";
 import JobPortal from "@/pages/JobPortal";
 import JobDetail from "@/components/jobPortal/job-detail";
 import JobApplicationForm from "@/pages/JobApplicationForm";
-import EmployeeDashboard from "@/pages/EmployeeDashboard";
 import PayrollPage from "@/pages/Payroll";
-import FinanceDashboard from "@/pages/FinanceDashboard";
 import HiringHandbook from "@/pages/HiringHandbook";
 import JobScreening from "@/pages/JobScreening";
 import AssessmentAndInterview from "@/pages/AssessmentInterview";
@@ -41,7 +38,7 @@ import RegisterFace from "@/pages/RegisterFace";
 import Interview from "@/pages/Interview";
 import HiringInterview from "@/pages/HiringInterview";
 
-// Finance pages used in routes (ensure these files exist)
+// Finance pages
 import Expenses from "@/pages/Expenses";
 import Loans from "@/pages/Loans";
 import BulkPayments from "@/pages/BulkPayments";
@@ -56,7 +53,7 @@ import CompanyRegistrationGuard from "@/components/CompanyRegistrationGuard";
 import RoleBasedRoute from "@/components/RoleBasedRoute";
 import RoleBasedDashboard from "@/components/RoleBasedDashboard";
 
-// Simple placeholder for pages still under construction
+// Placeholders
 const PlaceholderPage = ({ title }: { title: string }) => (
   <div className="flex flex-col items-center justify-center min-h-[60vh]">
     <h1 className="text-2xl font-bold mb-4">{title}</h1>
@@ -64,29 +61,7 @@ const PlaceholderPage = ({ title }: { title: string }) => (
   </div>
 );
 
-// Stripe Payment Redirect Handler
-const PaymentReturn = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  React.useEffect(() => {
-    const search = location.search || "";
-    navigate(`/payroll${search}`, { replace: true });
-  }, [location, navigate]);
-
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="text-center">
-        <h2 className="text-lg font-medium">Finishing payment...</h2>
-        <p className="text-sm text-muted-foreground">
-          Redirecting to payroll to confirm payment status.
-        </p>
-      </div>
-    </div>
-  );
-};
-
-// ✅ All Routes
+// Routes
 export const routes: RouteObject[] = [
   {
     path: "",
@@ -125,12 +100,17 @@ export const routes: RouteObject[] = [
     path: "/",
     element: <ProtectedRoute />,
     children: [
+      // 1. This route is ACCESSIBLE even if company is not registered
+      // This allows the Guard to redirect here safely
       { path: "company", element: <CompanyInfoForm /> },
+
+      // 2. These routes are GUARDED. 
+      // You must have a company to enter here.
       {
         element: <CompanyRegistrationGuard />,
         children: [
-          // Role-based dashboard
           { path: "dashboard", element: <RoleBasedDashboard /> },
+          
           // HR & Admin Routes
           {
             path: "jobs/create",
@@ -227,18 +207,6 @@ export const routes: RouteObject[] = [
                 <Onboarding />
               </RoleBasedRoute>
             ),
-          },
-          // Finance Manager Routes (keeping finance-specific routes)
-          {
-            path: "finance",
-            element: <Navigate to="/dashboard" replace />,
-          },
-          // Stripe return handler: render a friendly success page which will
-          // attempt to confirm payment and rely on webhook polling to update
-          // the payroll status across the app.
-          {
-            path: "success",
-            element: <PaymentSuccess />,
           },
           {
             path: "hr-attendance-management",

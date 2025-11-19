@@ -1,5 +1,6 @@
 // src/services/payrollService.ts
 import api from "@/lib/api";
+import { apiGet } from "@/lib/api"; // Added explicit apiGet helper for clarity
 
 /**
  * Helper: safely extract HTTP status from an unknown error (avoids `any` casts)
@@ -18,8 +19,8 @@ const extractHttpStatus = (err: unknown): number | null => {
 };
 
 /* -------------------------
-   Types exported for app
-   ------------------------- */
+    Types exported for app
+    ------------------------- */
 export interface SalaryStructure {
   id: number;
   employee: number;
@@ -70,7 +71,7 @@ export interface CreatePayrollPayload {
   employee: number;
   salary_structure?: number | null;
   period_start: string; // YYYY-MM-DD
-  period_end: string;   // YYYY-MM-DD
+  period_end: string; // YYYY-MM-DD
   gross_salary?: string | number;
   total_deductions?: string | number;
   net_salary?: string | number;
@@ -114,7 +115,18 @@ export interface Notification {
   message: string;
   created_at: string;
   is_read: boolean;
+  // Added optional field for navigation, used in NotificationsDropdown
+  target_url?: string | null; 
 }
+
+// Type for Paginated API responses (required after backend pagination was added)
+interface PaginatedResponse<T> {
+    count: number;
+    next: string | null;
+    previous: string | null;
+    results: T[];
+}
+
 
 export interface EmployeeBankInfo {
   id: number;
@@ -185,8 +197,8 @@ export interface StripeCheckoutResponse {
 }
 
 /* -------------------------
-   Base
-   ------------------------- */
+    Base
+    ------------------------- */
 const BASE = "/payroll";
 
 const payrollService = {
@@ -309,59 +321,29 @@ const payrollService = {
     return data;
   },
 
-  // Notifications
+  /* ---------------- Notifications (Updated for Pagination) ---------------- */
   listNotifications: async () => {
-    const { data } = await api.get<Notification[]>(`${BASE}/notifications/`);
+    // The backend now returns a paginated response, so we update the return type.
+    // The listNotifications function is now primarily used by the SWR fetcher.
+    const { data } = await api.get<PaginatedResponse<Notification>>(`${BASE}/notifications/`);
     return data;
   },
-
-  // Stripe Checkout - Using correct backend endpoints
-  createCheckoutSession: async (payrollId: number) => {
-    try {
-      console.log(`Creating checkout session for payroll ${payrollId}...`);
-      const { data } = await api.post<StripeCheckoutResponse>(`${BASE}/create-checkout-session/${payrollId}/`);
-      console.log('Checkout session created:', data);
-      return data;
-    } catch (error) {
-      console.error('Error creating checkout session:', error);
-      throw error;
-    }
-  },
-
-  // Download payslip as PDF stream (uses action on PayrollViewSet)
-  downloadPayslip: async (payrollId: number) => {
-    const response = await api.get(`${BASE}/payrolls/${payrollId}/download-payslip/`, {
-      responseType: 'blob'
-    });
-    return response.data as Blob;
-  },
-
-  // Download a binary file from an absolute or relative URL (returns Blob)
-  downloadByUrl: async (url: string) => {
-    // If the url is relative (starts with '/'), axios with baseURL will work.
-    // If absolute (http/https) axios will use it as-is.
-    const response = await api.get(url, { responseType: 'blob' });
-    return response.data as Blob;
-  },
-
-  // Tax Brackets
-  listTaxBrackets: async () => {
-    const { data } = await api.get<TaxBracket[]>(`${BASE}/tax-brackets/`);
-    return data;
-  },
-  listStatutoryDeductions: async () => {
-    const { data } = await api.get<StatutoryDeduction[]>(`${BASE}/statutory-deductions/`);
-    return data;
-  },
-
-  /* ---------------- Notifications (extended) ---------------- */
+  
+  // Mark as Read (already existed)
   markNotificationAsRead: async (id: number) => {
     const { data } = await api.patch<Notification>(`${BASE}/notifications/${id}/`, { is_read: true });
     return data;
   },
+  
+  // Create Notification (already existed)
   createNotification: async (payload: Omit<Notification, "id" | "created_at" | "is_read">) => {
     const { data } = await api.post<Notification>(`${BASE}/notifications/`, payload);
     return data;
+  },
+
+  // Delete Notification (FIX: This function was missing, causing the TypeScript error)
+  deleteNotification: async (id: number) => {
+    await api.delete(`${BASE}/notifications/${id}/`);
   },
 
   /* ---------------- Employee bank info ---------------- */
@@ -391,7 +373,7 @@ const payrollService = {
    * Backend requires `payrolls` as non-empty list. This helper will:
    * - if payload.payrolls is present and non-empty, POST as-is
    * - otherwise, if payload.period_start & period_end given, will try to fetch
-   *   payrolls for that period and use their ids
+   * payrolls for that period and use their ids
    * Make sure `total_amount` is a number or string acceptable to backend.
    */
   createBulkPayment: async (payload: {
@@ -434,6 +416,45 @@ const payrollService = {
   },
   confirmBulkPayment: async (id: number) => {
     const { data } = await api.post<BulkPaymentLog>(`${BASE}/bulk-payments/${id}/confirm/`);
+    return data;
+  },
+  
+  /* ---------------- Stripe Checkout ---------------- */
+  createCheckoutSession: async (payrollId: number) => {
+    try {
+      console.log(`Creating checkout session for payroll ${payrollId}...`);
+      const { data } = await api.post<StripeCheckoutResponse>(`${BASE}/create-checkout-session/${payrollId}/`);
+      console.log('Checkout session created:', data);
+      return data;
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      throw error;
+    }
+  },
+
+  // Download payslip as PDF stream (uses action on PayrollViewSet)
+  downloadPayslip: async (payrollId: number) => {
+    const response = await api.get(`${BASE}/payrolls/${payrollId}/download-payslip/`, {
+      responseType: 'blob'
+    });
+    return response.data as Blob;
+  },
+
+  // Download a binary file from an absolute or relative URL (returns Blob)
+  downloadByUrl: async (url: string) => {
+    // If the url is relative (starts with '/'), axios with baseURL will work.
+    // If absolute (http/https) axios will use it as-is.
+    const response = await api.get(url, { responseType: 'blob' });
+    return response.data as Blob;
+  },
+
+  /* ---------------- Tax & Statutory ---------------- */
+  listTaxBrackets: async () => {
+    const { data } = await api.get<TaxBracket[]>(`${BASE}/tax-brackets/`);
+    return data;
+  },
+  listStatutoryDeductions: async () => {
+    const { data } = await api.get<StatutoryDeduction[]>(`${BASE}/statutory-deductions/`);
     return data;
   },
 };
