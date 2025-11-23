@@ -371,7 +371,7 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
 
       {/* Salary Range */}
       <div>
-        <label className="block text-sm font-medium mb-1">Salary Range (Optional)</label>
+        <label className="block text-sm font-medium mb-1">Salary Range</label>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
           <div className="sm:col-span-1">
             <label htmlFor="salaryMin" className="block text-xs font-medium mb-1">Minimum</label>

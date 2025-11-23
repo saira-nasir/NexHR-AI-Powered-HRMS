@@ -16,6 +16,27 @@ export interface ScheduledInterview {
   status: 'pending' | 'in-progress' | 'completed';
   candidateEmail?: string;
   candidatePhone?: string;
+  // Extended fields from API
+  roundId?: number;
+  applicationId?: number;
+  seqNumber?: number;
+  roundName?: string;
+  roundType?: string;
+  roundMode?: string;
+  meetingLink?: string | null;
+  roundState?: string;
+  roundResult?: string;
+  interviewersDetails?: Array<{
+    id: number;
+    user: number;
+    user_name: string;
+    user_email: string;
+    is_submitted?: boolean;
+    interviewer_score?: number | null;
+  }>;
+  // Candidate/Application details (for future use in scoring form)
+  candidateData?: any;
+  jobData?: any;
 }
 
 interface InterviewCardProps {
@@ -44,7 +65,14 @@ const statusConfig = {
 
 export const InterviewCard: React.FC<InterviewCardProps> = ({ interview, onClick }) => {
   const statusStyle = statusConfig[interview.status];
+  // Prefer candidate name from candidateData (application) when available
+  const candidateDisplayName = interview.candidateData && (interview.candidateData.candidate_fname || interview.candidateData.candidate_lname)
+    ? `${interview.candidateData.candidate_fname || ''} ${interview.candidateData.candidate_lname || ''}`.trim()
+    : interview.candidateName;
 
+  const seqLabel = interview.seqNumber !== undefined && interview.seqNumber !== null ? `Round ${interview.seqNumber}` : null;
+  const roundTypeLabel = interview.roundType || (interview as any).round_type || '';
+  const roundNameLabel = interview.roundName || (interview as any).round_name || '';
   return (
     <motion.div
       layoutId={`interview-card-${interview.id}`}
@@ -58,13 +86,8 @@ export const InterviewCard: React.FC<InterviewCardProps> = ({ interview, onClick
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
-              <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-1">
-                {interview.candidateName}
-              </h3>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Briefcase className="h-4 w-4" />
-                <span className="line-clamp-1">{interview.position}</span>
-              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-1">{candidateDisplayName}</h3>
+              <div className="text-sm text-gray-600 mb-1">{interview.position}</div>
             </div>
             <Badge variant="outline" className={`${statusStyle.color} font-medium flex-shrink-0`}>
               {statusStyle.label}
@@ -89,23 +112,33 @@ export const InterviewCard: React.FC<InterviewCardProps> = ({ interview, onClick
               <div className="flex-1">
                 <span className="text-gray-600">Interviewers: </span>
                 <span className="font-medium text-gray-900">
-                  {interview.interviewers.length > 2 
-                    ? `${interview.interviewers.slice(0, 2).join(', ')} +${interview.interviewers.length - 2}`
-                    : interview.interviewers.join(', ')
-                  }
+                  {Array.isArray(interview.interviewersDetails) && interview.interviewersDetails.length > 0 ? (
+                    interview.interviewersDetails.length > 2
+                      ? `${interview.interviewersDetails.slice(0, 2).map((i) => i.user_name || i.user || '').filter(Boolean).join(', ')} +${interview.interviewersDetails.length - 2}`
+                      : interview.interviewersDetails.map((i) => i.user_name || i.user || '').filter(Boolean).join(', ')
+                  ) : Array.isArray(interview.interviewers) ? (
+                    interview.interviewers.length > 2
+                      ? `${interview.interviewers.slice(0, 2).join(', ')} +${interview.interviewers.length - 2}`
+                      : interview.interviewers.join(', ')
+                  ) : (
+                    ''
+                  )}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Stage & Type Badges */}
+          {/* Footer: show seq / round type / round name once (do not duplicate) */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-            <div className="flex gap-2">
-              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
-                {stageLabels[interview.interviewStage]}
+            <div className="text-sm text-gray-600 flex flex-wrap gap-2 items-center">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-medium flex-shrink-0">
+                {seqLabel && <span className="font-medium mr-2">{seqLabel}</span>}
               </Badge>
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
-                {typeLabels[interview.interviewType]}
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-medium flex-shrink-0">
+                {roundTypeLabel && <span className="capitalize mr-2">{roundTypeLabel}</span>}
+              </Badge>
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-medium flex-shrink-0">
+                {roundNameLabel && <span className="text-gray-500">{roundNameLabel}</span>}
               </Badge>
             </div>
             <ChevronRight className="h-5 w-5 text-gray-400" />

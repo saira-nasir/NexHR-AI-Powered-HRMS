@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { googleAuthService } from '@/services/googleAuth';
 import { applicationService } from '@/services/jobPortalservice';
 import GoogleCalendarConnectButton from '@/components/auth/GoogleCalendarConnectButton';
-import { RefreshCw, AlertCircle, CalendarIcon, Clock, Users, Briefcase, BarChart3, Search, X, MapPin, Eye, ChevronRight, CheckCircle, Download, Filter, SlidersHorizontal, Calendar as CalendarFilter } from 'lucide-react';
+import { RefreshCw, AlertCircle, CalendarIcon, Clock, Users, Briefcase, BarChart3, Search, X, MapPin, Eye, ChevronRight, CheckCircle, Download, Filter, SlidersHorizontal, Calendar as CalendarFilter, Loader2 } from 'lucide-react';
 import DashboardLayout from "@/layouts/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -468,60 +468,67 @@ const AssessmentAndInterview: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-gray-50/50">
-                          <TableHead className="font-semibold">Job Title</TableHead>
-                          <TableHead className="font-semibold">Department</TableHead>
-                          <TableHead className="font-semibold">Location</TableHead>
-                          <TableHead className="font-semibold">Posted Date</TableHead>
-                          <TableHead className="font-semibold">Status</TableHead>
-                          <TableHead className="font-semibold text-center">Shortlisted</TableHead>
-                          <TableHead className="font-semibold text-center">Interviewed</TableHead>
-                          <TableHead className="font-semibold text-center">Selected</TableHead>
-                          <TableHead className="font-semibold text-center">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredJobs.length > 0 ? filteredJobs.map((job) => (
-                          <TableRow key={job.id} className="hover:bg-gray-50/50">
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className="bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-lg h-10 w-10 flex items-center justify-center"><Users className="h-5 w-5" /></div>
-                                <div>
-                                  <p className="font-semibold text-gray-900">{job.title}</p>
-                                  <p className="text-xs text-gray-500">{job.type}</p>
+                  {isLoadingJobs ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <Loader2 className="h-12 w-12 animate-spin text-[#7c3aed]" />
+                      <p className="mt-4 text-gray-600">Loading jobs...</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gray-50/50">
+                            <TableHead className="font-semibold">Job Title</TableHead>
+                            <TableHead className="font-semibold">Department</TableHead>
+                            <TableHead className="font-semibold">Location</TableHead>
+                            <TableHead className="font-semibold">Posted Date</TableHead>
+                            <TableHead className="font-semibold">Status</TableHead>
+                            <TableHead className="font-semibold text-center">Shortlisted</TableHead>
+                            <TableHead className="font-semibold text-center">Interviewed</TableHead>
+                            <TableHead className="font-semibold text-center">Selected</TableHead>
+                            <TableHead className="font-semibold text-center">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredJobs.length > 0 ? filteredJobs.map((job) => (
+                            <TableRow key={job.id} className="hover:bg-gray-50/50">
+                              <TableCell>
+                                <div className="flex items-center gap-3">
+                                  <div className="bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-lg h-10 w-10 flex items-center justify-center"><Users className="h-5 w-5" /></div>
+                                  <div>
+                                    <p className="font-semibold text-gray-900">{job.title}</p>
+                                    <p className="text-xs text-gray-500">{job.type}</p>
+                                  </div>
                                 </div>
-                              </div>
-                            </TableCell>
-                            <TableCell><Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{job.department}</Badge></TableCell>
-                            <TableCell><div className="flex items-center gap-1 text-sm text-gray-600"><MapPin className="h-3 w-3" />{job.location}</div></TableCell>
-                            <TableCell><div className="flex items-center gap-1 text-sm text-gray-600"><Clock className="h-3 w-3" />{format(job.postedDate, "MMM dd, yyyy")}</div></TableCell>
-                            <TableCell>{getStatusBadge(job.status)}</TableCell>
-                            <TableCell className="text-center"><Badge className="bg-blue-100 text-blue-700 font-semibold">{job.shortlisted}</Badge></TableCell>
-                            <TableCell className="text-center"><Badge className="bg-purple-100 text-purple-700 font-semibold">{job.interviewed}</Badge></TableCell>
-                            <TableCell className="text-center"><Badge className="bg-green-100 text-green-700 font-semibold">{job.selected}</Badge></TableCell>
-                            <TableCell>
-                              <div className="flex items-center justify-center">
-                                <Button size="sm" onClick={() => handleViewJob(job.id)} className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"><Eye className="h-4 w-4 mr-2" />View Candidates<ChevronRight className="h-4 w-4 ml-1" /></Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )) : (
-                          <TableRow>
-                            <TableCell colSpan={9} className="text-center py-12">
-                              <div className="flex flex-col items-center gap-2">
-                                <Users className="h-12 w-12 text-gray-300" />
-                                <p className="text-gray-500 font-medium">No jobs found</p>
-                                <p className="text-sm text-gray-400">Try adjusting your search or filters</p>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
+                              </TableCell>
+                              <TableCell><Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{job.department}</Badge></TableCell>
+                              <TableCell><div className="flex items-center gap-1 text-sm text-gray-600"><MapPin className="h-3 w-3" />{job.location}</div></TableCell>
+                              <TableCell><div className="flex items-center gap-1 text-sm text-gray-600"><Clock className="h-3 w-3" />{format(job.postedDate, "MMM dd, yyyy")}</div></TableCell>
+                              <TableCell>{getStatusBadge(job.status)}</TableCell>
+                              <TableCell className="text-center"><Badge className="bg-blue-100 text-blue-700 font-semibold">{job.shortlisted}</Badge></TableCell>
+                              <TableCell className="text-center"><Badge className="bg-purple-100 text-purple-700 font-semibold">{job.interviewed}</Badge></TableCell>
+                              <TableCell className="text-center"><Badge className="bg-green-100 text-green-700 font-semibold">{job.selected}</Badge></TableCell>
+                              <TableCell>
+                                <div className="flex items-center justify-center">
+                                  <Button size="sm" onClick={() => handleViewJob(job.id)} className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"><Eye className="h-4 w-4 mr-2" />View Candidates<ChevronRight className="h-4 w-4 ml-1" /></Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )) : (
+                            <TableRow>
+                              <TableCell colSpan={9} className="text-center py-12">
+                                <div className="flex flex-col items-center gap-2">
+                                  <Users className="h-12 w-12 text-gray-300" />
+                                  <p className="text-gray-500 font-medium">No jobs found</p>
+                                  <p className="text-sm text-gray-400">Try adjusting your search or filters</p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

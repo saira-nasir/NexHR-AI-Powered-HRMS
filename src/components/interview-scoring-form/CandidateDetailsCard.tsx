@@ -19,8 +19,9 @@ interface CandidateDetailsCardProps {
   candidateEmail?: string;
   candidatePhone?: string;
   location?: string;
-  experience?: string;
-  education?: string[];
+  // Prefer arrays of objects from API
+  experiences?: Array<any>;
+  educations?: Array<any>;
   skills?: string[];
   resumeUrl?: string;
   appliedDate?: Date;
@@ -33,8 +34,8 @@ export const CandidateDetailsCard: React.FC<CandidateDetailsCardProps> = ({
   candidateEmail = 'candidate@email.com',
   candidatePhone = '+1 (555) 000-0000',
   location = 'Not specified',
-  experience = '3+ years',
-  education = ['Bachelor\'s Degree in Computer Science', 'Master\'s in Software Engineering'],
+  experiences = [],
+  educations = [],
   skills = ['JavaScript', 'React', 'TypeScript', 'Node.js', 'Python', 'SQL', 'Git', 'AWS'],
   resumeUrl,
   appliedDate = new Date(),
@@ -92,7 +93,7 @@ export const CandidateDetailsCard: React.FC<CandidateDetailsCardProps> = ({
               </div>
               <div className="flex items-center gap-3">
                 <Calendar className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-700">Experience: {experience}</span>
+                <span className="text-sm text-gray-700">Experience: {Array.isArray(experiences) && experiences.length > 0 ? `${experiences[0].years_of_experience || ''} yrs` : 'N/A'}</span>
               </div>
             </div>
           </div>
@@ -122,18 +123,47 @@ export const CandidateDetailsCard: React.FC<CandidateDetailsCardProps> = ({
         </div>
 
         {/* Education */}
-        <div className="mt-6 pt-6 border-t">
+          <div className="mt-6 pt-6 border-t">
           <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <GraduationCap className="h-5 w-5 text-indigo-600" />
             Education
           </h3>
           <div className="pl-7 space-y-2">
-            {education.map((edu, index) => (
-              <div key={index} className="flex items-start gap-2">
-                <div className="w-2 h-2 rounded-full bg-indigo-600 mt-2 flex-shrink-0" />
-                <span className="text-sm text-gray-700">{edu}</span>
-              </div>
-            ))}
+            {Array.isArray(educations) && educations.length > 0 ? (
+              educations.map((ed: any) => (
+                <div key={ed.id || `${ed.institution_name}-${ed.degree_detail}`} className="flex items-start gap-2">
+                  <div className="w-2 h-2 rounded-full bg-indigo-600 mt-2 flex-shrink-0" />
+                  <div>
+                    <div className="text-sm text-gray-700">{ed.institution_name || ed.school || ''}{ed.degree_detail ? ` · ${ed.degree_detail}` : ''}</div>
+                    {ed.start_date || ed.end_date ? (
+                      <div className="text-xs text-gray-500">{ed.start_date ? new Date(ed.start_date).getFullYear() : ''}{ed.end_date ? ` - ${new Date(ed.end_date).getFullYear()}` : ''}</div>
+                    ) : null}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-gray-500">No education listed</div>
+            )}
+          </div>
+        </div>
+
+        {/* Experience */}
+        <div className="mt-6 pt-6 border-t">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <Briefcase className="h-5 w-5 text-indigo-600" />
+            Experience
+          </h3>
+          <div className="pl-7 space-y-2">
+            {Array.isArray(experiences) && experiences.length > 0 ? (
+              experiences.map((e: any) => (
+                <div key={e.id || `${e.company_name}-${e.previous_job_titles}`} className="text-sm text-gray-700">
+                  <div className="font-medium">{e.previous_job_titles || e.title || e.role || ''}{e.company_name ? ` · ${e.company_name}` : ''}</div>
+                  {e.years_of_experience && <div className="text-xs text-gray-500">{e.years_of_experience} years</div>}
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-gray-500">No experience details</div>
+            )}
           </div>
         </div>
 

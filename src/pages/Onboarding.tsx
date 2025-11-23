@@ -1,138 +1,401 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Search, Mail, Phone, Calendar, CheckCircle, User } from 'lucide-react';
+import { ChevronDown, ChevronUp, Users, Trash } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import RoundDetailsModal from '@/components/onboarding/RoundDetailsModal';
+import RejectCandidateModal from '@/components/onboarding/RejectCandidateModal';
+import OnboardCandidateModal from '@/components/onboarding/OnboardCandidateModal';
 
-type Candidate = {
-  id: number;
-  name: string;
-  email: string;
-  phone?: string;
-  role: string;
-  startDate?: string;
-  status: 'selected' | 'onboarded' | 'pending';
-  note?: string;
-};
+// Types
+export interface InterviewerScore {
+  interviewerId: number;
+  interviewerName: string;
+  score: number;
+  justification: string;
+}
 
-const DUMMY_CANDIDATES: Candidate[] = [
-  { id: 1, name: 'Aisha Khan', email: 'aisha.khan@example.com', phone: '+92 300 111 2222', role: 'Frontend Engineer', startDate: '2025-12-01', status: 'selected', note: 'Strong React + TypeScript background' },
-  { id: 2, name: 'Omar Farooq', email: 'omar.farooq@example.com', phone: '+92 300 333 4444', role: 'Backend Engineer', startDate: '2025-12-08', status: 'selected', note: 'Experienced in Python & Django' },
-  { id: 3, name: 'Sara Ahmed', email: 'sara.ahmed@example.com', phone: '+92 300 555 6666', role: 'Product Designer', startDate: '2025-11-24', status: 'onboarded', note: 'Design systems and Figma lead' },
-  { id: 4, name: 'Bilal Hussain', email: 'bilal.hussain@example.com', phone: '+92 300 777 8888', role: 'DevOps Engineer', startDate: '2026-01-05', status: 'selected', note: 'Kubernetes & CI/CD specialist' },
-  { id: 5, name: 'Maya Raza', email: 'maya.raza@example.com', phone: '+92 300 999 0000', role: 'QA Engineer', startDate: '2025-12-15', status: 'pending', note: 'Automation with Playwright' },
-  { id: 6, name: 'Hamza Ali', email: 'hamza.ali@example.com', phone: '+92 301 111 2222', role: 'Data Analyst', startDate: '2025-12-20', status: 'selected', note: 'SQL, Looker and basic ML' }
+export interface Round {
+  roundId: number;
+  roundName: string;
+  roundScore: number;
+  interviewers: InterviewerScore[];
+}
+
+export interface Candidate {
+  candidateId: number;
+  candidateName: string;
+  candidateEmail: string;
+  candidatePhone?: string;
+  rounds: Round[];
+}
+
+export interface Job {
+  jobId: number;
+  jobTitle: string;
+  department: string;
+  candidatesCount: number;
+  candidates: Candidate[];
+}
+
+// Mock data
+const MOCK_JOBS: Job[] = [
+  {
+    jobId: 1,
+    jobTitle: 'Senior Frontend Engineer',
+    department: 'Engineering',
+    candidatesCount: 2,
+    candidates: [
+      {
+        candidateId: 101,
+        candidateName: 'Aisha Khan',
+        candidateEmail: 'aisha.khan@example.com',
+        candidatePhone: '+92 300 111 2222',
+        rounds: [
+          {
+            roundId: 1,
+            roundName: 'Technical Round 1',
+            roundScore: 85,
+            interviewers: [
+              { interviewerId: 1, interviewerName: 'John Doe', score: 90, justification: 'Strong React skills and problem-solving ability.' },
+              { interviewerId: 2, interviewerName: 'Jane Smith', score: 80, justification: 'Good understanding of TypeScript and state management.' }
+            ]
+          },
+          {
+            roundId: 2,
+            roundName: 'Technical Round 2',
+            roundScore: 88,
+            interviewers: [
+              { interviewerId: 3, interviewerName: 'Mike Johnson', score: 88, justification: 'Excellent system design thinking and architecture knowledge.' }
+            ]
+          }
+        ]
+      },
+      {
+        candidateId: 102,
+        candidateName: 'Omar Farooq',
+        candidateEmail: 'omar.farooq@example.com',
+        candidatePhone: '+92 300 333 4444',
+        rounds: [
+          {
+            roundId: 1,
+            roundName: 'Technical Round 1',
+            roundScore: 75,
+            interviewers: [
+              { interviewerId: 1, interviewerName: 'John Doe', score: 75, justification: 'Decent React knowledge but needs improvement in testing.' }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    jobId: 2,
+    jobTitle: 'Backend Engineer',
+    department: 'Engineering',
+    candidatesCount: 1,
+    candidates: [
+      {
+        candidateId: 201,
+        candidateName: 'Sara Ahmed',
+        candidateEmail: 'sara.ahmed@example.com',
+        candidatePhone: '+92 300 555 6666',
+        rounds: [
+          {
+            roundId: 1,
+            roundName: 'Technical Assessment',
+            roundScore: 92,
+            interviewers: [
+              { interviewerId: 4, interviewerName: 'Alice Brown', score: 95, justification: 'Outstanding Python and Django expertise. Strong database design.' },
+              { interviewerId: 5, interviewerName: 'Bob Wilson', score: 89, justification: 'Great API design skills and clean code practices.' }
+            ]
+          }
+        ]
+      }
+    ]
+  }
 ];
 
-const StatusPill: React.FC<{ status: Candidate['status'] }> = ({ status }) => {
-  if (status === 'onboarded') return <Badge className="bg-green-100 text-green-800">Onboarded</Badge>;
-  if (status === 'selected') return <Badge className="bg-blue-100 text-blue-800">Selected</Badge>;
-  return <Badge className="bg-gray-100 text-gray-700">Pending</Badge>;
-};
-
 const Onboarding: React.FC = () => {
-  const [query, setQuery] = useState('');
-  const [selectedOnly, setSelectedOnly] = useState(true);
+  const [jobs, setJobs] = useState<Job[]>(MOCK_JOBS);
+  const [expandedJobId, setExpandedJobId] = useState<number | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [showRoundDetails, setShowRoundDetails] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showOnboardModal, setShowOnboardModal] = useState(false);
+  const [closingJobId, setClosingJobId] = useState<number | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return DUMMY_CANDIDATES.filter(c => {
-      if (selectedOnly && c.status !== 'selected' && c.status !== 'onboarded') return false;
-      if (!q) return true;
-      return (
-        c.name.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        (c.phone || '').toLowerCase().includes(q) ||
-        c.role.toLowerCase().includes(q)
-      );
-    });
-  }, [query, selectedOnly]);
+  // Lottie animation (same pattern as EmployeeCard)
+  const lottieContainer = useRef<HTMLDivElement | null>(null);
+  const lottieAnimRef = useRef<any | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadLottie = async () => {
+      try {
+        const lottieModule = await import('lottie-web');
+        const lottie = (lottieModule as any).default || lottieModule;
+        if (lottieContainer.current && mounted) {
+          const anim = lottie.loadAnimation({
+            container: lottieContainer.current,
+            renderer: 'svg',
+            loop: true,
+            autoplay: true,
+            path: '/lottieFiles/selection.json',
+          });
+          lottieAnimRef.current = anim;
+        }
+      } catch (err) {
+        console.error('Failed to load selection lottie:', err);
+      }
+    };
+
+    loadLottie();
+
+    return () => {
+      mounted = false;
+      if (lottieAnimRef.current && typeof lottieAnimRef.current.destroy === 'function') {
+        lottieAnimRef.current.destroy();
+        lottieAnimRef.current = null;
+      }
+    };
+  }, []);
+
+  const toggleJobExpansion = (jobId: number) => {
+    setExpandedJobId(expandedJobId === jobId ? null : jobId);
+  };
+
+  const handleRoundDetailsClick = (candidate: Candidate) => {
+    setSelectedCandidate(candidate);
+    setShowRoundDetails(true);
+  };
+
+  const handleRejectClick = (candidate: Candidate) => {
+    setSelectedCandidate(candidate);
+    setShowRejectModal(true);
+  };
+
+  const handleOnboardClick = (candidate: Candidate) => {
+    setSelectedCandidate(candidate);
+    setShowOnboardModal(true);
+  };
+
+  const handleRejectConfirm = (justification: string) => {
+    if (!selectedCandidate) return;
+    
+    // Remove candidate from the job's candidate list
+    setJobs(prevJobs => 
+      prevJobs.map(job => ({
+        ...job,
+        candidates: job.candidates.filter(c => c.candidateId !== selectedCandidate.candidateId),
+        candidatesCount: job.candidates.filter(c => c.candidateId !== selectedCandidate.candidateId).length
+      }))
+    );
+    
+    setShowRejectModal(false);
+    setSelectedCandidate(null);
+  };
+
+  const handleOnboardConfirm = (salaryData: any) => {
+    // Process onboarding (UI flow only - no backend logic required)
+    console.log('Onboarding candidate:', selectedCandidate, 'with salary data:', salaryData);
+    setShowOnboardModal(false);
+    setSelectedCandidate(null);
+  };
+
+  const handleCloseJob = (jobId: number) => {
+    // show loader on the button, simulate API call and remove job
+    setClosingJobId(jobId);
+    setTimeout(() => {
+      setJobs(prev => prev.filter(j => j.jobId !== jobId));
+      setClosingJobId(null);
+    }, 900);
+  };
 
   return (
     <DashboardLayout>
-      <div className="p-6 lg:p-10 space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900">Onboarding — Selected Candidates</h1>
-          <p className="text-sm text-gray-600 mt-1">A snapshot of candidates marked for onboarding. This is a demo list with sample data.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="Search by name, email, role..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="pl-10 pr-4 w-80"
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        {/* Lottie Animation Hero — text aligned with animation (responsive) */}
+        <div className="w-full bg-gradient-to-r from-indigo-700 via-purple-700 to-blue-700" style={{ height: '25vh' }}>
+          <div className="max-w-7xl mx-auto w-full h-full px-4 flex flex-col-reverse md:flex-row items-center justify-between gap-6">
+            {/* Text block — left on md+, centered on small screens. Added subtle dark panel behind text for contrast. */}
+            <div className="md:w-1/2 w-full text-center md:text-left">
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold leading-tight text-white">Candidate Onboarding</h1>
+                <p className="mt-2 text-sm md:text-base lg:text-lg text-indigo-100/90">Review and manage selected candidates for each job position</p>
+            </div>
+
+            {/* Lottie container — right on md+, centered on small screens */}
+            <div
+              ref={lottieContainer}
+              className="md:w-1/2 w-full h-full flex items-center justify-center"
+              style={{ maxWidth: '500px' }}
             />
           </div>
-          <Button variant="ghost" onClick={() => { setSelectedOnly(s => !s); }}>
-            {selectedOnly ? 'Showing Selected' : 'Showing All'}
-          </Button>
+        </div>
+
+        {/* Job Cards Section */}
+        <div className="px-4 py-8 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-6" />
+
+            <div className="space-y-4">
+              {jobs.map((job) => (
+                <Card key={job.jobId} className="border-2 border-gray-200 hover:border-indigo-300 transition-colors">
+                  <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-xl text-gray-900">{job.jobTitle}</CardTitle>
+                        <div className="flex items-center gap-4 mt-2">
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                            {job.department}
+                          </Badge>
+                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                            <Users className="h-4 w-4" />
+                            <span>{job.candidatesCount} candidate{job.candidatesCount !== 1 ? 's' : ''}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCloseJob(job.jobId)}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-red-300 text-red-700 bg-red-50 hover:bg-red-100"
+                          disabled={closingJobId === job.jobId}
+                        >
+                          {closingJobId === job.jobId ? (
+                            <div className="w-4 h-4 border-2 border-red-700 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Trash className="h-4 w-4" />
+                          )}
+                          <span className="text-sm">Close Job</span>
+                        </button>
+
+                        <Button
+                          variant="outline"
+                          onClick={() => toggleJobExpansion(job.jobId)}
+                          className="flex items-center gap-2"
+                        >
+                          {expandedJobId === job.jobId ? (
+                            <>
+                              Hide Candidates
+                              <ChevronUp className="h-4 w-4" />
+                            </>
+                          ) : (
+                            <>
+                              View Candidates
+                              <ChevronDown className="h-4 w-4" />
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  {/* Expandable Candidate List */}
+                  <AnimatePresence>
+                    {expandedJobId === job.jobId && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                      >
+                        <CardContent className="pt-6">
+                          {job.candidates.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                              <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                              <p>No candidates available</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              {job.candidates.map((candidate) => (
+                                <div
+                                  key={candidate.candidateId}
+                                  className="flex items-center justify-between p-4 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow"
+                                >
+                                  <div className="flex-1">
+                                    <h3 className="text-lg font-semibold text-gray-900">
+                                      {candidate.candidateName}
+                                    </h3>
+                                    <p className="text-sm text-gray-600">{candidate.candidateEmail}</p>
+                                    {candidate.candidatePhone && (
+                                      <p className="text-sm text-gray-500">{candidate.candidatePhone}</p>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center gap-3">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleRoundDetailsClick(candidate)}
+                                      className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                                    >
+                                      Round Details
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleRejectClick(candidate)}
+                                      className="border-red-200 text-red-700 hover:bg-red-50"
+                                    >
+                                      Reject
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleOnboardClick(candidate)}
+                                      className="bg-green-600 hover:bg-green-700 text-white"
+                                    >
+                                      Onboard
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </Card>
+              ))}
+
+              {jobs.length === 0 && (
+                <div className="text-center py-20">
+                  <Users className="h-20 w-20 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No jobs available</h3>
+                  <p className="text-gray-500">There are no job positions with selected candidates</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      <Card className="shadow-lg border-0">
-        <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">New Joiners</CardTitle>
-            <div className="text-sm text-gray-600">{filtered.length} candidate{filtered.length !== 1 ? 's' : ''} shown</div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filtered.map(c => (
-              <div key={c.id} className="flex items-center gap-4 p-4 rounded-lg border hover:shadow transition">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold text-lg">
-                  {c.name.split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-medium text-gray-900">{c.name}</h3>
-                        <div className="hidden sm:block text-sm text-gray-500">• {c.role}</div>
-                      </div>
-                      <div className="text-sm text-gray-500 mt-1 flex items-center gap-3">
-                        <div className="flex items-center gap-1"><Mail className="w-3.5 h-3.5 text-gray-400" /> {c.email}</div>
-                        <div className="hidden md:flex items-center gap-1"><Phone className="w-3.5 h-3.5 text-gray-400" /> {c.phone}</div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <div className="flex items-center gap-2">
-                        <StatusPill status={c.status} />
-                      </div>
-                      <div className="text-xs text-gray-500 flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                        <span>{c.startDate ? new Date(c.startDate).toLocaleDateString() : 'TBD'}</span>
-                      </div>
-                    </div>
-                  </div>
-                  {c.note && <p className="text-sm text-gray-600 mt-2">{c.note}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {filtered.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              <User className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium mb-2">No candidates found</p>
-              <p className="text-sm">Try clearing the search or showing all candidates.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-        <Button className="bg-gradient-to-r from-green-600 to-emerald-500 text-white" onClick={() => alert('This is a demo page — onboarding flows are not wired yet')}> 
-          <CheckCircle className="w-4 h-4 mr-2" />
-          Bulk Mark Onboarded
-        </Button>
-      </div>
-      </div>
+      {/* Modals */}
+      {selectedCandidate && (
+        <>
+          <RoundDetailsModal
+            isOpen={showRoundDetails}
+            onClose={() => setShowRoundDetails(false)}
+            candidate={selectedCandidate}
+          />
+          <RejectCandidateModal
+            isOpen={showRejectModal}
+            onClose={() => setShowRejectModal(false)}
+            candidate={selectedCandidate}
+            onConfirm={handleRejectConfirm}
+          />
+          <OnboardCandidateModal
+            isOpen={showOnboardModal}
+            onClose={() => setShowOnboardModal(false)}
+            candidate={selectedCandidate}
+            onConfirm={handleOnboardConfirm}
+          />
+        </>
+      )}
     </DashboardLayout>
   );
 };

@@ -103,8 +103,8 @@ const Dasboard = () => {
             </div>
           </div>
 
-          {/* Stats cards - span full width */}
-          <div className="mt-3 sm:mt-4 md:mt-5">
+
+          {/* <div className="mt-3 sm:mt-4 md:mt-5">
             <div className="flex items-center justify-between mb-3 sm:mb-4 md:mb-5">
               <h2 className="text-base sm:text-lg md:text-xl font-bold">Recent activities</h2>
               <button className="flex items-center gap-1 sm:gap-1.5 rounded-md bg-primary/10 text-primary px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] xs:text-xs sm:text-sm font-medium transition-colors hover:bg-primary/20">
@@ -113,7 +113,6 @@ const Dasboard = () => {
               </button>
             </div>
 
-            {/* Stats cards in a responsive grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-5">
               <StatsCard
                 title="Monthly applications"
@@ -136,7 +135,7 @@ const Dasboard = () => {
                 variant="warning"
               />
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </DashboardLayout>

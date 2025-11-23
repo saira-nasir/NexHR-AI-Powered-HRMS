@@ -27,6 +27,16 @@ interface InterviewRound {
   scheduledDate?: Date;
   scheduledTime?: string;
   interviewer?: string;
+  // optional fuller fields returned by backend
+  interviewers?: any[];
+  meeting_link?: string | null;
+  round_name?: string;
+  round_type?: string;
+  round_mode?: string;
+  // backend wrapper/raw objects (may be present depending on API response shape)
+  raw?: any;
+  job?: any;
+  application?: any;
 }
 
 interface CandidateScheduleDrawerProps {
@@ -34,6 +44,16 @@ interface CandidateScheduleDrawerProps {
   onClose: () => void;
   candidate: Candidate | null;
   onScheduleRound: (round: InterviewRound) => void;
+  // scheduled rounds for the current candidate (optional)
+  scheduledRounds?: InterviewRound[];
+  // available round templates coming from backend (optional). If provided, use these to render round cards.
+  availableRounds?: InterviewRound[];
+  // Whether the parent is currently loading scheduled rounds for the candidate
+  scheduledLoading?: boolean;
+  // Create a new round button handler (opens modal in create mode)
+  onCreateRound?: () => void;
+  // Edit an existing round (open modal prefilled for editing)
+  onEditRound?: (round: InterviewRound) => void;
 }
 
 const CandidateScheduleDrawer: React.FC<CandidateScheduleDrawerProps> = ({
@@ -41,34 +61,14 @@ const CandidateScheduleDrawer: React.FC<CandidateScheduleDrawerProps> = ({
   onClose,
   candidate,
   onScheduleRound,
+  scheduledRounds = [],
+  availableRounds,
+  onCreateRound,
+  onEditRound,
+  scheduledLoading = false,
 }) => {
-  // Sample interview rounds - in production, fetch from API based on job requirements
-  const [interviewRounds] = useState<InterviewRound[]>([
-    {
-      id: 1,
-      name: 'Technical Round 1',
-      description: 'Initial technical screening with senior developer',
-      status: 'pending',
-    },
-    {
-      id: 2,
-      name: 'Technical Round 2',
-      description: 'Deep dive into technical skills and problem solving',
-      status: 'pending',
-    },
-    {
-      id: 3,
-      name: 'HR Round',
-      description: 'Cultural fit and HR discussion',
-      status: 'pending',
-    },
-    {
-      id: 4,
-      name: 'Managerial Round',
-      description: 'Final round with hiring manager',
-      status: 'pending',
-    },
-  ]);
+  // Show loading when parent is fetching scheduled rounds (received via prop)
+  // No hardcoded rounds here; expect `availableRounds` from parent (backend). If not provided, render only scheduled rounds section.
 
   // Lock body scroll when drawer is open
   useEffect(() => {
@@ -150,9 +150,14 @@ const CandidateScheduleDrawer: React.FC<CandidateScheduleDrawerProps> = ({
             <div className="flex-1 overflow-y-auto pt-8 px-6 md:px-8 pb-6">
               <div className="max-w-5xl mx-auto space-y-6">
                 {/* Header */}
-                <div className="mb-6">
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Schedule Interview</h2>
-                  <p className="text-gray-600">Review candidate details and schedule interview rounds</p>
+                <div className="mb-6 flex items-start justify-between">
+                  <div>
+                    <h2 className="text-3xl font-bold text-gray-900 mb-2">Schedule Interview</h2>
+                    <p className="text-gray-600">Review candidate details and schedule interview rounds</p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <Button onClick={() => onCreateRound && onCreateRound()} className="bg-indigo-600 text-white hover:bg-indigo-700">+ New Round</Button>
+                  </div>
                 </div>
 
                 {/* Candidate Details Card */}
@@ -210,69 +215,168 @@ const CandidateScheduleDrawer: React.FC<CandidateScheduleDrawerProps> = ({
                   </CardContent>
                 </Card>
 
-                {/* Interview Rounds Section */}
-                <div>
-                  <div className="mb-4">
-                    <h3 className="text-xl font-bold text-gray-900">Interview Rounds</h3>
-                    <p className="text-sm text-gray-600">Select a round to schedule the interview</p>
-                  </div>
+                  {/* If job/application data is available on scheduled rounds, show Job Details and richer candidate profile */}
+                  {scheduledRounds && scheduledRounds.length > 0 && (() => {
+                    // Try to extract job and application objects from the scheduled rounds items (they may be present under `raw` or directly)
+                    let jobObj: any = null;
+                    let appObj: any = null;
+                    for (const rr of scheduledRounds) {
+                      if (!rr) continue;
+                      if (rr.raw && rr.raw.job) jobObj = rr.raw.job;
+                      if (!jobObj && rr.job) jobObj = rr.job;
+                      if (rr.raw && rr.raw.application) appObj = rr.raw.application;
+                      if (!appObj && rr.application && typeof rr.application === 'object') appObj = rr.application;
+                      // some responses may nest under rr.raw.round/application
+                      if (!appObj && rr.raw && rr.raw.round && rr.raw.application) appObj = rr.raw.application;
+                      if (jobObj && appObj) break;
+                    }
 
-                  <div className="grid grid-cols-1 gap-4">
-                    {interviewRounds.map((round, index) => (
-                      <Card
-                        key={round.id}
-                        className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-200 bg-white"
-                      >
-                        <CardContent className="p-5">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-3">
-                                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-semibold text-sm">
-                                  {index + 1}
-                                </div>
-                                <h4 className="text-lg font-semibold text-gray-900">{round.name}</h4>
-                                <Badge variant="outline" className={getStatusColor(round.status)}>
-                                  {round.status.charAt(0).toUpperCase() + round.status.slice(1)}
-                                </Badge>
-                              </div>
-
-                              <p className="text-sm text-gray-600 ml-11">{round.description}</p>
-
-                              {round.status === 'scheduled' && round.scheduledDate && (
-                                <div className="ml-11 flex flex-wrap items-center gap-4 text-sm text-gray-700 mt-2">
-                                  <div className="flex items-center gap-1">
-                                    <Calendar className="h-4 w-4 text-indigo-600" />
-                                    <span>{round.scheduledDate.toLocaleDateString()}</span>
+                    return (
+                      <>
+                        {jobObj && (
+                          <Card className="border-0 shadow-sm bg-white">
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <h4 className="text-lg font-semibold text-gray-900">{jobObj.job_title || jobObj.title || jobObj.job_title}</h4>
+                                  <div className="text-sm text-gray-600">{jobObj.company_name || jobObj.company || ''} · {jobObj.location_type || jobObj.city || ''}</div>
+                                  <div className="mt-2 text-sm text-gray-700">{jobObj.description ? String(jobObj.description).slice(0, 220) : ''}</div>
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {Array.isArray(jobObj.required_skills) && jobObj.required_skills.slice(0, 6).map((s:any) => (
+                                      <Badge key={s.id || s.name} className="bg-gray-50 text-gray-700 border-gray-200">{s.name || s}</Badge>
+                                    ))}
                                   </div>
-                                  {round.scheduledTime && (
-                                    <div className="flex items-center gap-1">
-                                      <Clock className="h-4 w-4 text-indigo-600" />
-                                      <span>{round.scheduledTime}</span>
-                                    </div>
-                                  )}
-                                  {round.interviewer && (
-                                    <div className="flex items-center gap-1">
-                                      <User className="h-4 w-4 text-indigo-600" />
-                                      <span>{round.interviewer}</span>
-                                    </div>
+                                </div>
+                                <div className="text-right">
+                                  {(jobObj.salary_from || jobObj.salary_to) && (
+                                    <div className="text-sm font-semibold text-gray-900">{jobObj.currency ? `${jobObj.currency} ` : ''}{jobObj.salary_from || ''}{jobObj.salary_to ? ` - ${jobObj.salary_to}` : ''}</div>
                                   )}
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
 
-                            <Button
-                              onClick={() => onScheduleRound(round)}
-                              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 flex-shrink-0"
-                              disabled={round.status === 'completed'}
-                            >
-                              {round.status === 'scheduled' ? 'Reschedule' : 'Schedule Round'}
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                        {appObj && (
+                          <Card className="border-0 shadow-sm bg-white">
+                            <CardContent className="p-4">
+                              <h4 className="text-lg font-semibold text-gray-900 mb-2">Candidate Profile</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <div className="text-sm text-gray-600 font-medium">Skills</div>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {Array.isArray(appObj.skills) && appObj.skills.length > 0 ? (
+                                      appObj.skills.map((s:any) => (
+                                        <Badge key={s.id || s.name} className="bg-gray-50 text-gray-700 border-gray-200">{s.name || s}</Badge>
+                                      ))
+                                    ) : (
+                                      <div className="text-sm text-gray-500">No skills listed</div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-sm text-gray-600 font-medium">Experience</div>
+                                  <div className="mt-2">
+                                    {Array.isArray(appObj.experiences) && appObj.experiences.length > 0 ? (
+                                      appObj.experiences.map((e:any) => (
+                                        <div key={e.id} className="text-sm text-gray-700">{e.previous_job_titles || e.company_name || ''} · {e.years_of_experience || ''} yrs</div>
+                                      ))
+                                    ) : (
+                                      <div className="text-sm text-gray-500">No experience details</div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-sm text-gray-600 font-medium">Education</div>
+                                  <div className="mt-2">
+                                    {Array.isArray(appObj.educations) && appObj.educations.length > 0 ? (
+                                      appObj.educations.map((ed:any) => (
+                                        <div key={ed.id} className="text-sm text-gray-700">{ed.institution_name} · {ed.degree_detail || ed.education_level}</div>
+                                      ))
+                                    ) : (
+                                      <div className="text-sm text-gray-500">No education listed</div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </>
+                    )
+                  })()}
+
+                {/* Scheduled Interviews (candidate-specific) */}
+                {scheduledLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <svg className="animate-spin h-8 w-8 text-indigo-600" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    <span className="ml-3 text-sm text-gray-600">Loading scheduled interviews...</span>
                   </div>
-                </div>
+                ) : (
+                  scheduledRounds && scheduledRounds.length > 0 ? (
+                    <div className="mb-6">
+                      <div className="mb-4">
+                        <h3 className="text-xl font-bold text-gray-900">Scheduled Interviews</h3>
+                        <p className="text-sm text-gray-600">Existing scheduled interviews for this candidate</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        {scheduledRounds.map((r) => (
+                          <Card key={r.id} className="border-0 shadow-sm bg-white">
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-900">{r.name}</div>
+                                  <div className="text-xs text-gray-600">{r.description}</div>
+                                  <div className="mt-2 flex items-center gap-3 text-sm text-gray-700">
+                                    {r.scheduledDate && (
+                                      <div className="flex items-center gap-1">
+                                        <Calendar className="h-4 w-4 text-indigo-600" />
+                                        <span>{new Date(r.scheduledDate).toLocaleString()}</span>
+                                      </div>
+                                    )}
+                                    {r.scheduledTime && (
+                                      <div className="flex items-center gap-1">
+                                        <Clock className="h-4 w-4 text-indigo-600" />
+                                        <span>{r.scheduledTime}</span>
+                                      </div>
+                                    )}
+                                    {r.interviewers && r.interviewers.length > 0 && (
+                                      <div className="flex items-center gap-1">
+                                        <User className="h-4 w-4 text-indigo-600" />
+                                        <span>{r.interviewers.map((iv:any)=> iv.user_name || iv.user || '').filter(Boolean).join(', ')}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge className="bg-blue-100 text-blue-700">Scheduled</Badge>
+                                  <button
+                                    aria-label="Edit scheduled round"
+                                    onClick={() => onEditRound && onEditRound(r)}
+                                    className="p-2 rounded-md hover:bg-gray-100"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor">
+                                      <path d="M17.414 2.586a2 2 0 010 2.828L8.828 14H6v-2.828l8.586-8.586a2 2 0 012.828 0z" />
+                                      <path d="M2 13.5V18h4.5L17.807 6.693a1 1 0 00-1.414-1.414L5 16.586V13.5H2z" fillRule="evenodd" clipRule="evenodd" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null
+                )}
+
+                {/* Interview Rounds list removed — only Scheduled Interviews are shown here per request */}
               </div>
             </div>
           </motion.div>

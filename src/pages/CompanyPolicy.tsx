@@ -159,12 +159,11 @@ const CompanyPolicy: React.FC = () => {
             </div>
           </div>
 
-          <aside className="bg-white rounded-lg shadow p-6">
+          {/* <aside className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold mb-3">Policy Library</h3>
             <p className="text-sm text-gray-600 mb-4">Previously uploaded policies will appear here so team members can download or view them quickly.</p>
 
             <div className="space-y-3">
-              {/* Mocked items: In a real app, fetch from API */}
               <div className="flex items-start justify-between border rounded p-3">
                 <div>
                   <div className="font-medium">Employee Handbook 2024.pdf</div>
@@ -189,7 +188,7 @@ const CompanyPolicy: React.FC = () => {
                 </div>
               </div>
             </div>
-          </aside>
+          </aside> */}
         </div>
       </div>
     </DashboardLayout>
