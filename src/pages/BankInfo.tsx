@@ -42,13 +42,27 @@ const BankInfo: React.FC = () => {
   useEffect(() => {
     const fetchBankInfo = async () => {
       try {
+        const userId = getUserId();
+        if (!userId) {
+          setLoading(false);
+          return;
+        }
+        
+        // Fetch bank info filtered by current user's employee ID
         const data = await payrollService.listBankInfo();
-        if (data && Array.isArray(data) && data.length > 0) {
-          // If we get an array, take the first bank info record
-          setBankInfo(data[0]);
+        
+        if (data && Array.isArray(data)) {
+          // Find bank info for current user
+          const userBankInfo = data.find((bi: any) => bi.employee === userId);
+          if (userBankInfo) {
+            setBankInfo(userBankInfo);
+          }
         } else if (data && typeof data === 'object' && !Array.isArray(data)) {
-          // If we get a single object
-          setBankInfo(data);
+          // If we get a single object, check if it belongs to current user
+          const bankData = data as any;
+          if (bankData.employee === userId) {
+            setBankInfo(bankData);
+          }
         }
       } catch (error) {
         console.log('No existing bank info found, will create new one');
@@ -66,17 +80,20 @@ const BankInfo: React.FC = () => {
     setSaving(true);
     
     try {
+      const userId = getUserId();
+      if (!userId) {
+        throw new Error('User ID not found. Please log in again.');
+      }
+      
       // If bankInfo has an id, it means we're updating existing data
       if (bankInfo.id) {
-        await payrollService.updateBankInfo(bankInfo.id, bankInfo);
+        await payrollService.updateBankInfo(bankInfo.id, {
+          ...bankInfo,
+          employee: userId
+        });
         toast.success('Bank information updated successfully');
       } else {
         // Create new bank info - ensure employee ID is provided
-        const userId = getUserId();
-        if (!userId) {
-          throw new Error('User ID not found. Please log in again.');
-        }
-        
         const bankInfoWithEmployee = {
           ...bankInfo,
           employee: userId
@@ -84,6 +101,15 @@ const BankInfo: React.FC = () => {
         
         await payrollService.createBankInfo(bankInfoWithEmployee);
         toast.success('Bank information saved successfully');
+      }
+      
+      // Refresh bank info after save
+      const data = await payrollService.listBankInfo();
+      if (data && Array.isArray(data)) {
+        const userBankInfo = data.find((bi: any) => bi.employee === userId);
+        if (userBankInfo) {
+          setBankInfo(userBankInfo);
+        }
       }
     } catch (error: any) {
       console.error('Bank info save error:', error);

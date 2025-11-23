@@ -368,6 +368,33 @@ const payrollService = {
     const { data } = await api.get<EmployeeBankInfo[]>(`${BASE}/bank-info/`);
     return data;
   },
+  
+  // Get bank info for a specific employee
+  getBankInfo: async (employeeId: number) => {
+    const { data } = await api.get<EmployeeBankInfo>(`${BASE}/bank-info/?employee=${employeeId}`);
+    // Backend might return array or single object
+    if (Array.isArray(data)) {
+      return data.find(bi => bi.employee === employeeId) || null;
+    }
+    return data;
+  },
+  
+  // Create bank info
+  createBankInfo: async (payload: Omit<EmployeeBankInfo, 'id'>) => {
+    const { data } = await api.post<EmployeeBankInfo>(`${BASE}/bank-info/`, payload);
+    return data;
+  },
+  
+  // Update bank info
+  updateBankInfo: async (id: number, payload: Partial<EmployeeBankInfo>) => {
+    const { data } = await api.patch<EmployeeBankInfo>(`${BASE}/bank-info/${id}/`, payload);
+    return data;
+  },
+  
+  // Delete bank info
+  deleteBankInfo: async (id: number) => {
+    await api.delete(`${BASE}/bank-info/${id}/`);
+  },
 
   /* ---------------- Loans & Expenses ---------------- */
   listLoans: async () => {
