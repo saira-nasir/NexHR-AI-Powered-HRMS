@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Calendar as CalendarIcon, Plus, CheckCircle, XCircle, Camera, CheckCircle2, RefreshCw } from 'lucide-react'; // Removed unused icons
+import { Clock, Calendar as CalendarIcon, Plus, CheckCircle, XCircle, Camera, CheckCircle2, RefreshCw, UserCheck } from 'lucide-react'; // Removed unused icons
 import { toast } from 'sonner';
 import { AttendanceCalendar } from '@/components/attendance/AttendanceCalendar';
 import { TimeCard, TimeCardData } from '@/components/attendance/TimeCard';
@@ -17,6 +17,11 @@ import { AttendanceDetailModal } from '@/components/attendance/AttendanceDetailM
 import { EmployeeProfile } from '@/components/attendance/EmployeeProfile';
 import { WebcamCapture } from '@/components/attendance/WebcamCapture';
 import type { AttendanceStatus } from '@/components/attendance/StatusBadge';
+import payrollService, { LeaveRecord } from '@/services/payrollService';
+import { employeeService, Employee } from '@/services/employeeService';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/store';
+import { getUserRole, ROLES } from '@/utils/roleUtils';
 
 // --- Interfaces ---
 interface Attendance {
@@ -65,6 +70,11 @@ const AttendanceLeave: React.FC = () => {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [attendanceLoading, setAttendanceLoading] = useState(true);
   const [leavesLoading, setLeavesLoading] = useState(true);
+  
+  // Get current user from Redux store to check role
+  const user = useSelector((state: RootState) => state.auth.user);
+  const userRole = getUserRole(user);
+  const isHR = userRole === ROLES.HR;
 
   // UI State
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
@@ -93,6 +103,11 @@ const AttendanceLeave: React.FC = () => {
 
   const fetchInProgress = useRef(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  
+  // Leave Approval State (for HR)
+  const [allLeaves, setAllLeaves] = useState<LeaveRecord[]>([]);
+  const [allLeavesLoading, setAllLeavesLoading] = useState(false);
+  const [employeesMap, setEmployeesMap] = useState<Map<number, Employee>>(new Map());
 
   // --- Helpers ---
 
@@ -301,6 +316,45 @@ const AttendanceLeave: React.FC = () => {
     fetchLeaves();
   }, []);
 
+  // Fetch all leaves for HR approval tab (HR sees all leaves including their own)
+  const fetchAllLeaves = async () => {
+    try {
+      setAllLeavesLoading(true);
+      // Call without employee filter - backend should return all leaves for HR role
+      const data = await payrollService.listLeaves();
+      // Ensure we have an array and include ALL leaves (no filtering by employee)
+      // This allows HR to see and approve leaves from all employees including themselves
+      setAllLeaves(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to fetch all leaves:', error);
+      toast.error('Failed to fetch leave requests');
+    } finally {
+      setAllLeavesLoading(false);
+    }
+  };
+
+  // Fetch employees for name mapping
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const employees = await employeeService.getEmployees();
+        const map = new Map<number, Employee>();
+        employees.forEach(emp => map.set(emp.id, emp));
+        setEmployeesMap(map);
+      } catch (error) {
+        console.error('Failed to fetch employees:', error);
+      }
+    };
+    fetchEmployees();
+  }, []);
+
+  // Fetch all leaves when component mounts (for HR view only)
+  useEffect(() => {
+    if (isHR) {
+      fetchAllLeaves();
+    }
+  }, [isHR]);
+
   // --- Handlers ---
 
   const handleLeaveSubmit = async (e: React.FormEvent) => {
@@ -315,12 +369,73 @@ const AttendanceLeave: React.FC = () => {
       toast.success('Leave application submitted');
       setOpen(false);
       setFormData({ leave_type: 'Casual', from_date: '', to_date: '' });
+      // Fetch and properly filter leaves for current user only
       const data = await apiGet(`/payroll/leaves/?employee=${employee}`);
-      setLeaves(data);
+      const filtered = Array.isArray(data) ? data.filter((l: Leave) => l.employee === employee) : [];
+      setLeaves(filtered);
+      // Refresh all leaves for HR approval tab (includes HR's own leave)
+      await fetchAllLeaves();
     } catch (error) {
       toast.error('Failed to submit leave application');
     }
   };
+
+  // Handle leave approval (HR only)
+  const handleApproveLeave = async (leaveId: number) => {
+    try {
+      await payrollService.approveLeave(leaveId);
+      toast.success('Leave approved successfully');
+      await fetchAllLeaves();
+      // Also refresh user's own leaves
+      const userId = getUserId();
+      if (userId) {
+        const data = await apiGet(`/payroll/leaves/?employee=${userId}`);
+        setLeaves(Array.isArray(data) ? data.filter((l: Leave) => l.employee === userId) : []);
+      }
+    } catch (error: any) {
+      console.error('Approve leave failed:', error);
+      toast.error('Failed to approve leave', {
+        description: error.response?.data?.detail || 'Please try again'
+      });
+    }
+  };
+
+  // Handle leave rejection (HR only)
+  const handleRejectLeave = async (leaveId: number) => {
+    try {
+      await payrollService.rejectLeave(leaveId);
+      toast.success('Leave rejected successfully');
+      await fetchAllLeaves();
+      // Also refresh user's own leaves
+      const userId = getUserId();
+      if (userId) {
+        const data = await apiGet(`/payroll/leaves/?employee=${userId}`);
+        setLeaves(Array.isArray(data) ? data.filter((l: Leave) => l.employee === userId) : []);
+      }
+    } catch (error: any) {
+      console.error('Reject leave failed:', error);
+      toast.error('Failed to reject leave', {
+        description: error.response?.data?.detail || 'Please try again'
+      });
+    }
+  };
+
+  // Get employee name from ID
+  const getEmployeeName = (employeeId: number): string => {
+    const employee = employeesMap.get(employeeId);
+    if (employee) {
+      const firstName = employee.fname || employee.first_name || employee.firstName || '';
+      const lastName = employee.lname || employee.last_name || employee.lastName || '';
+      const fullName = `${firstName} ${lastName}`.trim();
+      return fullName || employee.name || employee.email || `Employee #${employeeId}`;
+    }
+    return `Employee #${employeeId}`;
+  };
+
+  // Get pending leaves for approval tab
+  const pendingLeaves = useMemo(() => {
+    return allLeaves.filter(leave => leave.status === 'PENDING');
+  }, [allLeaves]);
 
   // --- Face Recognition Check-In ---
   const handleCheckIn = async (file: File | Blob) => {
@@ -526,13 +641,18 @@ const AttendanceLeave: React.FC = () => {
         </div>
 
         <Tabs defaultValue="attendance" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 rounded-xl">
+          <TabsList className={`grid w-full ${isHR ? 'grid-cols-3' : 'grid-cols-2'} bg-muted/50 p-1 rounded-xl`}>
             <TabsTrigger value="attendance" className="rounded-lg">
               <CalendarIcon className="mr-2 h-4 w-4" /> Attendance
             </TabsTrigger>
             <TabsTrigger value="leave" className="rounded-lg">
               <CalendarIcon className="mr-2 h-4 w-4" /> Leave
             </TabsTrigger>
+            {isHR && (
+              <TabsTrigger value="leave-approval" className="rounded-lg">
+                <UserCheck className="mr-2 h-4 w-4" /> Leave Approval
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="attendance" className="space-y-6">
@@ -795,6 +915,158 @@ const AttendanceLeave: React.FC = () => {
                 </div>
              )}
           </TabsContent>
+
+          {isHR && (
+            <TabsContent value="leave-approval" className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold">Leave Approval</h2>
+                <p className="text-muted-foreground">Review and approve or reject employee leave requests</p>
+              </div>
+
+            {pendingLeaves.length > 0 && (
+              <Card className="border-l-4 border-l-amber-500">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-amber-600" />
+                    Pending Leave Requests ({pendingLeaves.length})
+                  </CardTitle>
+                  <CardDescription>Review and approve or reject employee leave applications</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {pendingLeaves.map((leave) => (
+                      <div key={leave.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-4 mb-2">
+                            <h3 className="font-semibold">{getEmployeeName(leave.employee)}</h3>
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Pending Review</Badge>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <p className="text-muted-foreground">Leave Type</p>
+                              <p className="font-medium">{leave.leave_type}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">From Date</p>
+                              <p className="font-medium">{new Date(leave.from_date).toLocaleDateString()}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">To Date</p>
+                              <p className="font-medium">{new Date(leave.to_date).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                          {leave.reason && (
+                            <div className="mt-2 text-sm">
+                              <p className="text-muted-foreground">Reason:</p>
+                              <p className="font-medium">{leave.reason}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2 ml-4">
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleApproveLeave(leave.id)} 
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />Approve
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive" 
+                            onClick={() => handleRejectLeave(leave.id)}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>All Leave Requests</CardTitle>
+                <CardDescription>Complete history of all employee leave requests</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {allLeavesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="h-6 w-6 animate-spin text-primary mr-2" />
+                    <span className="text-muted-foreground">Loading leave requests...</span>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left p-4">Employee</th>
+                          <th className="text-left p-4">Leave Type</th>
+                          <th className="text-left p-4">From Date</th>
+                          <th className="text-left p-4">To Date</th>
+                          <th className="text-left p-4">Status</th>
+                          <th className="text-left p-4">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allLeaves.map((leave) => (
+                          <tr key={leave.id} className="border-b border-border hover:bg-muted/50">
+                            <td className="p-4 font-medium">{getEmployeeName(leave.employee)}</td>
+                            <td className="p-4">{leave.leave_type}</td>
+                            <td className="p-4">{new Date(leave.from_date).toLocaleDateString()}</td>
+                            <td className="p-4">{new Date(leave.to_date).toLocaleDateString()}</td>
+                            <td className="p-4">
+                              <Badge 
+                                variant={
+                                  leave.status === 'APPROVED' ? 'secondary' : 
+                                  leave.status === 'REJECTED' ? 'destructive' : 
+                                  'outline'
+                                }
+                                className="capitalize"
+                              >
+                                {leave.status}
+                              </Badge>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex gap-2">
+                                {leave.status === 'PENDING' && (
+                                  <>
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline" 
+                                      onClick={() => handleApproveLeave(leave.id)}
+                                      className="text-green-600 hover:text-green-700"
+                                    >
+                                      <CheckCircle className="h-4 w-4"/>
+                                    </Button>
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline" 
+                                      onClick={() => handleRejectLeave(leave.id)}
+                                      className="text-red-600 hover:text-red-700"
+                                    >
+                                      <XCircle className="h-4 w-4"/>
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {allLeaves.length === 0 && (
+                      <div className="text-center p-8 text-muted-foreground">
+                        No leave requests found.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>

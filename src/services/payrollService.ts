@@ -107,6 +107,7 @@ export interface LeaveRecord {
   to_date: string;
   approved_by?: number | null;
   status: "PENDING" | "APPROVED" | "REJECTED";
+  reason?: string | null;
 }
 
 export interface Notification {
@@ -318,6 +319,22 @@ const payrollService = {
   // Leaves
   listLeaves: async () => {
     const { data } = await api.get<LeaveRecord[]>(`${BASE}/leaves/`);
+    return data;
+  },
+  
+  // Approve leave (HR only) - uses manage-status endpoint
+  approveLeave: async (id: number) => {
+    const { data } = await api.patch<LeaveRecord>(`${BASE}/leaves/${id}/manage-status/`, {
+      status: 'APPROVED'
+    });
+    return data;
+  },
+  
+  // Reject leave (HR only) - uses manage-status endpoint
+  rejectLeave: async (id: number) => {
+    const { data } = await api.patch<LeaveRecord>(`${BASE}/leaves/${id}/manage-status/`, {
+      status: 'REJECTED'
+    });
     return data;
   },
 
