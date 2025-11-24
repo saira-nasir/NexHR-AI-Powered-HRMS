@@ -507,9 +507,43 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
                   // Update form data synchronously first
                   handleInputChange('employee', value);
 
-                  // Check bank info asynchronously without blocking the UI
+                  // Auto-select salary structure if available
                   if (value && value !== 'none') {
                     const empId = parseInt(value);
+                    const empStructure = salaryStructures.find(s => s.employee === empId);
+                    
+                    if (empStructure) {
+                        console.log('✅ [PayrollCreateModal] Found salary structure for employee:', empStructure);
+                        handleInputChange('salary_structure', empStructure.id.toString());
+                        
+                        // Populate fields from structure
+                        const basicPay = parseFloat(empStructure.basic_pay) || 0;
+                        const allowances = parseFloat(empStructure.allowances) || 0;
+                        const deductions = parseFloat(empStructure.deductions) || 0;
+                        const tax = parseFloat(empStructure.tax) || 0;
+                        
+                        const gross = basicPay + allowances;
+                        const totalDeductions = deductions + tax; // Assuming total deductions includes tax
+                        
+                        setFormData(prev => ({
+                            ...prev,
+                            employee: value,
+                            salary_structure: empStructure.id.toString(),
+                            gross_salary: gross.toFixed(2),
+                            total_deductions: totalDeductions.toFixed(2),
+                            tax_amount: tax.toFixed(2),
+                            statutory_deductions: '0.00' // Default or calculate if needed
+                        }));
+                        
+                        toast({
+                            title: "Info",
+                            description: "Salary structure and fields autofilled.",
+                        });
+                    } else {
+                        console.log('⚠️ [PayrollCreateModal] No salary structure found for employee:', empId);
+                    }
+
+                    // Check bank info asynchronously without blocking the UI
                     // Use setTimeout to make this non-blocking
                     setTimeout(async () => {
                       if (!employeesWithBankInfo.has(empId)) {
@@ -599,7 +633,30 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
               <Label htmlFor="salary_structure">Salary Structure</Label>
               <Select
                 value={formData.salary_structure}
-                onValueChange={(value) => handleInputChange('salary_structure', value)}
+                onValueChange={(value) => {
+                    handleInputChange('salary_structure', value);
+                    
+                    if (value && value !== 'none') {
+                        const structure = salaryStructures.find(s => s.id.toString() === value);
+                        if (structure) {
+                            const basicPay = parseFloat(structure.basic_pay) || 0;
+                            const allowances = parseFloat(structure.allowances) || 0;
+                            const deductions = parseFloat(structure.deductions) || 0;
+                            const tax = parseFloat(structure.tax) || 0;
+                            
+                            const gross = basicPay + allowances;
+                            const totalDeductions = deductions + tax;
+                            
+                            setFormData(prev => ({
+                                ...prev,
+                                salary_structure: value,
+                                gross_salary: gross.toFixed(2),
+                                total_deductions: totalDeductions.toFixed(2),
+                                tax_amount: tax.toFixed(2)
+                            }));
+                        }
+                    }
+                }}
                 disabled={salaryStructuresLoading}
               >
                 <SelectTrigger id="salary_structure" name="salary_structure">

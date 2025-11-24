@@ -91,12 +91,39 @@ export const employeeService = {
                         normalizedDepartment: normalized.department,
                         fullUser: user
                     });
-                    allEmployees.set(normalized.id, normalized);
+                    
+                    if (!isNaN(normalized.id)) {
+                        allEmployees.set(normalized.id, normalized);
+                    } else {
+                        console.warn('⚠️ Skipping employee with invalid ID:', user);
+                    }
                 });
                 
                 console.log('👥 Company users added to collection');
             } catch (error) {
                 console.warn('❌ Failed to fetch from /company-users/:', error);
+            }
+
+            // 1.5. Try /auth/users/ if we have no employees yet or as a fallback
+            if (allEmployees.size === 0) {
+                try {
+                    console.log('📡 Fetching from /auth/users/ (fallback)...');
+                    const authUsersResponse = await api.get('/auth/users/');
+                    console.log('✅ Success with /auth/users/:', authUsersResponse.status);
+                    
+                    const authUsers = Array.isArray(authUsersResponse.data) ? authUsersResponse.data : authUsersResponse.data?.results || [];
+                    console.log(`📊 Found ${authUsers.length} users from /auth/users/`);
+                    
+                    authUsers.forEach((user: any) => {
+                        const normalized = normalizeEmployee(user);
+                        if (!isNaN(normalized.id) && !allEmployees.has(normalized.id)) {
+                            allEmployees.set(normalized.id, normalized);
+                            console.log(`✅ Added fallback user from /auth/users/: ${normalized.id}`);
+                        }
+                    });
+                } catch (error) {
+                    console.warn('❌ Failed to fetch from /auth/users/:', error);
+                }
             }
             
             // 2. Try payroll-related endpoints for additional employee data

@@ -117,15 +117,15 @@ export interface Notification {
   created_at: string;
   is_read: boolean;
   // Added optional field for navigation, used in NotificationsDropdown
-  target_url?: string | null; 
+  target_url?: string | null;
 }
 
 // Type for Paginated API responses (required after backend pagination was added)
 interface PaginatedResponse<T> {
-    count: number;
-    next: string | null;
-    previous: string | null;
-    results: T[];
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
 }
 
 
@@ -321,7 +321,7 @@ const payrollService = {
     const { data } = await api.get<LeaveRecord[]>(`${BASE}/leaves/`);
     return data;
   },
-  
+
   // Approve leave (HR only) - uses manage-status endpoint
   approveLeave: async (id: number) => {
     const { data } = await api.patch<LeaveRecord>(`${BASE}/leaves/${id}/manage-status/`, {
@@ -329,7 +329,7 @@ const payrollService = {
     });
     return data;
   },
-  
+
   // Reject leave (HR only) - uses manage-status endpoint
   rejectLeave: async (id: number) => {
     const { data } = await api.patch<LeaveRecord>(`${BASE}/leaves/${id}/manage-status/`, {
@@ -345,13 +345,13 @@ const payrollService = {
     const { data } = await api.get<PaginatedResponse<Notification>>(`${BASE}/notifications/`);
     return data;
   },
-  
+
   // Mark as Read (already existed)
   markNotificationAsRead: async (id: number) => {
     const { data } = await api.patch<Notification>(`${BASE}/notifications/${id}/`, { is_read: true });
     return data;
   },
-  
+
   // Create Notification (already existed)
   createNotification: async (payload: Omit<Notification, "id" | "created_at" | "is_read">) => {
     const { data } = await api.post<Notification>(`${BASE}/notifications/`, payload);
@@ -368,7 +368,7 @@ const payrollService = {
     const { data } = await api.get<EmployeeBankInfo[]>(`${BASE}/bank-info/`);
     return data;
   },
-  
+
   // Get bank info for a specific employee
   getBankInfo: async (employeeId: number) => {
     const { data } = await api.get<EmployeeBankInfo>(`${BASE}/bank-info/?employee=${employeeId}`);
@@ -378,19 +378,19 @@ const payrollService = {
     }
     return data;
   },
-  
+
   // Create bank info
   createBankInfo: async (payload: Omit<EmployeeBankInfo, 'id'>) => {
     const { data } = await api.post<EmployeeBankInfo>(`${BASE}/bank-info/`, payload);
     return data;
   },
-  
+
   // Update bank info
   updateBankInfo: async (id: number, payload: Partial<EmployeeBankInfo>) => {
     const { data } = await api.patch<EmployeeBankInfo>(`${BASE}/bank-info/${id}/`, payload);
     return data;
   },
-  
+
   // Delete bank info
   deleteBankInfo: async (id: number) => {
     await api.delete(`${BASE}/bank-info/${id}/`);
@@ -401,9 +401,47 @@ const payrollService = {
     const { data } = await api.get<Loan[]>(`${BASE}/loans/`);
     return data;
   },
+  createLoan: async (payload: Omit<Loan, "id" | "remaining_balance" | "status" | "requested_on" | "approved_on">) => {
+    const { data } = await api.post<Loan>(`${BASE}/loans/`, payload);
+    return data;
+  },
+  updateLoan: async (id: number, payload: Partial<Loan>) => {
+    const { data } = await api.patch<Loan>(`${BASE}/loans/${id}/`, payload);
+    return data;
+  },
+  approveLoan: async (id: number) => {
+    const { data } = await api.patch<Loan>(`${BASE}/loans/${id}/`, { status: "APPROVED" });
+    return data;
+  },
+  deleteLoan: async (id: number) => {
+    await api.delete(`${BASE}/loans/${id}/`);
+  },
   listExpenses: async () => {
     const { data } = await api.get<Expense[]>(`${BASE}/expenses/`);
     return data;
+  },
+  getExpense: async (id: number) => {
+    const { data } = await api.get<Expense>(`${BASE}/expenses/${id}/`);
+    return data;
+  },
+  createExpense: async (payload: Omit<Expense, "id" | "status" | "submitted_on" | "reviewed_on">) => {
+    const { data } = await api.post<Expense>(`${BASE}/expenses/`, payload);
+    return data;
+  },
+  updateExpense: async (id: number, payload: Partial<Expense>) => {
+    const { data } = await api.patch<Expense>(`${BASE}/expenses/${id}/`, payload);
+    return data;
+  },
+  approveExpense: async (id: number) => {
+    const { data } = await api.patch<Expense>(`${BASE}/expenses/${id}/`, { status: "APPROVED" });
+    return data;
+  },
+  rejectExpense: async (id: number) => {
+    const { data } = await api.patch<Expense>(`${BASE}/expenses/${id}/`, { status: "REJECTED" });
+    return data;
+  },
+  deleteExpense: async (id: number) => {
+    await api.delete(`${BASE}/expenses/${id}/`);
   },
 
   /* ---------------- Bulk Payments ---------------- */
@@ -414,11 +452,7 @@ const payrollService = {
 
   /**
    * Create bulk payment.
-   * Backend requires `payrolls` as non-empty list. This helper will:
-   * - if payload.payrolls is present and non-empty, POST as-is
-   * - otherwise, if payload.period_start & period_end given, will try to fetch
-   * payrolls for that period and use their ids
-   * Make sure `total_amount` is a number or string acceptable to backend.
+   * FIX: Ensure payroll IDs are converted to integers for robust backend processing.
    */
   createBulkPayment: async (payload: {
     payrolls?: number[]; // optional - we will auto-detect if missing
@@ -427,14 +461,16 @@ const payrollService = {
     total_amount?: number | string;
   }) => {
     let payIds = payload.payrolls;
+
+    // If payrolls array is missing/empty, try to auto-resolve by fetching payrolls in the period
     if (!Array.isArray(payIds) || payIds.length === 0) {
-      // try to auto-resolve by fetching payrolls in the period
       if (payload.period_start && payload.period_end) {
         const all = await payrollService.listPayrollsWithEmployees().catch(() => []);
         const filtered = (all || []).filter((p) => {
           return p.period_start >= payload.period_start && p.period_end <= payload.period_end;
         });
-        payIds = filtered.map((p) => p.id);
+        // FIX: Explicitly map and cast IDs to integers to prevent "Invalid payroll IDs." error
+        payIds = filtered.map((p) => Number(p.id)).filter(id => Number.isInteger(id) && id > 0);
       }
     }
 
@@ -449,6 +485,14 @@ const payrollService = {
     if (payload.total_amount != null) {
       postPayload.total_amount = String(payload.total_amount);
     }
+    // Pass period_start/end if available, though backend may default if not present
+    if (payload.period_start) {
+      postPayload.period_start = payload.period_start;
+    }
+    if (payload.period_end) {
+      postPayload.period_end = payload.period_end;
+    }
+
 
     const { data } = await api.post<BulkPaymentLog>(`${BASE}/bulk-payments/`, postPayload);
     return data;
@@ -458,11 +502,13 @@ const payrollService = {
     const { data } = await api.get<BulkPaymentLog & Record<string, unknown>>(`${BASE}/bulk-payments/${id}/`);
     return data;
   },
+
+  // Action to confirm payment (changes status from PROCESSING to COMPLETED)
   confirmBulkPayment: async (id: number) => {
     const { data } = await api.post<BulkPaymentLog>(`${BASE}/bulk-payments/${id}/confirm/`);
     return data;
   },
-  
+
   /* ---------------- Stripe Checkout ---------------- */
   createCheckoutSession: async (payrollId: number) => {
     try {
@@ -500,6 +546,31 @@ const payrollService = {
   listStatutoryDeductions: async () => {
     const { data } = await api.get<StatutoryDeduction[]>(`${BASE}/statutory-deductions/`);
     return data;
+  },
+  createStatutoryDeduction: async (payload: Omit<StatutoryDeduction, "id" | "created_at" | "updated_at">) => {
+    const { data } = await api.post<StatutoryDeduction>(`${BASE}/statutory-deductions/`, payload);
+    return data;
+  },
+  updateStatutoryDeduction: async (id: number, payload: Partial<StatutoryDeduction>) => {
+    const { data } = await api.patch<StatutoryDeduction>(`${BASE}/statutory-deductions/${id}/`, payload);
+    return data;
+  },
+  deleteStatutoryDeduction: async (id: number) => {
+    await api.delete(`${BASE}/statutory-deductions/${id}/`);
+  },
+
+  createTaxBracket: async (payload: Omit<TaxBracket, "id" | "created_at" | "updated_at">) => {
+    const { data } = await api.post<TaxBracket>(`${BASE}/tax-brackets/`, payload);
+    return data;
+  },
+
+  updateTaxBracket: async (id: number, payload: Partial<TaxBracket>) => {
+    const { data } = await api.patch<TaxBracket>(`${BASE}/tax-brackets/${id}/`, payload);
+    return data;
+  },
+
+  deleteTaxBracket: async (id: number) => {
+    await api.delete(`${BASE}/tax-brackets/${id}/`);
   },
 };
 
