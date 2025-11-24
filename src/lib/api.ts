@@ -83,21 +83,23 @@ api.interceptors.response.use(
       if (error.message === 'Network Error' && originalRequest?.url) {
         const requestUrl = (originalRequest.baseURL || '') + originalRequest.url;
         if (requestUrl.includes('127.0.0.1') || requestUrl.includes('localhost')) {
-          toast({
-            title: "Local Server Connection Error",
-            description: "Cannot connect to your local development server. Make sure your Django server is running and CORS is configured correctly.",
-            variant: "destructive",
-          });
+          // Removed repetitive toast - errors should be handled at component level
+          // toast({
+          //   title: "Local Server Connection Error",
+          //   description: "Cannot connect to your local development server. Make sure your Django server is running and CORS is configured correctly.",
+          //   variant: "destructive",
+          // });
           console.error('CORS ERROR HELP: Make sure your Django server has django-cors-headers installed and properly configured.');
           return Promise.reject(error);
         }
       }
       
-      toast({
-        title: "Network Error",
-        description: "Cannot connect to the server. Please check your connection and try again.",
-        variant: "destructive",
-      });
+      // Removed global network error toast - let components handle their own errors
+      // toast({
+      //   title: "Network Error",
+      //   description: "Cannot connect to the server. Please check your connection and try again.",
+      //   variant: "destructive",
+      // });
       return Promise.reject(error);
     }
     

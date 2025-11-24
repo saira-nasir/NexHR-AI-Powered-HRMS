@@ -36,7 +36,13 @@ interface ScheduleInterviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   candidate: Candidate | null;
-  onSave: (candidateId: string, interviewers: number[], date: Date | undefined, time: string) => Promise<void>;
+  onSave: (candidateId: string, interviewers: number[], date: Date | undefined, time: string, roundMeta?: { id?: number | string; name?: string; type?: string; mode?: string; meeting_link?: string | null }) => Promise<void>;
+  // optional round metadata (name/description) to prefill modal when scheduling a specific round
+  round?: {
+    id?: number | string;
+    name?: string;
+    description?: string;
+  } | null;
 }
 
 const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
@@ -44,6 +50,7 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
   onClose,
   candidate,
   onSave,
+  round = null,
 }) => {
   // Company users for interviewer dropdown
   const [companyUsers, setCompanyUsers] = useState<Array<{ id: number; fname: string; lname: string; email: string }>>([]);
@@ -53,6 +60,10 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
   const [selectedInterviewers, setSelectedInterviewers] = useState<number[]>([]);
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
   const [scheduleTime, setScheduleTime] = useState<string>("");
+  const [roundName, setRoundName] = useState<string>(round?.name || "");
+  const [roundType, setRoundType] = useState<string>("Technical");
+  const [roundMode, setRoundMode] = useState<string>((round && (round as any).type) ? 'online' : 'online');
+  const [meetingLink, setMeetingLink] = useState<string>("");
   const [schedulingInProgress, setSchedulingInProgress] = useState(false);
   
   const lottieContainer = useRef<HTMLDivElement | null>(null);
@@ -81,11 +92,71 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     fetchCompanyUsers();
   }, [isOpen]);
 
-  // Pre-populate fields when candidate changes and modal opens
+  // Pre-populate fields when candidate or round changes and modal opens
+  // NOTE: this effect intentionally does NOT depend on `companyUsers` to avoid
+  // overwriting user edits (typing) if the users list is updated while the modal is open.
   useEffect(() => {
     if (!isOpen || !candidate) return;
 
-    // Try to preselect interviewer(s) by matching names if present
+    // When editing a round, prefill from round data
+    if (round && round.id) {
+      // Prefill round metadata
+      setRoundName((round as any).round_name || round.name || '');
+      setRoundType((round as any).round_type || (round as any).type || 'Technical');
+      setRoundMode((round as any).round_mode || (round as any).mode || 'online');
+      setMeetingLink((round as any).meeting_link || '');
+
+      // Prefill date and time from round
+      if ((round as any).scheduledDate) {
+        const date = (round as any).scheduledDate;
+        setScheduleDate(date instanceof Date ? date : new Date(date));
+      } else if ((round as any).date) {
+        setScheduleDate(new Date((round as any).date));
+      }
+
+      if ((round as any).scheduledTime) {
+        // scheduledTime may be "14:30:00" or "14:30", normalize to HH:mm for input[type=time]
+        const time = (round as any).scheduledTime;
+        setScheduleTime(time.length > 5 ? time.slice(0, 5) : time);
+      } else if ((round as any).time) {
+        const time = (round as any).time;
+        setScheduleTime(time.length > 5 ? time.slice(0, 5) : time);
+      }
+
+      // Prefill interviewers from round.interviewers array
+      if ((round as any).interviewers && Array.isArray((round as any).interviewers)) {
+        const interviewerIds = (round as any).interviewers.map((iv: any) => {
+          // interviewer object may have { id, user, user_name } or just be a number
+          if (typeof iv === 'number') return iv;
+          if (iv.id) return iv.id;
+          if (iv.user) return iv.user;
+          return null;
+        }).filter((id: any) => id !== null);
+        setSelectedInterviewers(interviewerIds);
+      }
+    } else {
+      // Creating a new round: initialize fields from candidate where available.
+      // We do NOT attempt to match interviewer names to company users here because
+      // that requires `companyUsers` which may load async; a separate effect will
+      // run when `companyUsers` loads to preselect interviewers when appropriate.
+      setSelectedInterviewers([]);
+      setScheduleDate(candidate.interviewDate);
+      setScheduleTime(candidate.interviewTime || "");
+      setRoundName('');
+      setRoundType('Technical');
+      setRoundMode('online');
+      setMeetingLink('');
+    }
+  }, [isOpen, candidate, round]);
+
+  // When companyUsers finish loading (or change), if we are creating a new round
+  // and the candidate has interviewer names, try to match them to company user ids
+  // and preselect them. This runs separately so updates to companyUsers don't
+  // reset other form inputs like roundName while the user is typing.
+  useEffect(() => {
+    if (!isOpen || round || !candidate) return;
+    if (!companyUsers || companyUsers.length === 0) return;
+
     const matchedIds: number[] = [];
     if (candidate.interviewer) {
       const names = candidate.interviewer.split(/,|;/).map(s => s.trim());
@@ -94,10 +165,11 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
         if (found) matchedIds.push(found.id);
       });
     }
-    setSelectedInterviewers(matchedIds);
-    setScheduleDate(candidate.interviewDate);
-    setScheduleTime(candidate.interviewTime || "");
-  }, [isOpen, candidate, companyUsers]);
+
+    if (matchedIds.length > 0) {
+      setSelectedInterviewers(matchedIds);
+    }
+  }, [companyUsers, isOpen, candidate, round]);
 
   // Load lottie when modal opens
   useEffect(() => {
@@ -146,6 +218,10 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     setSelectedInterviewers([]);
     setScheduleDate(undefined);
     setScheduleTime("");
+    setRoundName("");
+    setRoundType("Technical");
+    setRoundMode("online");
+    setMeetingLink("");
     setSchedulingInProgress(false);
     if (lottieAnimRef.current && typeof lottieAnimRef.current.destroy === 'function') {
       lottieAnimRef.current.destroy();
@@ -159,7 +235,7 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     setSchedulingInProgress(true);
 
     try {
-      await onSave(candidate.id, selectedInterviewers, scheduleDate, scheduleTime);
+  await onSave(candidate.id, selectedInterviewers, scheduleDate, scheduleTime, { id: round?.id, name: roundName, type: roundType, mode: roundMode, meeting_link: meetingLink || null });
       // Brief success delay then close
       await new Promise((res) => setTimeout(res, 400));
       handleClose();
@@ -200,6 +276,36 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
         </div>
 
         <div className="border-t pt-6 space-y-6">
+          {/* Round name, type, mode & meeting link (new fields) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="roundName" className="text-sm font-semibold text-gray-700">Round Name</Label>
+              <Input id="roundName" value={roundName} onChange={(e) => setRoundName(e.target.value)} placeholder="e.g. Technical Round 1" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="roundType" className="text-sm font-semibold text-gray-700">Round Type</Label>
+              <select id="roundType" value={roundType} onChange={(e) => setRoundType(e.target.value)} className="w-full h-10 rounded-md border border-gray-200 px-3">
+                <option>Technical</option>
+                <option>HR</option>
+                <option>Managerial</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+            <div className="space-y-2">
+              <Label htmlFor="roundMode" className="text-sm font-semibold text-gray-700">Round Mode</Label>
+              <select id="roundMode" value={roundMode} onChange={(e) => setRoundMode(e.target.value)} className="w-full h-10 rounded-md border border-gray-200 px-3">
+                <option value="online">Online</option>
+                <option value="onsite">Onsite</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="meetingLink" className="text-sm font-semibold text-gray-700">Meeting Link (optional)</Label>
+              <Input id="meetingLink" value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="https://zoom.us/..." />
+            </div>
+          </div>
           {/* Interviewer Selection */}
           <div className="space-y-2">
             <Label htmlFor="interviewers" className="text-sm font-semibold text-gray-700">
@@ -395,12 +501,12 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             {schedulingInProgress ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Scheduling...
+                {round && round.id ? 'Updating...' : 'Scheduling...'}
               </>
             ) : (
               <>
                 <CheckCircle className="h-4 w-4 mr-2" />
-                Save & Schedule
+                {round && round.id ? 'Update Round' : 'Save & Schedule'}
               </>
             )}
           </Button>

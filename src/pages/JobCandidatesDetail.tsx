@@ -69,6 +69,11 @@ const JobCandidatesDetail: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [schedulingCandidate, setSchedulingCandidate] = useState<Candidate | null>(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [schedulingRound, setSchedulingRound] = useState<any | null>(null);
+
+  // Store scheduled rounds per candidate id so drawer can display them
+  const [scheduledRoundsByCandidate, setScheduledRoundsByCandidate] = useState<Record<string, any[]>>({});
+  const [scheduledRoundsLoading, setScheduledRoundsLoading] = useState<boolean>(false);
 
   // Shortlist selector: show top N candidates by similarity score
   const [shortlistCount, setShortlistCount] = useState<number>(0);
@@ -153,6 +158,47 @@ const JobCandidatesDetail: React.FC = () => {
   const openDrawer = (candidate: Candidate) => {
     setSelectedCandidate(candidate);
     setIsDrawerOpen(true);
+    // fetch scheduled rounds for this candidate from API
+    (async () => {
+      setScheduledRoundsLoading(true);
+      try {
+        const appId = candidate.id; // assuming candidate.id is application id
+        const resp = await applicationService.getInterviewRounds(appId as any);
+        if (resp.success && resp.data) {
+          // resp.data may be array of rounds or objects wrapping under 'rounds' or 'results'
+          const rawData: any = resp.data;
+          const rounds = Array.isArray(rawData) ? rawData : (rawData.rounds || rawData.results || [rawData]);
+          // normalize rounds for UI and omit meeting_link from display; keep full interviewers array
+          const normalized = rounds.map((r: any) => ({
+            id: r.id || r.pk,
+            application: r.application,
+            seq_number: r.seq_number,
+            name: r.round_name,
+            round_name: r.round_name,
+            round_type: r.round_type,
+            round_mode: r.round_mode,
+            description: r.description || '',
+            type: r.round_type,
+            status: r.round_state || 'scheduled',
+            scheduledDate: r.date ? new Date(r.date) : undefined,
+            scheduledTime: r.time || undefined,
+            interviewers: Array.isArray(r.interviewers) ? r.interviewers : [],
+            // keep meeting_link in data but we won't display it
+            meeting_link: r.meeting_link || null,
+            raw: r,
+          }));
+
+          setScheduledRoundsByCandidate(prev => ({ ...prev, [candidate.id]: normalized }));
+        } else {
+          setScheduledRoundsByCandidate(prev => ({ ...prev, [candidate.id]: [] }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch scheduled rounds for candidate:', err);
+        setScheduledRoundsByCandidate(prev => ({ ...prev, [candidate.id]: [] }));
+      } finally {
+        setScheduledRoundsLoading(false);
+      }
+    })();
   };
 
   const closeDrawer = () => {
@@ -164,6 +210,21 @@ const JobCandidatesDetail: React.FC = () => {
   const handleScheduleRound = (round: any) => {
     // Keep drawer open and open modal
     setSchedulingCandidate(selectedCandidate);
+    setSchedulingRound(round || null);
+    setIsScheduleModalOpen(true);
+  };
+
+  // Create a new round (opened from drawer New Round button)
+  const handleCreateRound = () => {
+    setSchedulingCandidate(selectedCandidate);
+    setSchedulingRound(null);
+    setIsScheduleModalOpen(true);
+  };
+
+  // Edit an existing round (opened from drawer Edit icon)
+  const handleEditRound = (round: any) => {
+    setSchedulingCandidate(selectedCandidate);
+    setSchedulingRound(round || null);
     setIsScheduleModalOpen(true);
   };
 
@@ -172,16 +233,112 @@ const JobCandidatesDetail: React.FC = () => {
     setSchedulingCandidate(null);
   };
 
-  const handleScheduleSave = async (candidateId: string, interviewers: number[], date: Date | undefined, time: string) => {
-    // Simulate API save delay; replace with real API call when endpoint is available
-    await new Promise((res) => setTimeout(res, 900));
+  const handleScheduleSave = async (candidateId: string, interviewers: number[], date: Date | undefined, time: string, roundMeta?: { id?: number | string; name?: string; type?: string }) => {
+    // Call backend API to create/update interview round
+    try {
+      // Determine seq_number: if editing, reuse existing seq_number if present; otherwise next index
+      const prevList = scheduledRoundsByCandidate[candidateId] || [];
+      let seq_number = prevList.length + 1;
+      if (roundMeta && roundMeta.id) {
+        const existing = prevList.find(r => String(r.id) === String(roundMeta.id));
+        // @ts-ignore
+        if (existing && (existing.seq_number || existing.seq_number === 0)) seq_number = existing.seq_number;
+      }
 
-    // For now, we'll just log - in production, you'd call an API here
-    console.log('Saving schedule for candidate:', candidateId, {
-      interviewers,
-      date,
-      time,
-    });
+      const payload: any = {
+        application: Number(candidateId) || candidateId,
+        seq_number,
+        round_name: roundMeta?.name || schedulingRound?.name || `Round ${seq_number}`,
+        round_type: (roundMeta?.type || schedulingRound?.type || 'technical').toString().toLowerCase(),
+        round_mode: (roundMeta && (roundMeta as any).mode) || 'online',
+        date: date ? (date instanceof Date ? date.toISOString().slice(0, 10) : String(date)) : undefined,
+        time: time ? (time.length === 5 ? `${time}:00` : time) : undefined,
+        meeting_link: (roundMeta && (roundMeta as any).meeting_link) || null,
+        interviewers: interviewers || [],
+      };
+
+      console.debug('Creating interview round payload:', payload);
+
+      let resp: any = null;
+      if ((schedulingRound && schedulingRound.id) || (roundMeta && roundMeta.id)) {
+        const roundId = (roundMeta && (roundMeta as any).id) || schedulingRound.id;
+        // PATCH existing round
+        const patchPayload: any = {};
+        if (roundMeta?.name) patchPayload.round_name = roundMeta.name;
+        if (roundMeta?.type) patchPayload.round_type = roundMeta.type.toLowerCase();
+        if (roundMeta && (roundMeta as any).mode) patchPayload.round_mode = (roundMeta as any).mode;
+        if (roundMeta && (roundMeta as any).meeting_link !== undefined) patchPayload.meeting_link = (roundMeta as any).meeting_link;
+        if (date) patchPayload.date = date instanceof Date ? date.toISOString().slice(0, 10) : String(date);
+        if (time) patchPayload.time = time.length === 5 ? `${time}:00` : time;
+        // Include interviewers in PATCH (API will add/remove based on the list)
+        if (interviewers && interviewers.length > 0) patchPayload.interviewers = interviewers;
+        
+        console.debug('PATCH interview round payload:', patchPayload);
+        resp = await applicationService.patchInterviewRound(roundId, patchPayload);
+        if (resp.success && resp.data) {
+          const updated = resp.data;
+          const updatedRound: any = {
+            id: updated.id || updated.pk || roundId,
+            name: updated.round_name || roundMeta?.name || schedulingRound?.name,
+            round_name: updated.round_name || roundMeta?.name || schedulingRound?.name,
+            description: updated.description || schedulingRound?.description || '',
+            type: updated.round_type || schedulingRound?.type || roundMeta?.type,
+            round_type: updated.round_type || schedulingRound?.type || roundMeta?.type,
+            round_mode: updated.round_mode || (roundMeta as any)?.mode || schedulingRound?.round_mode || 'online',
+            seq_number: updated.seq_number || seq_number,
+            status: updated.round_state || 'scheduled',
+            scheduledDate: updated.date ? new Date(updated.date) : (date || undefined),
+            scheduledTime: updated.time || (time || undefined),
+            // Store full interviewers array for display in drawer
+            interviewers: updated.interviewers || [],
+            meeting_link: updated.meeting_link || (roundMeta as any)?.meeting_link || null,
+          };
+
+          setScheduledRoundsByCandidate(prev => {
+            const prevList = prev[candidateId] || [];
+            const existsIndex = prevList.findIndex(r => String(r.id) === String(updatedRound.id));
+            if (existsIndex >= 0) {
+              const copy = [...prevList];
+              copy[existsIndex] = { ...copy[existsIndex], ...updatedRound };
+              return { ...prev, [candidateId]: copy };
+            }
+            return { ...prev, [candidateId]: [...prevList, updatedRound] };
+          });
+        } else {
+          console.error('Failed to patch interview round:', resp.message);
+        }
+      } else {
+        resp = await applicationService.createInterviewRound(payload);
+        if (resp.success && resp.data) {
+          const created = resp.data;
+          const createdRound: any = {
+            id: created.id || created.pk || Date.now(),
+            name: created.round_name || payload.round_name,
+            round_name: created.round_name || payload.round_name,
+            description: created.description || schedulingRound?.description || '',
+            type: created.round_type || payload.round_type,
+            round_type: created.round_type || payload.round_type,
+            round_mode: created.round_mode || payload.round_mode || 'online',
+            seq_number: created.seq_number || seq_number,
+            status: 'scheduled',
+            scheduledDate: created.date ? new Date(created.date) : (date || undefined),
+            scheduledTime: created.time || (time || undefined),
+            // Store full interviewers array for display in drawer
+            interviewers: created.interviewers || [],
+            meeting_link: created.meeting_link || payload.meeting_link || null,
+          };
+
+          setScheduledRoundsByCandidate(prev => {
+            const prevList = prev[candidateId] || [];
+            return { ...prev, [candidateId]: [...prevList, createdRound] };
+          });
+        } else {
+          console.error('Failed to create interview round:', resp.message);
+        }
+      }
+    } catch (err) {
+      console.error('Error while creating interview round:', err);
+    }
 
     // Optionally update local state if needed
     // setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, interviewer: '...', interviewDate: date, interviewTime: time } : c));
@@ -421,6 +578,10 @@ const JobCandidatesDetail: React.FC = () => {
             onClose={closeDrawer}
             candidate={selectedCandidate}
             onScheduleRound={handleScheduleRound}
+            scheduledRounds={selectedCandidate ? scheduledRoundsByCandidate[selectedCandidate.id] || [] : []}
+            onCreateRound={handleCreateRound}
+            onEditRound={handleEditRound}
+            scheduledLoading={scheduledRoundsLoading}
           />
 
           {/* Schedule Interview Modal */}
@@ -429,6 +590,7 @@ const JobCandidatesDetail: React.FC = () => {
             onClose={closeScheduleModal}
             candidate={schedulingCandidate}
             onSave={handleScheduleSave}
+            round={schedulingRound}
           />
         </div>
       </div>

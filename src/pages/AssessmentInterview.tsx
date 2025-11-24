@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { googleAuthService } from '@/services/googleAuth';
 import { applicationService } from '@/services/jobPortalservice';
 import GoogleCalendarConnectButton from '@/components/auth/GoogleCalendarConnectButton';
-import { RefreshCw, AlertCircle, CalendarIcon, Clock, Users, Briefcase, BarChart3, Search, X, MapPin, Eye, ChevronRight, CheckCircle, Download, Filter, SlidersHorizontal, Calendar as CalendarFilter } from 'lucide-react';
+import { RefreshCw, AlertCircle, CalendarIcon, Clock, Users, Briefcase, BarChart3, Search, X, MapPin, Eye, ChevronRight, CheckCircle, Download, Filter, SlidersHorizontal, Calendar as CalendarFilter, Loader2 } from 'lucide-react';
 import DashboardLayout from "@/layouts/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -266,67 +266,67 @@ const AssessmentAndInterview: React.FC = () => {
   return (
     <DashboardLayout>
       <Tabs value={activeView} onValueChange={(v) => setActiveView(v as 'assessment' | 'interview')}>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600">
-          <div className="absolute inset-0 bg-black/10 z-0" />
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-1/2 -left-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl"></div>
-          </div>
-          <div className="relative z-10 px-4 py-8 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-xl">
-                    <BarChart3 className="h-8 w-8 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-tight">Interview Management</h1>
-                    <p className="text-indigo-100 mt-1 text-sm sm:text-base">Manage job postings and schedule candidate interviews</p>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-                <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-indigo-100 text-xs sm:text-sm font-medium">Active Jobs</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.filter(j => j.status === 'active').length}</p>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+          <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600">
+            <div className="absolute inset-0 bg-black/10 z-0" />
+            <div className="absolute inset-0 overflow-hidden">
+              <div className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+              <div className="absolute -bottom-1/2 -left-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl"></div>
+            </div>
+            <div className="relative z-10 px-4 py-8 sm:px-6 lg:px-8">
+              <div className="max-w-7xl mx-auto">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-xl">
+                      <BarChart3 className="h-8 w-8 text-white" />
                     </div>
-                    <Briefcase className="h-8 w-8 text-indigo-200" />
-                  </div>
-                </div>
-                <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-indigo-100 text-xs sm:text-sm font-medium">Total Applicants</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.reduce((sum, j) => sum + j.totalApplicants, 0)}</p>
+                      <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-tight">Interview Management</h1>
+                      <p className="text-indigo-100 mt-1 text-sm sm:text-base">Manage job postings and schedule candidate interviews</p>
                     </div>
-                    <Users className="h-8 w-8 text-indigo-200" />
                   </div>
                 </div>
-                <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-indigo-100 text-xs sm:text-sm font-medium">Shortlisted</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.reduce((sum, j) => sum + j.shortlisted, 0)}</p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-indigo-100 text-xs sm:text-sm font-medium">Active Jobs</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.filter(j => j.status === 'active').length}</p>
+                      </div>
+                      <Briefcase className="h-8 w-8 text-indigo-200" />
                     </div>
-                    <CheckCircle className="h-8 w-8 text-indigo-200" />
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-indigo-100 text-xs sm:text-sm font-medium">Total Applicants</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.reduce((sum, j) => sum + j.totalApplicants, 0)}</p>
+                      </div>
+                      <Users className="h-8 w-8 text-indigo-200" />
+                    </div>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-indigo-100 text-xs sm:text-sm font-medium">Shortlisted</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.reduce((sum, j) => sum + j.shortlisted, 0)}</p>
+                      </div>
+                      <CheckCircle className="h-8 w-8 text-indigo-200" />
+                    </div>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-indigo-100 text-xs sm:text-sm font-medium">Selected</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.reduce((sum, j) => sum + j.selected, 0)}</p>
+                      </div>
+                      <CheckCircle className="h-8 w-8 text-indigo-200" />
+                    </div>
                   </div>
                 </div>
-                <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-indigo-100 text-xs sm:text-sm font-medium">Selected</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.reduce((sum, j) => sum + j.selected, 0)}</p>
-                    </div>
-                    <CheckCircle className="h-8 w-8 text-indigo-200" />
-                  </div>
-                </div>
-              </div>
 
-              {/* Tabs */}
-              {/* <TabsList className="bg-white/10 backdrop-blur-sm border border-white/20 p-1">
+                {/* Tabs */}
+                {/* <TabsList className="bg-white/10 backdrop-blur-sm border border-white/20 p-1">
                 <TabsTrigger value="assessment" className="data-[state=active]:bg-white data-[state=active]:text-indigo-600 text-white">
                   <Briefcase className="h-4 w-4 mr-2" />
                   Assessments
@@ -338,118 +338,118 @@ const AssessmentAndInterview: React.FC = () => {
                   <Badge className="ml-2 bg-white/20 text-white data-[state=active]:bg-purple-100 data-[state=active]:text-purple-700">{jobs.reduce((sum, j) => sum + j.interviewed, 0)}</Badge>
                 </TabsTrigger>
               </TabsList> */}
-            </div>
-          </div>
-        </div>
-
-        {/* Filters and Search */}
-        <div className="sticky top-0 z-20 bg-white border-b shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input type="text" placeholder="Search jobs by title, department, or location..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 h-11 bg-gray-50 border-gray-200 focus:bg-white" />
-                  {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 transform -translate-y-1/2"><X className="h-4 w-4 text-gray-400 hover:text-gray-600" /></button>}
-                </div>
-                <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className={`h-11 ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : ''}`}>
-                  <SlidersHorizontal className="h-4 w-4 mr-2" />
-                  Filters
-                  {(statusFilter !== "all" || departmentFilter !== "all" || dateRange.from) && (
-                    <Badge className="ml-2 bg-indigo-600 text-white">Active</Badge>
-                  )}
-                </Button>
               </div>
-
-              {showFilters && (
-                <div className="bg-gray-50 rounded-lg p-4 space-y-3 border border-gray-200">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Status</label>
-                      <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="h-10 bg-white">
-                          <SelectValue placeholder="All Statuses" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Statuses</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="closed">Closed</SelectItem>
-                          <SelectItem value="draft">Draft</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Department</label>
-                      <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                        <SelectTrigger className="h-10 bg-white">
-                          <SelectValue placeholder="All Departments" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Departments</SelectItem>
-                          {allDepartments.map((dept) => (
-                            <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Date Range</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className="h-10 w-full justify-start bg-white">
-                            <CalendarFilter className="mr-2 h-4 w-4" />
-                            {dateRange.from ? (
-                              dateRange.to ? (
-                                `${format(dateRange.from, "MMM dd")} - ${format(dateRange.to, "MMM dd")}`
-                              ) : (
-                                format(dateRange.from, "MMM dd, yyyy")
-                              )
-                            ) : (
-                              "Select date range"
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="range"
-                            selected={{ from: dateRange.from, to: dateRange.to }}
-                            onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
-                            numberOfMonths={2}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-
-                  {(statusFilter !== "all" || departmentFilter !== "all" || dateRange.from) && (
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                      <p className="text-sm text-gray-600">{filteredJobs.length} jobs match your filters</p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setStatusFilter("all");
-                          setDepartmentFilter("all");
-                          setDateRange({});
-                        }}
-                        className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                      >
-                        <X className="h-4 w-4 mr-1" />
-                        Clear all filters
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
-        </div>
-        {/* Content Area */}
-        <div className="px-4 py-6 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto">
-            {/*
+
+          {/* Filters and Search */}
+          <div className="sticky top-0 z-20 bg-white border-b shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Input type="text" placeholder="Search jobs by title, department, or location..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 h-11 bg-gray-50 border-gray-200 focus:bg-white" />
+                    {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 transform -translate-y-1/2"><X className="h-4 w-4 text-gray-400 hover:text-gray-600" /></button>}
+                  </div>
+                  <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className={`h-11 ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : ''}`}>
+                    <SlidersHorizontal className="h-4 w-4 mr-2" />
+                    Filters
+                    {(statusFilter !== "all" || departmentFilter !== "all" || dateRange.from) && (
+                      <Badge className="ml-2 bg-indigo-600 text-white">Active</Badge>
+                    )}
+                  </Button>
+                </div>
+
+                {showFilters && (
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-3 border border-gray-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Status</label>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger className="h-10 bg-white">
+                            <SelectValue placeholder="All Statuses" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Statuses</SelectItem>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="closed">Closed</SelectItem>
+                            <SelectItem value="draft">Draft</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Department</label>
+                        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                          <SelectTrigger className="h-10 bg-white">
+                            <SelectValue placeholder="All Departments" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Departments</SelectItem>
+                            {allDepartments.map((dept) => (
+                              <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Date Range</label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="h-10 w-full justify-start bg-white">
+                              <CalendarFilter className="mr-2 h-4 w-4" />
+                              {dateRange.from ? (
+                                dateRange.to ? (
+                                  `${format(dateRange.from, "MMM dd")} - ${format(dateRange.to, "MMM dd")}`
+                                ) : (
+                                  format(dateRange.from, "MMM dd, yyyy")
+                                )
+                              ) : (
+                                "Select date range"
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="range"
+                              selected={{ from: dateRange.from, to: dateRange.to }}
+                              onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
+                              numberOfMonths={2}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+
+                    {(statusFilter !== "all" || departmentFilter !== "all" || dateRange.from) && (
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                        <p className="text-sm text-gray-600">{filteredJobs.length} jobs match your filters</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setStatusFilter("all");
+                            setDepartmentFilter("all");
+                            setDateRange({});
+                          }}
+                          className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Clear all filters
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          {/* Content Area */}
+          <div className="px-4 py-6 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto">
+              {/*
               Assessment content commented out.
               To re-enable the Assessment tab and its data fetching logic, uncomment
               the block below and restore the fetch useEffect above.
@@ -459,75 +459,140 @@ const AssessmentAndInterview: React.FC = () => {
             </TabsContent>
             */}
 
-            <TabsContent value="interview">
-              <Card className="shadow-xl border-0">
-                <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-purple-50">
-                  <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <Users className="h-5 w-5 text-purple-600" />
-                    Interview Jobs ({filteredJobs.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-gray-50/50">
-                          <TableHead className="font-semibold">Job Title</TableHead>
-                          <TableHead className="font-semibold">Department</TableHead>
-                          <TableHead className="font-semibold">Location</TableHead>
-                          <TableHead className="font-semibold">Posted Date</TableHead>
-                          <TableHead className="font-semibold">Status</TableHead>
-                          <TableHead className="font-semibold text-center">Shortlisted</TableHead>
-                          <TableHead className="font-semibold text-center">Interviewed</TableHead>
-                          <TableHead className="font-semibold text-center">Selected</TableHead>
-                          <TableHead className="font-semibold text-center">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredJobs.length > 0 ? filteredJobs.map((job) => (
-                          <TableRow key={job.id} className="hover:bg-gray-50/50">
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className="bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-lg h-10 w-10 flex items-center justify-center"><Users className="h-5 w-5" /></div>
-                                <div>
-                                  <p className="font-semibold text-gray-900">{job.title}</p>
-                                  <p className="text-xs text-gray-500">{job.type}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell><Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{job.department}</Badge></TableCell>
-                            <TableCell><div className="flex items-center gap-1 text-sm text-gray-600"><MapPin className="h-3 w-3" />{job.location}</div></TableCell>
-                            <TableCell><div className="flex items-center gap-1 text-sm text-gray-600"><Clock className="h-3 w-3" />{format(job.postedDate, "MMM dd, yyyy")}</div></TableCell>
-                            <TableCell>{getStatusBadge(job.status)}</TableCell>
-                            <TableCell className="text-center"><Badge className="bg-blue-100 text-blue-700 font-semibold">{job.shortlisted}</Badge></TableCell>
-                            <TableCell className="text-center"><Badge className="bg-purple-100 text-purple-700 font-semibold">{job.interviewed}</Badge></TableCell>
-                            <TableCell className="text-center"><Badge className="bg-green-100 text-green-700 font-semibold">{job.selected}</Badge></TableCell>
-                            <TableCell>
-                              <div className="flex items-center justify-center">
-                                <Button size="sm" onClick={() => handleViewJob(job.id)} className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"><Eye className="h-4 w-4 mr-2" />View Candidates<ChevronRight className="h-4 w-4 ml-1" /></Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )) : (
-                          <TableRow>
-                            <TableCell colSpan={9} className="text-center py-12">
-                              <div className="flex flex-col items-center gap-2">
-                                <Users className="h-12 w-12 text-gray-300" />
-                                <p className="text-gray-500 font-medium">No jobs found</p>
-                                <p className="text-sm text-gray-400">Try adjusting your search or filters</p>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+              <TabsContent value="interview" className="mt-6">
+                <Card className="shadow-sm border border-slate-200 bg-white overflow-hidden rounded-xl">
+                  <CardHeader className="border-b border-slate-100 bg-white px-6 py-5">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <div className="p-2 bg-indigo-50 rounded-lg border border-indigo-100">
+                          <Briefcase className="h-5 w-5 text-indigo-600" />
+                        </div>
+                        Interview Jobs <span className="text-slate-400 font-normal ml-1 text-base">({filteredJobs.length})</span>
+                      </CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {isLoadingJobs ? (
+                      <div className="flex flex-col items-center justify-center py-20">
+                        <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mb-3" />
+                        <p className="text-slate-500 font-medium">Loading your jobs...</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 border-b border-slate-100">
+                              <TableHead className="pl-6 h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[300px]">Job Role</TableHead>
+                              <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider">Department</TableHead>
+                              <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider">Location</TableHead>
+                              <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider">Posted</TableHead>
+                              <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</TableHead>
+                              <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Pipeline</TableHead>
+                              <TableHead className="pr-6 h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Action</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredJobs.length > 0 ? filteredJobs.map((job) => (
+                              <TableRow key={job.id} className="group hover:bg-slate-50/80 transition-colors border-b border-slate-50 last:border-0">
+                                <TableCell className="pl-6 py-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="mt-1 h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs shrink-0">
+                                      {job.title.substring(0, 2).toUpperCase()}
+                                    </div>
+                                    <div>
+                                      <p className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">{job.title}</p>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <Badge variant="secondary" className="rounded-md px-1.5 py-0 text-[10px] font-medium bg-slate-100 text-slate-600 border-slate-200">
+                                          {job.type}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-4">
+                                  <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                                    {job.department}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-4">
+                                  <div className="flex items-center gap-1.5 text-sm text-slate-500">
+                                    <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                                    {job.location}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-4">
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-slate-700">{format(job.postedDate, "MMM dd, yyyy")}</span>
+                                    <span className="text-xs text-slate-400">Published</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-4">
+                                  {getStatusBadge(job.status)}
+                                </TableCell>
+                                <TableCell className="py-4">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <div className="flex flex-col items-center px-3 border-r border-slate-100 last:border-0">
+                                      <span className="text-xs font-bold text-slate-700">{job.shortlisted}</span>
+                                      <span className="text-[10px] text-slate-400 uppercase tracking-tight">Shortlist</span>
+                                    </div>
+                                    <div className="flex flex-col items-center px-3 border-r border-slate-100 last:border-0">
+                                      <span className="text-xs font-bold text-indigo-600">{job.interviewed}</span>
+                                      <span className="text-[10px] text-indigo-300 uppercase tracking-tight">Interview</span>
+                                    </div>
+                                    <div className="flex flex-col items-center px-3">
+                                      <span className="text-xs font-bold text-emerald-600">{job.selected}</span>
+                                      <span className="text-[10px] text-emerald-300 uppercase tracking-tight">Hired</span>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="pr-6 py-4 text-right">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleViewJob(job.id)}
+                                    className="bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 shadow-sm hover:shadow-md transition-all font-medium"
+                                  >
+                                    View Details <ChevronRight className="h-4 w-4 ml-1" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            )) : (
+                              <TableRow>
+                                <TableCell colSpan={7} className="text-center py-16">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <div className="bg-slate-50 p-4 rounded-full mb-3">
+                                      <Search className="h-8 w-8 text-slate-300" />
+                                    </div>
+                                    <p className="text-slate-900 font-medium text-lg">No jobs found</p>
+                                    <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">
+                                      We couldn't find any jobs matching your current filters. Try adjusting your search criteria.
+                                    </p>
+                                    <Button
+                                      variant="link"
+                                      onClick={() => {
+                                        setStatusFilter("all");
+                                        setDepartmentFilter("all");
+                                        setDateRange({});
+                                        setSearchTerm("");
+                                      }}
+                                      className="mt-4 text-indigo-600"
+                                    >
+                                      Clear all filters
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </div>
           </div>
         </div>
-      </div>
       </Tabs>
     </DashboardLayout>
   );

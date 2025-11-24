@@ -38,12 +38,10 @@ export default function SummarySection({
   onSubmit,
   isSubmitting = false,
 }: SummarySectionProps) {
-  const isFormComplete = !!(
-    recommendation && 
-    finalWeightedScore > 0 && 
-    keyStrengths.trim() && 
-    justification.trim()
-  );
+  // Enable submit as soon as scoring exists (finalWeightedScore > 0).
+  // Full validation (candidate/interviewer/recommendation/etc.) still runs on submit in the parent form.
+  const isFormReadyToSubmit = finalWeightedScore > 0;
+  
   return (
     <div className="space-y-6">
       {/* Summary Card */}
@@ -52,7 +50,7 @@ export default function SummarySection({
           <CardTitle className="text-primary">Final Score Summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-1">Final Score</p>
               <p className="text-3xl font-bold text-primary">{finalWeightedScore}</p>
@@ -61,16 +59,6 @@ export default function SummarySection({
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-1">Percentage</p>
               <p className="text-3xl font-bold text-accent">{percentage.toFixed(1)}%</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">Recommendation</p>
-              <p className="text-lg font-bold">
-                {recommendation === 'strong-hire' && <Badge className="bg-green-600">Strong Hire</Badge>}
-                {recommendation === 'hire' && <Badge className="bg-blue-600">Hire</Badge>}
-                {recommendation === 'hold' && <Badge className="bg-yellow-600">Hold</Badge>}
-                {recommendation === 'no-hire' && <Badge className="bg-red-600">No Hire</Badge>}
-                {!recommendation && <Badge variant="outline">Not Selected</Badge>}
-              </p>
             </div>
           </div>
         </CardContent>
@@ -124,6 +112,7 @@ export default function SummarySection({
         </CardContent>
       </Card>
 
+        {/* Selection status removed */}
       {/* Justification */}
       <Card>
         <CardHeader>
@@ -145,7 +134,7 @@ export default function SummarySection({
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div className="flex items-start gap-3">
-              {isFormComplete ? (
+              {isFormReadyToSubmit ? (
                 <>
                   <CheckCircle2 className="w-6 h-6 text-green-600 mt-1" />
                   <div>
@@ -159,15 +148,16 @@ export default function SummarySection({
                   <div>
                     <p className="font-semibold text-gray-900">Complete Required Fields</p>
                     <p className="text-sm text-gray-600">
-                      Please ensure: Recommendation selected, Scoring completed, Key strengths and Justification filled
+                      Please ensure scoring is complete. Any remaining required fields will be validated on submit.
                     </p>
                   </div>
                 </>
               )}
             </div>
             <Button
+              type="button"
               onClick={onSubmit}
-              disabled={!isFormComplete || isSubmitting}
+              disabled={!isFormReadyToSubmit || isSubmitting}
               size="lg"
               className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8"
             >

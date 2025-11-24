@@ -1,106 +1,187 @@
-
-import React from 'react';
-import { ArrowRight } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { teamMembers } from '@/data/mockData';
-
-const RADIAN = Math.PI / 180;
-const renderCustomizedLabel = ({
-  cx,
-  cy,
-  midAngle,
-  innerRadius,
-  outerRadius,
-  percent,
-}: any) => {
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-  return (
-    <text
-      x={x}
-      y={y}
-      fill="white"
-      textAnchor={x > cx ? 'start' : 'end'}
-      dominantBaseline="central"
-      fontSize={12}
-      fontWeight="bold"
-    >
-      {`${(percent * 100).toFixed(0)}%`}
-    </text>
-  );
-};
+import React, { useEffect, useState } from 'react';
+import { ArrowRight, Users, Layers } from 'lucide-react';
+import { motion, AnimatePresence } from "framer-motion";
+import departmentsService, { DepartmentAnalysis } from '@/services/departmentsService';
+import { Skeleton } from '@/components/ui/skeleton';
+import { DonutChart, DonutChartSegment } from '@/components/ui/donut-chart';
+import { cn } from '@/lib/utils';
 
 const TeamTracker: React.FC = () => {
-  const total = teamMembers.reduce((acc, item) => acc + item.count, 0);
+  const [data, setData] = useState<DepartmentAnalysis[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [hoveredSegmentLabel, setHoveredSegmentLabel] = useState<string | null>(null);
 
-  // Prepare data for pie chart
-  const data = teamMembers.map((item) => ({
-    name: item.role,
-    value: item.count,
-    color: item.color,
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const result = await departmentsService.getDepartmentAnalysis();
+        // Filter out departments with 0 employees
+        const activeDepartments = result.filter(d => d.employee_count > 0);
+
+        // Sort by count descending
+        const sortedData = activeDepartments.sort((a, b) => b.employee_count - a.employee_count);
+        setData(sortedData);
+      } catch (err) {
+        console.error("Failed to fetch department analysis", err);
+        setError("Failed to load team data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const totalEmployees = data.reduce((acc, curr) => acc + curr.employee_count, 0);
+
+  // Modern palette
+  const COLORS = [
+    'hsl(238.7 83.5% 66.7%)', // Indigo-500
+    'hsl(262.1 83.3% 57.8%)', // Violet-500
+    'hsl(330.4 81.2% 60.4%)', // Pink-500
+    'hsl(158.1 64.4% 51.6%)', // Emerald-500
+    'hsl(45.4 93.4% 47.5%)', // Amber-500
+    'hsl(217.2 91.2% 59.8%)', // Blue-500
+    'hsl(188.7 94.5% 42.7%)', // Cyan-500
+    'hsl(346.8 77.2% 49.8%)', // Rose-500
+    'hsl(173.4 80.4% 40%)',   // Teal-500
+    'hsl(84.5 81.2% 43.9%)',  // Lime-500
+  ];
+
+  // Transform data for DonutChart
+  const chartData: DonutChartSegment[] = data.map((dept, index) => ({
+    value: dept.employee_count,
+    label: dept.name,
+    color: COLORS[index % COLORS.length],
   }));
 
+  // Find the currently hovered segment data
+  const activeSegment = chartData.find(
+    (segment) => segment.label === hoveredSegmentLabel
+  );
+
+  // Determine total value (either hovered or overall)
+  const displayValue = activeSegment?.value ?? totalEmployees;
+  const displayLabel = activeSegment?.label ?? "Total Employees";
+  const displayPercentage =
+    activeSegment ? (activeSegment.value / totalEmployees) * 100 : 100;
+
+  if (loading) {
+    return (
+      <div className="hr-card col-span-1 row-span-2 flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+        <div className="flex items-center justify-between mb-6">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <Skeleton className="h-[200px] w-[200px] rounded-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="hr-card col-span-1 row-span-2 flex flex-col items-center justify-center h-full bg-white rounded-xl shadow-sm border border-slate-100 p-5 text-center">
+        <Users className="h-10 w-10 text-slate-300 mb-2" />
+        <p className="text-slate-500">{error}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="hr-card col-span-1 row-span-2 flex flex-col animate-scale-in">
-      <div className="p-5 border-b border-border/40">
+    <div className="hr-card col-span-1 row-span-2 flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300">
+      <div className="p-5 border-b border-slate-100">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Track your team</h3>
-          <button className="text-primary hover:underline text-sm flex items-center">
-            View all <ArrowRight className="ml-1 h-3 w-3" />
-          </button>
+          <div>
+            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <Layers size={18} className="text-indigo-500" />
+              Track your team
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">Departmental Distribution</p>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 p-5">
-        <div className="flex justify-center items-center h-48">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={renderCustomizedLabel}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-                animationDuration={1000}
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value: number) => [`${value} members`, ""]}
-                labelFormatter={() => ""}
+      <div className="flex-1 p-5 flex flex-col items-center justify-center">
+        {chartData.length > 0 ? (
+          <>
+            <div className="relative flex items-center justify-center mb-6">
+              <DonutChart
+                data={chartData}
+                size={220}
+                strokeWidth={25}
+                animationDuration={1.2}
+                animationDelayPerSegment={0.05}
+                highlightOnHover={true}
+                onSegmentHover={(segment) => setHoveredSegmentLabel(segment?.label ?? null)}
+                centerContent={
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={displayLabel} // Key changes to trigger animation
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.2, ease: "circOut" }}
+                      className="flex flex-col items-center justify-center text-center px-2"
+                    >
+                      <p className="text-slate-500 text-xs font-medium truncate max-w-[140px] mb-1">
+                        {displayLabel}
+                      </p>
+                      <p className="text-3xl font-bold text-slate-800">
+                        {displayValue}
+                      </p>
+                      {/* Only show percentage if a segment is hovered */}
+                      {activeSegment && (
+                        <p className="text-sm font-medium text-indigo-600 mt-1">
+                          {displayPercentage.toFixed(1)}%
+                        </p>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                }
               />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="flex justify-center mt-4">
-          <div className="bg-muted/30 rounded-md py-2 px-4 text-center">
-            <p className="text-2xl font-bold">{total}</p>
-            <p className="text-sm text-muted-foreground">Total members</p>
-          </div>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          {teamMembers.map((member, index) => (
-            <div key={index} className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div 
-                  className="h-3 w-3 rounded-full mr-2" 
-                  style={{ backgroundColor: member.color }}
-                />
-                <span className="text-sm">{member.role}</span>
-              </div>
-              <span className="font-medium text-sm">{member.count} members</span>
             </div>
-          ))}
-        </div>
+
+            <div className="w-full space-y-2 max-h-[200px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+              {chartData.map((segment, index) => (
+                <motion.div
+                  key={segment.label}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 + index * 0.05, duration: 0.3 }}
+                  className={cn(
+                    "flex items-center justify-between p-2 rounded-lg transition-all duration-200 cursor-pointer border border-transparent",
+                    hoveredSegmentLabel === segment.label
+                      ? "bg-slate-50 border-slate-100 shadow-sm"
+                      : "hover:bg-slate-50"
+                  )}
+                  onMouseEnter={() => setHoveredSegmentLabel(segment.label)}
+                  onMouseLeave={() => setHoveredSegmentLabel(null)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full ring-2 ring-white shadow-sm"
+                      style={{ backgroundColor: segment.color }}
+                    ></span>
+                    <span className="text-sm font-medium text-slate-700 truncate max-w-[120px]">
+                      {segment.label}
+                    </span>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-500">
+                    {segment.value}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="h-full flex flex-col items-center justify-center text-slate-400">
+            <Users size={32} className="mb-2 opacity-50" />
+            <p className="text-sm">No active employees found</p>
+          </div>
+        )}
       </div>
     </div>
   );
