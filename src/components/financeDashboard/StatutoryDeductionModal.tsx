@@ -90,7 +90,7 @@ const StatutoryDeductionModal: React.FC<StatutoryDeductionModalProps> = ({
             {statutoryDeduction ? 'Edit Statutory Deduction' : 'Create Statutory Deduction'}
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Deduction Name</Label>
@@ -120,7 +120,7 @@ const StatutoryDeductionModal: React.FC<StatutoryDeductionModalProps> = ({
             <Checkbox
               id="is_mandatory"
               checked={formData.is_mandatory}
-              onCheckedChange={(checked) => 
+              onCheckedChange={(checked) =>
                 setFormData(prev => ({ ...prev, is_mandatory: checked as boolean }))
               }
             />

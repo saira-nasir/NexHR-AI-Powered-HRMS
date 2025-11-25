@@ -41,7 +41,24 @@ export const FaceThumbnail: React.FC<FaceThumbnailProps> = ({
         >
           {imageUrl ? (
             <>
-              <img src={imageUrl} alt="Face scan" className="w-full h-full object-cover" />
+              <img 
+                src={imageUrl} 
+                alt="Face scan" 
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Handle 404 or broken image URLs gracefully
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  // Show fallback icon instead
+                  const parent = target.parentElement;
+                  if (parent && !parent.querySelector('.fallback-icon')) {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'fallback-icon w-full h-full flex items-center justify-center bg-gray-200';
+                    fallback.innerHTML = '<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>';
+                    parent.appendChild(fallback);
+                  }
+                }}
+              />
               {clickable && (
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
                   <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -75,7 +92,23 @@ export const FaceThumbnail: React.FC<FaceThumbnailProps> = ({
 
             {imageUrl && (
               <div className="relative w-full aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                <img src={imageUrl} alt="Face scan fullscreen" className="w-full h-full object-contain" />
+                <img 
+                  src={imageUrl} 
+                  alt="Face scan fullscreen" 
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    // Handle 404 or broken image URLs gracefully
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      const fallback = document.createElement('div');
+                      fallback.className = 'w-full h-full flex items-center justify-center bg-gray-200';
+                      fallback.innerHTML = '<svg class="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>';
+                      parent.appendChild(fallback);
+                    }
+                  }}
+                />
               </div>
             )}
 

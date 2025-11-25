@@ -57,8 +57,6 @@ const Loans: React.FC = () => {
 
   const handleRejectLoan = async (id: number) => {
     try {
-      // Backend doesn't expose a dedicated reject action for loans in this branch.
-      // Use a PATCH to update status instead.
       await payrollService.updateLoan(id, { status: 'REJECTED' });
       toast({ title: 'Success', description: 'Loan rejected successfully' });
       await loadLoans();
@@ -68,7 +66,7 @@ const Loans: React.FC = () => {
     }
   };
 
-  const pendingLoans = loans.filter(l => l.status === 'PENDING');
+  const pendingLoans = loans.filter(l => l.status?.toUpperCase() === 'PENDING');
 
   return (
     <DashboardLayout>
@@ -167,13 +165,17 @@ const Loans: React.FC = () => {
                       <td className="p-4">{loan.requested_on ? new Date(loan.requested_on).toLocaleDateString() : '—'}</td>
                       <td className="p-4">
                         <div className="flex gap-2">
-                          {loan.status === 'PENDING' && (
+                          {loan.status?.toUpperCase() === 'PENDING' && (
                             <>
-                              <Button size="sm" variant="outline" onClick={() => handleApproveLoan(loan.id)}><CheckCircle className="h-4 w-4"/></Button>
-                              <Button size="sm" variant="outline" onClick={() => handleRejectLoan(loan.id)}><XCircle className="h-4 w-4"/></Button>
+                              <Button size="sm" variant="outline" onClick={() => handleApproveLoan(loan.id)} className="text-green-600 hover:text-green-700 hover:bg-green-50">
+                                <CheckCircle className="h-4 w-4 mr-1" /> Approve
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => handleRejectLoan(loan.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                                <XCircle className="h-4 w-4 mr-1" /> Reject
+                              </Button>
                             </>
                           )}
-                          <Button size="sm" variant="ghost"><Eye className="h-4 w-4"/></Button>
+                          <Button size="sm" variant="ghost"><Eye className="h-4 w-4" /></Button>
                         </div>
                       </td>
                     </tr>

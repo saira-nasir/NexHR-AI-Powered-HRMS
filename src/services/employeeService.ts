@@ -83,12 +83,47 @@ export const employeeService = {
                 // Add company users to our collection
                 companyUsers.forEach((user: any) => {
                     const normalized = normalizeEmployee(user);
-                    allEmployees.set(normalized.id, normalized);
+                    // ✅ Log raw backend data to see what department field is being returned
+                    console.log(`📥 Raw user data from /company-users/ for ID ${normalized.id}:`, {
+                        rawDepartment: user.department,
+                        rawDept: user.dept,
+                        rawDepartmentName: user.department_name,
+                        normalizedDepartment: normalized.department,
+                        fullUser: user
+                    });
+                    
+                    if (!isNaN(normalized.id)) {
+                        allEmployees.set(normalized.id, normalized);
+                    } else {
+                        console.warn('⚠️ Skipping employee with invalid ID:', user);
+                    }
                 });
                 
                 console.log('👥 Company users added to collection');
             } catch (error) {
                 console.warn('❌ Failed to fetch from /company-users/:', error);
+            }
+
+            // 1.5. Try /auth/users/ if we have no employees yet or as a fallback
+            if (allEmployees.size === 0) {
+                try {
+                    console.log('📡 Fetching from /auth/users/ (fallback)...');
+                    const authUsersResponse = await api.get('/auth/users/');
+                    console.log('✅ Success with /auth/users/:', authUsersResponse.status);
+                    
+                    const authUsers = Array.isArray(authUsersResponse.data) ? authUsersResponse.data : authUsersResponse.data?.results || [];
+                    console.log(`📊 Found ${authUsers.length} users from /auth/users/`);
+                    
+                    authUsers.forEach((user: any) => {
+                        const normalized = normalizeEmployee(user);
+                        if (!isNaN(normalized.id) && !allEmployees.has(normalized.id)) {
+                            allEmployees.set(normalized.id, normalized);
+                            console.log(`✅ Added fallback user from /auth/users/: ${normalized.id}`);
+                        }
+                    });
+                } catch (error) {
+                    console.warn('❌ Failed to fetch from /auth/users/:', error);
+                }
             }
             
             // 2. Try payroll-related endpoints for additional employee data
@@ -179,6 +214,11 @@ export const employeeService = {
                 }
             } catch (error: any) {
                 const status = error?.response?.status;
+                // Don't log 404s for company-users endpoint as it's expected to not exist
+                if (endpoint.includes('/company-users/') && status === 404) {
+                    // Silently continue - this endpoint may not exist, we'll try others
+                    continue;
+                }
                 console.log(`❌ Employee ${id} not found in ${endpoint}: status=${status}`);
             }
         }

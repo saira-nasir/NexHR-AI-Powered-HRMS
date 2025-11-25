@@ -47,7 +47,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Bank Info',
     path: '/bank-info',
     icon: Building2,
-    allowedRoles: ['Employee'],
+    allowedRoles: ['Employee', 'HR', 'Admin', 'Finance Manager'],
   },
   {
     title: 'Salary Structure',

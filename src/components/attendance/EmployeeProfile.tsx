@@ -18,9 +18,12 @@ interface Employee {
 interface EmployeeProfileProps {
   employee: Employee | null;
   timestamp: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  isCheckedOut?: boolean;
 }
 
-export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employee, timestamp }) => {
+export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employee, timestamp, checkInTime, checkOutTime, isCheckedOut }) => {
   if (!employee) {
     return (
       <Card className="h-full">
@@ -77,13 +80,23 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employee, time
           </div>
 
           <div className="pt-4 border-t mt-4">
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-muted-foreground">Check-in Time:</span>
-              <span>{timestamp}</span>
-            </div>
-            <div className="flex justify-between text-sm">
+            {checkInTime && (
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-muted-foreground">Check-in Time:</span>
+                <span className="font-medium">{checkInTime}</span>
+              </div>
+            )}
+            {checkOutTime && (
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-muted-foreground">Check-out Time:</span>
+                <span className="font-medium">{checkOutTime}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm mt-3">
               <span className="text-muted-foreground">Status:</span>
-              <Badge className="bg-green-500">Checked In</Badge>
+              <Badge className={isCheckedOut ? "bg-blue-500" : "bg-green-500"}>
+                {isCheckedOut ? "Checked Out" : "Checked In"}
+              </Badge>
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import payrollService, { TaxBracket } from '@/services/payrollService';
 import { useToast } from '@/hooks/use-toast';
+import { Brackets } from 'lucide-react';
 
 interface TaxBracketModalProps {
   open: boolean;
@@ -52,7 +53,6 @@ const TaxBracketModal: React.FC<TaxBracketModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       const payload = {
         ...formData,
@@ -91,7 +91,7 @@ const TaxBracketModal: React.FC<TaxBracketModalProps> = ({
             {taxBracket ? 'Edit Tax Bracket' : 'Create Tax Bracket'}
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

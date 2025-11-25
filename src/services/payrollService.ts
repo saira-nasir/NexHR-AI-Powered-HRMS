@@ -1,5 +1,6 @@
 // src/services/payrollService.ts
 import api from "@/lib/api";
+import { apiGet } from "@/lib/api"; // Added explicit apiGet helper for clarity
 
 /**
  * Helper: safely extract HTTP status from an unknown error (avoids `any` casts)
@@ -18,8 +19,8 @@ const extractHttpStatus = (err: unknown): number | null => {
 };
 
 /* -------------------------
-   Types exported for app
-   ------------------------- */
+    Types exported for app
+    ------------------------- */
 export interface SalaryStructure {
   id: number;
   employee: number;
@@ -70,7 +71,7 @@ export interface CreatePayrollPayload {
   employee: number;
   salary_structure?: number | null;
   period_start: string; // YYYY-MM-DD
-  period_end: string;   // YYYY-MM-DD
+  period_end: string; // YYYY-MM-DD
   gross_salary?: string | number;
   total_deductions?: string | number;
   net_salary?: string | number;
@@ -106,6 +107,7 @@ export interface LeaveRecord {
   to_date: string;
   approved_by?: number | null;
   status: "PENDING" | "APPROVED" | "REJECTED";
+  reason?: string | null;
 }
 
 export interface Notification {
@@ -114,7 +116,18 @@ export interface Notification {
   message: string;
   created_at: string;
   is_read: boolean;
+  // Added optional field for navigation, used in NotificationsDropdown
+  target_url?: string | null;
 }
+
+// Type for Paginated API responses (required after backend pagination was added)
+interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
 
 export interface EmployeeBankInfo {
   id: number;
@@ -185,8 +198,8 @@ export interface StripeCheckoutResponse {
 }
 
 /* -------------------------
-   Base
-   ------------------------- */
+    Base
+    ------------------------- */
 const BASE = "/payroll";
 
 const payrollService = {
@@ -297,19 +310,206 @@ const payrollService = {
     return data;
   },
 
+  // Attendance
+  listAttendance: async () => {
+    const { data } = await api.get<EmployeeAttendance[]>(`${BASE}/attendance/`);
+    return data;
+  },
+
   // Leaves
   listLeaves: async () => {
     const { data } = await api.get<LeaveRecord[]>(`${BASE}/leaves/`);
     return data;
   },
 
-  // Notifications
-  listNotifications: async () => {
-    const { data } = await api.get<Notification[]>(`${BASE}/notifications/`);
+  // Approve leave (HR only) - uses manage-status endpoint
+  approveLeave: async (id: number) => {
+    const { data } = await api.patch<LeaveRecord>(`${BASE}/leaves/${id}/manage-status/`, {
+      status: 'APPROVED'
+    });
     return data;
   },
 
-  // Stripe Checkout - Using correct backend endpoints
+  // Reject leave (HR only) - uses manage-status endpoint
+  rejectLeave: async (id: number) => {
+    const { data } = await api.patch<LeaveRecord>(`${BASE}/leaves/${id}/manage-status/`, {
+      status: 'REJECTED'
+    });
+    return data;
+  },
+
+  /* ---------------- Notifications (Updated for Pagination) ---------------- */
+  listNotifications: async () => {
+    // The backend now returns a paginated response, so we update the return type.
+    // The listNotifications function is now primarily used by the SWR fetcher.
+    const { data } = await api.get<PaginatedResponse<Notification>>(`${BASE}/notifications/`);
+    return data;
+  },
+
+  // Mark as Read (already existed)
+  markNotificationAsRead: async (id: number) => {
+    const { data } = await api.patch<Notification>(`${BASE}/notifications/${id}/`, { is_read: true });
+    return data;
+  },
+
+  // Create Notification (already existed)
+  createNotification: async (payload: Omit<Notification, "id" | "created_at" | "is_read">) => {
+    const { data } = await api.post<Notification>(`${BASE}/notifications/`, payload);
+    return data;
+  },
+
+  // Delete Notification (FIX: This function was missing, causing the TypeScript error)
+  deleteNotification: async (id: number) => {
+    await api.delete(`${BASE}/notifications/${id}/`);
+  },
+
+  /* ---------------- Employee bank info ---------------- */
+  listBankInfo: async () => {
+    const { data } = await api.get<EmployeeBankInfo[]>(`${BASE}/bank-info/`);
+    return data;
+  },
+
+  // Get bank info for a specific employee
+  getBankInfo: async (employeeId: number) => {
+    const { data } = await api.get<EmployeeBankInfo>(`${BASE}/bank-info/?employee=${employeeId}`);
+    // Backend might return array or single object
+    if (Array.isArray(data)) {
+      return data.find(bi => bi.employee === employeeId) || null;
+    }
+    return data;
+  },
+
+  // Create bank info
+  createBankInfo: async (payload: Omit<EmployeeBankInfo, 'id'>) => {
+    const { data } = await api.post<EmployeeBankInfo>(`${BASE}/bank-info/`, payload);
+    return data;
+  },
+
+  // Update bank info
+  updateBankInfo: async (id: number, payload: Partial<EmployeeBankInfo>) => {
+    const { data } = await api.patch<EmployeeBankInfo>(`${BASE}/bank-info/${id}/`, payload);
+    return data;
+  },
+
+  // Delete bank info
+  deleteBankInfo: async (id: number) => {
+    await api.delete(`${BASE}/bank-info/${id}/`);
+  },
+
+  /* ---------------- Loans & Expenses ---------------- */
+  listLoans: async () => {
+    const { data } = await api.get<Loan[]>(`${BASE}/loans/`);
+    return data;
+  },
+  createLoan: async (payload: Omit<Loan, "id" | "remaining_balance" | "status" | "requested_on" | "approved_on">) => {
+    const { data } = await api.post<Loan>(`${BASE}/loans/`, payload);
+    return data;
+  },
+  updateLoan: async (id: number, payload: Partial<Loan>) => {
+    const { data } = await api.patch<Loan>(`${BASE}/loans/${id}/`, payload);
+    return data;
+  },
+  approveLoan: async (id: number) => {
+    const { data } = await api.patch<Loan>(`${BASE}/loans/${id}/`, { status: "APPROVED" });
+    return data;
+  },
+  deleteLoan: async (id: number) => {
+    await api.delete(`${BASE}/loans/${id}/`);
+  },
+  listExpenses: async () => {
+    const { data } = await api.get<Expense[]>(`${BASE}/expenses/`);
+    return data;
+  },
+  getExpense: async (id: number) => {
+    const { data } = await api.get<Expense>(`${BASE}/expenses/${id}/`);
+    return data;
+  },
+  createExpense: async (payload: Omit<Expense, "id" | "status" | "submitted_on" | "reviewed_on">) => {
+    const { data } = await api.post<Expense>(`${BASE}/expenses/`, payload);
+    return data;
+  },
+  updateExpense: async (id: number, payload: Partial<Expense>) => {
+    const { data } = await api.patch<Expense>(`${BASE}/expenses/${id}/`, payload);
+    return data;
+  },
+  approveExpense: async (id: number) => {
+    const { data } = await api.patch<Expense>(`${BASE}/expenses/${id}/`, { status: "APPROVED" });
+    return data;
+  },
+  rejectExpense: async (id: number) => {
+    const { data } = await api.patch<Expense>(`${BASE}/expenses/${id}/`, { status: "REJECTED" });
+    return data;
+  },
+  deleteExpense: async (id: number) => {
+    await api.delete(`${BASE}/expenses/${id}/`);
+  },
+
+  /* ---------------- Bulk Payments ---------------- */
+  listBulkPayments: async () => {
+    const { data } = await api.get<BulkPaymentLog[]>(`${BASE}/bulk-payments/`);
+    return data;
+  },
+
+  /**
+   * Create bulk payment.
+   * FIX: Ensure payroll IDs are converted to integers for robust backend processing.
+   */
+  createBulkPayment: async (payload: {
+    payrolls?: number[]; // optional - we will auto-detect if missing
+    period_start?: string;
+    period_end?: string;
+    total_amount?: number | string;
+  }) => {
+    let payIds = payload.payrolls;
+
+    // If payrolls array is missing/empty, try to auto-resolve by fetching payrolls in the period
+    if (!Array.isArray(payIds) || payIds.length === 0) {
+      if (payload.period_start && payload.period_end) {
+        const all = await payrollService.listPayrollsWithEmployees().catch(() => []);
+        const filtered = (all || []).filter((p) => {
+          return p.period_start >= payload.period_start && p.period_end <= payload.period_end;
+        });
+        // FIX: Explicitly map and cast IDs to integers to prevent "Invalid payroll IDs." error
+        payIds = filtered.map((p) => Number(p.id)).filter(id => Number.isInteger(id) && id > 0);
+      }
+    }
+
+    if (!Array.isArray(payIds) || payIds.length === 0) {
+      throw new Error("No payroll IDs provided or found for the selected period.");
+    }
+
+    // ensure total_amount if provided is a string (backend likely expects decimal string)
+    const postPayload: Record<string, unknown> = {
+      payrolls: payIds,
+    };
+    if (payload.total_amount != null) {
+      postPayload.total_amount = String(payload.total_amount);
+    }
+    // Pass period_start/end if available, though backend may default if not present
+    if (payload.period_start) {
+      postPayload.period_start = payload.period_start;
+    }
+    if (payload.period_end) {
+      postPayload.period_end = payload.period_end;
+    }
+
+
+    const { data } = await api.post<BulkPaymentLog>(`${BASE}/bulk-payments/`, postPayload);
+    return data;
+  },
+
+  getBulkPayment: async (id: number) => {
+    const { data } = await api.get<BulkPaymentLog & Record<string, unknown>>(`${BASE}/bulk-payments/${id}/`);
+    return data;
+  },
+
+  // Action to confirm payment (changes status from PROCESSING to COMPLETED)
+  confirmBulkPayment: async (id: number) => {
+    const { data } = await api.post<BulkPaymentLog>(`${BASE}/bulk-payments/${id}/confirm/`);
+    return data;
+  },
+
+  /* ---------------- Stripe Checkout ---------------- */
   createCheckoutSession: async (payrollId: number) => {
     try {
       console.log(`Creating checkout session for payroll ${payrollId}...`);
@@ -338,7 +538,7 @@ const payrollService = {
     return response.data as Blob;
   },
 
-  // Tax Brackets
+  /* ---------------- Tax & Statutory ---------------- */
   listTaxBrackets: async () => {
     const { data } = await api.get<TaxBracket[]>(`${BASE}/tax-brackets/`);
     return data;
@@ -347,88 +547,30 @@ const payrollService = {
     const { data } = await api.get<StatutoryDeduction[]>(`${BASE}/statutory-deductions/`);
     return data;
   },
-
-  /* ---------------- Notifications (extended) ---------------- */
-  markNotificationAsRead: async (id: number) => {
-    const { data } = await api.patch<Notification>(`${BASE}/notifications/${id}/`, { is_read: true });
+  createStatutoryDeduction: async (payload: Omit<StatutoryDeduction, "id" | "created_at" | "updated_at">) => {
+    const { data } = await api.post<StatutoryDeduction>(`${BASE}/statutory-deductions/`, payload);
     return data;
   },
-  createNotification: async (payload: Omit<Notification, "id" | "created_at" | "is_read">) => {
-    const { data } = await api.post<Notification>(`${BASE}/notifications/`, payload);
+  updateStatutoryDeduction: async (id: number, payload: Partial<StatutoryDeduction>) => {
+    const { data } = await api.patch<StatutoryDeduction>(`${BASE}/statutory-deductions/${id}/`, payload);
     return data;
   },
-
-  /* ---------------- Employee bank info ---------------- */
-  listBankInfo: async () => {
-    const { data } = await api.get<EmployeeBankInfo[]>(`${BASE}/bank-info/`);
-    return data;
+  deleteStatutoryDeduction: async (id: number) => {
+    await api.delete(`${BASE}/statutory-deductions/${id}/`);
   },
 
-  /* ---------------- Loans & Expenses ---------------- */
-  listLoans: async () => {
-    const { data } = await api.get<Loan[]>(`${BASE}/loans/`);
-    return data;
-  },
-  listExpenses: async () => {
-    const { data } = await api.get<Expense[]>(`${BASE}/expenses/`);
+  createTaxBracket: async (payload: Omit<TaxBracket, "id" | "created_at" | "updated_at">) => {
+    const { data } = await api.post<TaxBracket>(`${BASE}/tax-brackets/`, payload);
     return data;
   },
 
-  /* ---------------- Bulk Payments ---------------- */
-  listBulkPayments: async () => {
-    const { data } = await api.get<BulkPaymentLog[]>(`${BASE}/bulk-payments/`);
+  updateTaxBracket: async (id: number, payload: Partial<TaxBracket>) => {
+    const { data } = await api.patch<TaxBracket>(`${BASE}/tax-brackets/${id}/`, payload);
     return data;
   },
 
-  /**
-   * Create bulk payment.
-   * Backend requires `payrolls` as non-empty list. This helper will:
-   * - if payload.payrolls is present and non-empty, POST as-is
-   * - otherwise, if payload.period_start & period_end given, will try to fetch
-   *   payrolls for that period and use their ids
-   * Make sure `total_amount` is a number or string acceptable to backend.
-   */
-  createBulkPayment: async (payload: {
-    payrolls?: number[]; // optional - we will auto-detect if missing
-    period_start?: string;
-    period_end?: string;
-    total_amount?: number | string;
-  }) => {
-    let payIds = payload.payrolls;
-    if (!Array.isArray(payIds) || payIds.length === 0) {
-      // try to auto-resolve by fetching payrolls in the period
-      if (payload.period_start && payload.period_end) {
-        const all = await payrollService.listPayrollsWithEmployees().catch(() => []);
-        const filtered = (all || []).filter((p) => {
-          return p.period_start >= payload.period_start && p.period_end <= payload.period_end;
-        });
-        payIds = filtered.map((p) => p.id);
-      }
-    }
-
-    if (!Array.isArray(payIds) || payIds.length === 0) {
-      throw new Error("No payroll IDs provided or found for the selected period.");
-    }
-
-    // ensure total_amount if provided is a string (backend likely expects decimal string)
-    const postPayload: Record<string, unknown> = {
-      payrolls: payIds,
-    };
-    if (payload.total_amount != null) {
-      postPayload.total_amount = String(payload.total_amount);
-    }
-
-    const { data } = await api.post<BulkPaymentLog>(`${BASE}/bulk-payments/`, postPayload);
-    return data;
-  },
-
-  getBulkPayment: async (id: number) => {
-    const { data } = await api.get<BulkPaymentLog & Record<string, unknown>>(`${BASE}/bulk-payments/${id}/`);
-    return data;
-  },
-  confirmBulkPayment: async (id: number) => {
-    const { data } = await api.post<BulkPaymentLog>(`${BASE}/bulk-payments/${id}/confirm/`);
-    return data;
+  deleteTaxBracket: async (id: number) => {
+    await api.delete(`${BASE}/tax-brackets/${id}/`);
   },
 };
 
