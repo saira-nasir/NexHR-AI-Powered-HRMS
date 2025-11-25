@@ -2,12 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/sidebar/Sidebar';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Calendar, Menu, PanelLeft, PanelRight, LogOut } from 'lucide-react';
+import { Search, Menu, PanelLeft, PanelRight, LogOut } from 'lucide-react';
 import ProfileDrawer from '@/components/header/ProfileDrawer';
 import NotificationsDropdown from '@/components/notifications/NotificationsDropdown';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/store';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Chatbot } from '@/components/Chatbot/Chatbot'; // ✅ integrated Chatbot
 
 interface DashboardLayoutProps {
@@ -25,6 +28,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const isMobile = useIsMobile();
   const { logout } = useAuth();
   const [profileOpen, setProfileOpen] = React.useState(false);
+  const user = useSelector((state: RootState) => state.auth.user);
+
+  const getInitials = () => {
+    const fname = user?.firstName || '';
+    const lname = user?.lastName || '';
+    const first = fname.trim() ? fname.trim().split(' ')[0][0] : '';
+    const last = lname.trim() ? lname.trim().split(' ')[0][0] : '';
+    const initials = `${first}${last}`.toUpperCase();
+    if (initials) return initials;
+    // fallback to email first char
+    return (user?.email?.[0] || '?').toUpperCase();
+  };
   
   useEffect(() => {
     if (isMobile) {
@@ -92,9 +107,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 />
               </div>
 
-              <button className="rounded-full p-1.5 sm:p-2 text-gray-500 hover:bg-lavender hover:text-english-violet transition-colors">
-                <Calendar className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
-              </button>
+              {/* Calendar icon removed per design request */}
 
               <NotificationsDropdown />
 
@@ -107,16 +120,22 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </button>
 
               <div className="flex items-center">
-                <img
-                  src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                  alt="User Profile"
+                <Avatar
                   role="button"
                   tabIndex={0}
                   title="Profile"
                   onClick={() => setProfileOpen(true)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setProfileOpen(true); }}
                   className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-gray-200 hover:opacity-90 transition-opacity cursor-pointer"
-                />
+                >
+                  {/* If user has an avatar URL in their profile, show it; otherwise show initials */}
+                  {/* @ts-ignore optional image */}
+                  {user && (user as any).avatarUrl ? (
+                    <AvatarImage src={(user as any).avatarUrl} alt={`${user.firstName} ${user.lastName}`} />
+                  ) : (
+                    <AvatarFallback>{getInitials()}</AvatarFallback>
+                  )}
+                </Avatar>
               </div>
             </div>
           </div>

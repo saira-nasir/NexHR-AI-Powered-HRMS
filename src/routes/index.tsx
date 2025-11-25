@@ -37,6 +37,7 @@ import { HRAttendanceManagement } from "@/pages/HRAttendanceManagement";
 import RegisterFace from "@/pages/RegisterFace";
 import Interview from "@/pages/Interview";
 import HiringInterview from "@/pages/HiringInterview";
+import CompanyPolicy from "@/pages/CompanyPolicy";
 
 // Finance pages
 import Expenses from "@/pages/Expenses";
@@ -181,6 +182,14 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <AssessmentAndInterview />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "company-policy",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <CompanyPolicy />
               </RoleBasedRoute>
             ),
           },

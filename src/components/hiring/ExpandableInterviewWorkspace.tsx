@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import InterviewScoringForm from '@/components/interview-scoring-form/InterviewScoringForm';
+import { useRef } from 'react';
 import { ScheduledInterview } from './InterviewCard';
 
 interface ExpandableInterviewWorkspaceProps {
@@ -17,18 +18,19 @@ export const ExpandableInterviewWorkspace: React.FC<ExpandableInterviewWorkspace
 }) => {
   if (!interview) return null;
 
+  const formCloseHandlerRef = useRef<(() => void) | null>(null);
+
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop - clicking does nothing, form handles close via its X button */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100]"
-            onClick={onClose}
           />
 
           {/* Expanded Workspace */}
@@ -43,29 +45,29 @@ export const ExpandableInterviewWorkspace: React.FC<ExpandableInterviewWorkspace
             {/* Header Bar */}
             <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 px-6 py-4 flex items-center justify-between border-b border-gray-200 flex-shrink-0">
               <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onClose}
-                  className="text-white hover:bg-white/20"
-                >
-                  <ArrowLeft className="h-5 w-5 mr-2" />
-                  Back to Interviews
-                </Button>
-                <div className="h-8 w-px bg-white/30" />
                 <div>
                   <h2 className="text-lg font-bold text-white">{interview.candidateName}</h2>
                   <p className="text-sm text-indigo-100">{interview.position}</p>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onClose}
-                className="text-white hover:bg-white/20"
-              >
-                <X className="h-5 w-5" />
-              </Button>
+
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    if (formCloseHandlerRef.current) {
+                      formCloseHandlerRef.current()
+                    } else {
+                      onClose()
+                    }
+                  }}
+                  className="text-white hover:bg-white/20"
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
             </div>
 
             {/* Scrollable Content */}
@@ -77,6 +79,20 @@ export const ExpandableInterviewWorkspace: React.FC<ExpandableInterviewWorkspace
                   interviewDate: interview.interviewDate,
                   interviewStage: interview.interviewStage,
                   interviewType: interview.interviewType,
+                  // pass the backend round id when available
+                  roundId: (interview as any).roundId || (interview as any).round_id || interview.id,
+                  roundMode: interview.roundMode || (interview as any).round_mode,
+                  candidateEmail: interview.candidateEmail,
+                  candidatePhone: interview.candidatePhone,
+                  meetingLink: interview.meetingLink,
+                  interviewTime: interview.interviewTime,
+                  // pass through raw application/job objects when available
+                  candidateData: interview.candidateData,
+                  jobData: interview.jobData,
+                }}
+                onClose={onClose}
+                onRegisterClose={(fn) => {
+                  formCloseHandlerRef.current = fn
                 }}
               />
             </div>

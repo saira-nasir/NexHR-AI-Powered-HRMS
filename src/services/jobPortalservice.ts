@@ -223,6 +223,162 @@ class ApplicationService {
       };
     }
   }
+
+  /**
+   * Create a new interview round for an application
+   * POST /api/interview/rounds/
+   */
+  async createInterviewRound(payload: {
+    application: number | string;
+    seq_number: number;
+    round_name: string;
+    round_type: string;
+    round_mode: 'online' | 'onsite' | 'hybrid';
+    date?: string | null;
+    time?: string | null;
+    meeting_link?: string | null;
+    interviewers: number[];
+  }): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/interview/rounds/`, payload, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 201 || response.status === 200) {
+        return { success: true, data: response.data };
+      }
+
+      return { success: false, message: 'Failed to create interview round' };
+    } catch (error: any) {
+      console.error('Error creating interview round:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to create interview round' };
+    }
+  }
+
+  /**
+   * Get interview rounds for an application or a single round by id
+   */
+  async getInterviewRounds(applicationId: number | string): Promise<{ success: boolean; data?: any[]; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/interview/rounds/`, {
+        headers: this.getAuthHeader(),
+        params: { application: applicationId },
+      });
+
+      if (response.status === 200) {
+        // API might return { results: [...] } or { rounds: [...] } or a list directly
+        const data = response.data.results || response.data.rounds || response.data || [];
+        return { success: true, data };
+      }
+
+      return { success: false, message: 'Failed to fetch interview rounds' };
+    } catch (error: any) {
+      console.error('Error fetching interview rounds:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to fetch interview rounds' };
+    }
+  }
+
+  async getInterviewRound(roundId: number | string): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/interview/rounds/${roundId}/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        // Some APIs wrap under `round` key
+        const data = response.data.round || response.data;
+        return { success: true, data };
+      }
+
+      return { success: false, message: 'Failed to fetch interview round' };
+    } catch (error: any) {
+      console.error('Error fetching interview round:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to fetch interview round' };
+    }
+  }
+
+  async patchInterviewRound(roundId: number | string, payload: any): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.patch(`${API_BASE_URL}/interview/rounds/${roundId}/`, payload, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        const data = response.data.round || response.data;
+        return { success: true, data };
+      }
+
+      return { success: false, message: 'Failed to update interview round' };
+    } catch (error: any) {
+      console.error('Error patching interview round:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to update interview round' };
+    }
+  }
+
+  /**
+   * Get all scheduled interview rounds (for conduct & scoring tab)
+   * GET /api/interview/rounds/scheduled/
+   */
+  async getScheduledRounds(): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/interview/rounds/scheduled/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        return { success: true, data: response.data };
+      }
+
+      return { success: false, message: 'Failed to fetch scheduled rounds' };
+    } catch (error: any) {
+      console.error('Error fetching scheduled rounds:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to fetch scheduled rounds' };
+    }
+  }
+
+  /**
+   * Get interview feedback for all jobs with completed interviews
+   * GET /api/jobs/interview-feedback/
+   */
+  async getInterviewFeedback(): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/jobs/interview-feedback/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        return { success: true, data: response.data };
+      }
+
+      return { success: false, message: 'Failed to fetch interview feedback' };
+    } catch (error: any) {
+      console.error('Error fetching interview feedback:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to fetch interview feedback' };
+    }
+  }
+
+  /**
+   * Onboard an application
+   * POST /api/applications/{application_id}/onboard/
+   */
+  async onboardApplication(applicationId: number, payload: any): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/applications/${applicationId}/onboard/`,
+        payload,
+        { headers: this.getAuthHeader() }
+      );
+
+      if (response.status === 200 || response.status === 201) {
+        return { success: true, data: response.data };
+      }
+
+      return { success: false, message: 'Failed to onboard application' };
+    } catch (error: any) {
+      console.error('Error onboarding application:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to onboard application' };
+    }
+  }
 }
 
 export const applicationService = new ApplicationService();

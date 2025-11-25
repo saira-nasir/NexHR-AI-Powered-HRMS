@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
-import { Phone, Mail, BarChart2 } from 'lucide-react';
+import { Phone, Mail } from 'lucide-react';
 import { getUserRole } from '@/utils/roleUtils';
 
 const EmployeeCard: React.FC = () => {
@@ -19,26 +19,65 @@ const EmployeeCard: React.FC = () => {
   const statusText = typeof rawStatus === 'string' && rawStatus.length > 0
     ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)
     : 'Active';
-  
+
   // Get user role using the utility function
   const userRole = getUserRole(user);
 
-  // Hardcode the avatar URL for every user
-  const employee = {
-    ...user,
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-1.2.1&auto=format&fit=crop&w=1400&q=80',
-    name: fullName
-  };
+  // Use profile_pic_url from user profile if available; otherwise render lottie animation
+  const profilePicUrl = (user as any).profile_pic_url || (user as any).profile_pic || null;
+  const employeeName = fullName || (user as any).name || '';
+
+  // Lottie container (only used when profilePicUrl is null)
+  const lottieContainer = useRef<HTMLDivElement | null>(null);
+  const lottieAnimRef = useRef<any | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadLottie = async () => {
+      if (profilePicUrl) return; // no lottie when we have a profile picture
+      try {
+        const lottieModule = await import('lottie-web');
+        const lottie = (lottieModule as any).default || lottieModule;
+        if (lottieContainer.current && mounted) {
+          const anim = lottie.loadAnimation({
+            container: lottieContainer.current,
+            renderer: 'svg',
+            loop: true,
+            autoplay: true,
+            path: '/lottieFiles/profile_pic.json',
+          });
+          lottieAnimRef.current = anim;
+        }
+      } catch (err) {
+        console.error('Failed to load profile pic lottie:', err);
+      }
+    };
+
+    loadLottie();
+
+    return () => {
+      mounted = false;
+      if (lottieAnimRef.current && typeof lottieAnimRef.current.destroy === 'function') {
+        lottieAnimRef.current.destroy();
+        lottieAnimRef.current = null;
+      }
+    };
+  }, [profilePicUrl]);
 
   return (
     <div className="hr-card col-span-1 row-span-2 overflow-hidden flex flex-col animate-scale-in h-full">
-      {/* Avatar: always the same for every user */}
-      <div className="relative h-56 w-full overflow-hidden bg-gradient-to-br from-cyan-500/40 to-blue-500/40">
-        <img
-          src={employee.avatar}
-          alt={employee.name}
-          className="h-full w-full object-cover opacity-90 transition-transform duration-500 hover:scale-105"
-        />
+      {/* Avatar: show profile_pic_url when available, otherwise show Lottie animation */}
+      <div className="relative h-56 w-full overflow-hidden flex items-center justify-center bg-transparent">
+        {profilePicUrl ? (
+          <img
+            src={profilePicUrl}
+            alt={employeeName}
+            className="h-full w-full object-cover opacity-90 transition-transform duration-500 hover:scale-105"
+          />
+        ) : (
+          <div ref={lottieContainer} className="w-full h-full flex items-center justify-center" />
+        )}
+
         <div className="absolute bottom-4 left-4 rounded-lg bg-black/20 backdrop-blur-sm px-3 py-1 text-white text-sm font-medium">
           <span>{isVerified ? 'Verified' : 'Not Verified'}</span>
         </div>
@@ -46,7 +85,7 @@ const EmployeeCard: React.FC = () => {
 
       <div className="p-5 flex-1 flex flex-col">
         <div className="text-center mb-6">
-          <h3 className="text-xl font-bold">{employee.name}</h3>
+          <h3 className="text-xl font-bold">{employeeName}</h3>
           <p className="text-muted-foreground text-sm">{userRole}</p>
         </div>
 
@@ -59,39 +98,6 @@ const EmployeeCard: React.FC = () => {
           </a>
         </div>
 
-        <div className="border-t border-border/40 pt-4 mt-auto flex-1 flex flex-col justify-between">
-          <div>
-            <div className="text-sm text-muted-foreground mb-1">Account Status</div>
-            <div className="flex items-baseline">
-              <span className={`text-2xl font-bold ${rawStatus === 'active' ? 'text-green-600' : 'text-red-600'}`}>
-                {statusText}
-              </span>
-            </div>
-
-            <div className="mt-4 h-20">
-              <div className="flex items-end justify-between h-full">
-                {/* Example static bars */}
-                {[4, 6, 8, 7, 6, 9, 8].map((value, i) => (
-                  <div
-                    key={i}
-                    className="w-1/12 bg-blue-400/80 rounded-t"
-                    style={{ height: `${value * 10}%` }}
-                  ></div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center mt-2 text-xs text-muted-foreground">
-              <span>4 h</span>
-              <span>9 h</span>
-            </div>
-          </div>
-
-          <div className="flex items-center text-xs text-muted-foreground mt-6 justify-center">
-            <BarChart2 className="h-3 w-3 mr-1" />
-            <span>Work and hours include extra hours</span>
-          </div>
-        </div>
       </div>
     </div>
   );

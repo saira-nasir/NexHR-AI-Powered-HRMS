@@ -33,6 +33,7 @@ const Employees = () => {
         try {
             setIsLoading(true);
             const data = await employeeService.getEmployees();
+            console.log("Fetched employees:---------------------------", data);
             setEmployees(data);
         } catch (error) {
             toast({
@@ -168,7 +169,7 @@ const Employees = () => {
                             className="hidden"
                         />
                         
-                        <Button
+                        {/* <Button
                             variant="outline"
                             className="flex items-center gap-2 border-[#5C5470] text-[#5C5470] hover:bg-[#5C5470] hover:text-white transition-all duration-300"
                             onClick={handleExport}
@@ -180,7 +181,7 @@ const Employees = () => {
                                 <Download className="w-4 h-4" />
                             )}
                             {isExporting ? 'Exporting...' : 'Export'}
-                        </Button>
+                        </Button> */}
                         
                         <Button
                             className="flex items-center gap-2 bg-gradient-to-r from-[#5C5470] to-[#352F44] hover:from-[#352F44] hover:to-[#5C5470] text-white shadow-lg hover:shadow-xl transition-all duration-300"
