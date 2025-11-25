@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
-import { Phone, Mail, BarChart2 } from 'lucide-react';
+import { Phone, Mail } from 'lucide-react';
 import { getUserRole } from '@/utils/roleUtils';
 
 const EmployeeCard: React.FC = () => {
@@ -19,7 +19,7 @@ const EmployeeCard: React.FC = () => {
   const statusText = typeof rawStatus === 'string' && rawStatus.length > 0
     ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)
     : 'Active';
-  
+
   // Get user role using the utility function
   const userRole = getUserRole(user);
 
@@ -66,8 +66,8 @@ const EmployeeCard: React.FC = () => {
 
   return (
     <div className="hr-card col-span-1 row-span-2 overflow-hidden flex flex-col animate-scale-in h-full">
-  {/* Avatar: show profile_pic_url when available, otherwise show Lottie animation */}
-  <div className="relative h-56 w-full overflow-hidden flex items-center justify-center bg-transparent">
+      {/* Avatar: show profile_pic_url when available, otherwise show Lottie animation */}
+      <div className="relative h-56 w-full overflow-hidden flex items-center justify-center bg-transparent">
         {profilePicUrl ? (
           <img
             src={profilePicUrl}
@@ -98,39 +98,6 @@ const EmployeeCard: React.FC = () => {
           </a>
         </div>
 
-        <div className="border-t border-border/40 pt-4 mt-auto flex-1 flex flex-col justify-between">
-          <div>
-            <div className="text-sm text-muted-foreground mb-1">Account Status</div>
-            <div className="flex items-baseline">
-              <span className={`text-2xl font-bold ${rawStatus === 'active' ? 'text-green-600' : 'text-red-600'}`}>
-                {statusText}
-              </span>
-            </div>
-
-            <div className="mt-4 h-20">
-              <div className="flex items-end justify-between h-full">
-                {/* Example static bars */}
-                {[4, 6, 8, 7, 6, 9, 8].map((value, i) => (
-                  <div
-                    key={i}
-                    className="w-1/12 bg-blue-400/80 rounded-t"
-                    style={{ height: `${value * 10}%` }}
-                  ></div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center mt-2 text-xs text-muted-foreground">
-              <span>4 h</span>
-              <span>9 h</span>
-            </div>
-          </div>
-
-          <div className="flex items-center text-xs text-muted-foreground mt-6 justify-center">
-            <BarChart2 className="h-3 w-3 mr-1" />
-            <span>Work and hours include extra hours</span>
-          </div>
-        </div>
       </div>
     </div>
   );

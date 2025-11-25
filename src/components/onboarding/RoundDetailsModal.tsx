@@ -34,7 +34,7 @@ const RoundDetailsModal: React.FC<RoundDetailsModalProps> = ({ isOpen, onClose, 
                     {round.roundName}
                   </CardTitle>
                   <Badge className="bg-indigo-600 text-white text-lg px-4 py-1">
-                    Overall Score: {round.roundScore}
+                    Overall Round Score: {round.overallRoundScore ?? round.roundScore}
                   </Badge>
                 </div>
               </CardHeader>

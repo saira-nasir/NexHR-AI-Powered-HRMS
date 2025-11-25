@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Search, MapPin, Activity, Monitor, ChevronDown, FileText } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 export default function Header() {
   // Selected values for dropdowns
@@ -178,97 +178,62 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-[#2A2438]">
+    <header className="bg-gradient-to-r from-[#1a1625] via-[#2A2438] to-[#1a1625] shadow-lg border-b border-white/5 sticky top-0 z-50 backdrop-blur-sm">
       {/* Top navigation bar */}
-      <div className="container mx-auto flex items-center justify-between py-4 px-6 border-b border-[#352F44]">
-        <div className="flex items-center space-x-2">
-          <img
-            src="/images/nexhr-logo.png"
-            alt="NexHR Logo"
-            className="h-10 w-auto object-contain"
-          />
-          <div className="flex items-center">
-            <span className="text-2xl font-bold text-[#e6e6ef]">
-              Nex
-            </span>
-            <span className="text-2xl font-bold text-[#e6e6ef]">
-              HR
-            </span>
-          </div>
+      <div className="container mx-auto flex items-center justify-between py-4 px-6">
+        <div className="flex items-center space-x-8">
+          <Link to="/" className="flex items-center space-x-3 group">
+            <div className="bg-white/10 p-2 rounded-xl group-hover:bg-white/20 transition-colors backdrop-blur-md border border-white/10">
+              <img
+                src="/images/nexhr-logo.png"
+                alt="NexHR Logo"
+                className="h-8 w-auto object-contain"
+              />
+            </div>
+            <div className="flex flex-col">
+              <div className="flex items-center">
+                <span className="text-xl font-bold text-white tracking-tight">
+                  Nex
+                </span>
+                <span className="text-xl font-bold text-violet-400">
+                  HR
+                </span>
+              </div>
+              <span className="text-[10px] uppercase tracking-widest text-gray-400 font-medium group-hover:text-violet-300 transition-colors">
+                Job Portal
+              </span>
+            </div>
+          </Link>
+
+          {/* Navigation Links - Removed as per request */}
+
         </div>
 
-        <nav className="hidden md:flex items-center space-x-8">
-          <a
-            href="#"
-            className={`text-white py-1 text-sm font-medium transition-colors hover:text-[#DBD8E3] ${activeLink === "find-job" ? "border-b-2 border-white" : "hover:border-b-2 hover:border-white"
-              }`}
-            onClick={() => handleLinkClick("job-portal")}
-          >
-            Find job
-          </a>
-          <a
-            href="#"
-            className={`text-white py-1 text-sm font-medium transition-colors hover:text-[#DBD8E3] ${activeLink === "messages" ? "border-b-2 border-white" : "hover:border-b-2 hover:border-white"
-              }`}
-            onClick={() => handleLinkClick("")}
-          >
-            Home
-          </a>
-          {/* <a
-            href="#"
-            className={`text-white py-1 text-sm font-medium transition-colors hover:text-[#DBD8E3] ${activeLink === "hiring" ? "border-b-2 border-white" : "hover:border-b-2 hover:border-white"
-              }`}
-            onClick={() => handleLinkClick("hiring")}
-          >
-            Hiring
-          </a>
-          <a
-            href="#"
-            className={`text-white py-1 text-sm font-medium transition-colors hover:text-[#DBD8E3] ${activeLink === "community" ? "border-b-2 border-white" : "hover:border-b-2 hover:border-white"
-              }`}
-            onClick={() => handleLinkClick("community")}
-          >
-            Community
-          </a>
-          <a
-            href="#"
-            className={`text-white py-1 text-sm font-medium transition-colors hover:text-[#DBD8E3] ${activeLink === "faq" ? "border-b-2 border-white" : "hover:border-b-2 hover:border-white"
-              }`}
-            onClick={() => handleLinkClick("faq")}
-          >
-            FAQ
-          </a> */}
-        </nav>
-
-        <div className="hidden md:flex items-center">
-          <div className="w-8 h-8 rounded-full bg-[#5C5470] cursor-pointer hover:bg-[#DBD8E3] hover:text-[#2A2438] transition-colors flex items-center justify-center">
-            <span className="font-medium text-xs">JD</span>
-          </div>
-        </div>
-
-        {/* Mobile menu button */}
-        <div className="md:hidden">
-          <button
-            className="text-white focus:outline-none focus:ring-2 focus:ring-[#5C5470] rounded p-1"
-            aria-label="Toggle navigation menu"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+        {/* Right Side Actions - Clean, no profile icon as requested */}
+        <div className="flex items-center space-x-4">
+          {/* Mobile menu button could go here if needed */}
+          <div className="md:hidden">
+            <button
+              className="text-white hover:bg-white/10 p-2 rounded-lg transition-colors"
+              aria-label="Toggle navigation menu"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Filter bar */}
-      <div className="container mx-auto px-6 py-5">
+      {/* <div className="container mx-auto px-6 py-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-          {/* Job Type Dropdown */}
           <div
             className="relative"
             ref={(el) => {
@@ -304,7 +269,6 @@ export default function Header() {
             )}
           </div>
 
-          {/* Location Dropdown */}
           <div
             className="relative"
             ref={(el) => {
@@ -340,7 +304,6 @@ export default function Header() {
             )}
           </div>
 
-          {/* Experience Dropdown */}
           <div
             className="relative"
             ref={(el) => {
@@ -376,7 +339,6 @@ export default function Header() {
             )}
           </div>
 
-          {/* Period Dropdown */}
           <div
             className="relative"
             ref={(el) => {
@@ -412,7 +374,6 @@ export default function Header() {
             )}
           </div>
 
-          {/* Salary Range */}
           <div className="w-full sm:col-span-2 lg:col-span-1">
             <div className="flex justify-between items-center text-white text-sm mb-3">
               <span className="text-sm">Salary range</span>
@@ -459,7 +420,7 @@ export default function Header() {
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
     </header>
   );
 }

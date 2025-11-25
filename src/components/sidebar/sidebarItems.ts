@@ -1,8 +1,8 @@
-import { 
+import {
   Home,
-  Users, 
-  Briefcase, 
-  DollarSign, 
+  Users,
+  Briefcase,
+  DollarSign,
   Settings,
   PanelRight,
   LifeBuoy,
@@ -34,7 +34,8 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Register Face',
     path: '/register-face',
     icon: UserCircle,
-    allowedRoles: ['Employee', 'HR', 'Admin', 'Finance Manager'],
+    allowedRoles: ['HR', 'Admin'],
+    // Previously visible to all roles, now restricted to HR and Admin only
   },
   {
     title: 'Loan & Expense',
@@ -75,8 +76,8 @@ export const sidebarItems: SidebarMenuItem[] = [
     submenu: [
       { title: 'Employees', path: '/employees', allowedRoles: ['HR', 'Admin'] },
       { title: 'Attendance', path: '/attendance', allowedRoles: ['HR', 'Admin'] },
-  // { title: 'Checklist', path: '/checklist', allowedRoles: ['HR', 'Admin'] },
-  // { title: 'Time off', path: '/time-off', allowedRoles: ['HR', 'Admin'] },
+      // { title: 'Checklist', path: '/checklist', allowedRoles: ['HR', 'Admin'] },
+      // { title: 'Time off', path: '/time-off', allowedRoles: ['HR', 'Admin'] },
     ],
   },
   {

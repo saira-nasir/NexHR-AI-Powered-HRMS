@@ -33,6 +33,7 @@ const Employees = () => {
         try {
             setIsLoading(true);
             const data = await employeeService.getEmployees();
+            console.log("Fetched employees:---------------------------", data);
             setEmployees(data);
         } catch (error) {
             toast({

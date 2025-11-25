@@ -15,12 +15,10 @@ interface OnboardCandidateModalProps {
 }
 
 export interface SalaryData {
-  baseSalary: string;
-  bonus: string;
-  benefits: string;
+  baseSalary: string; // USD
   startDate: string;
-  joiningBonus: string;
-  currency: string;
+  allowances: string;
+  justification: string;
 }
 
 const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
@@ -31,11 +29,9 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
 }) => {
   const [salaryData, setSalaryData] = useState<SalaryData>({
     baseSalary: '',
-    bonus: '',
-    benefits: '',
     startDate: '',
-    joiningBonus: '',
-    currency: 'PKR',
+    allowances: '',
+    justification: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof SalaryData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,14 +47,25 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
     
     if (!salaryData.startDate.trim()) {
       newErrors.startDate = 'Start date is required';
+    } else {
+      // Ensure start date is in the future (strictly after today)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selected = new Date(salaryData.startDate);
+      selected.setHours(0, 0, 0, 0);
+      if (!(selected instanceof Date) || isNaN(selected.getTime())) {
+        newErrors.startDate = 'Please enter a valid date';
+      } else if (selected <= today) {
+        newErrors.startDate = 'Start date must be in the future';
+      }
     }
     
-    if (salaryData.bonus && (isNaN(Number(salaryData.bonus)) || Number(salaryData.bonus) < 0)) {
-      newErrors.bonus = 'Please enter a valid amount';
+    if (salaryData.allowances && (isNaN(Number(salaryData.allowances)) || Number(salaryData.allowances) < 0)) {
+      newErrors.allowances = 'Please enter a valid amount (cannot be negative)';
     }
-    
-    if (salaryData.joiningBonus && (isNaN(Number(salaryData.joiningBonus)) || Number(salaryData.joiningBonus) < 0)) {
-      newErrors.joiningBonus = 'Please enter a valid amount';
+
+    if (!salaryData.justification.trim()) {
+      newErrors.justification = 'Justification is required for onboarding';
     }
 
     setErrors(newErrors);
@@ -81,11 +88,9 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
   const handleClose = () => {
     setSalaryData({
       baseSalary: '',
-      bonus: '',
-      benefits: '',
       startDate: '',
-      joiningBonus: '',
-      currency: 'PKR',
+      allowances: '',
+      justification: '',
     });
     setErrors({});
     setIsSubmitting(false);
@@ -137,24 +142,15 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
               <Label htmlFor="baseSalary" className="text-base font-semibold text-gray-900">
                 Base Salary (Annual) *
               </Label>
-              <div className="flex gap-2 mt-2">
-                <select
-                  value={salaryData.currency}
-                  onChange={(e) => updateField('currency', e.target.value)}
-                  className="w-24 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="PKR">PKR</option>
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                  <option value="GBP">GBP</option>
-                </select>
+              <div className="relative mt-2">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-700">USD</span>
                 <Input
                   id="baseSalary"
                   type="number"
                   value={salaryData.baseSalary}
                   onChange={(e) => updateField('baseSalary', e.target.value)}
-                  placeholder="e.g., 1200000"
-                  className="flex-1"
+                  placeholder="e.g., 120000"
+                  className="pl-12"
                 />
               </div>
               {errors.baseSalary && <p className="text-sm text-red-600 mt-1">{errors.baseSalary}</p>}
@@ -175,51 +171,37 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div>
-              <Label htmlFor="bonus" className="text-base font-semibold text-gray-900">
-                Annual Performance Bonus
+              <Label htmlFor="allowances" className="text-base font-semibold text-gray-900">
+                Allowances (Annual)
               </Label>
-              <p className="text-sm text-gray-600 mb-2">Optional</p>
+              <p className="text-sm text-gray-600 mb-2">Optional - additional allowances in USD</p>
               <Input
-                id="bonus"
+                id="allowances"
                 type="number"
-                value={salaryData.bonus}
-                onChange={(e) => updateField('bonus', e.target.value)}
-                placeholder="e.g., 100000"
+                value={salaryData.allowances}
+                onChange={(e) => updateField('allowances', e.target.value)}
+                placeholder="e.g., 5000"
               />
-              {errors.bonus && <p className="text-sm text-red-600 mt-1">{errors.bonus}</p>}
-            </div>
-
-            <div>
-              <Label htmlFor="joiningBonus" className="text-base font-semibold text-gray-900">
-                Joining Bonus
-              </Label>
-              <p className="text-sm text-gray-600 mb-2">Optional, one-time payment</p>
-              <Input
-                id="joiningBonus"
-                type="number"
-                value={salaryData.joiningBonus}
-                onChange={(e) => updateField('joiningBonus', e.target.value)}
-                placeholder="e.g., 50000"
-              />
-              {errors.joiningBonus && <p className="text-sm text-red-600 mt-1">{errors.joiningBonus}</p>}
+              {errors.allowances && <p className="text-sm text-red-600 mt-1">{errors.allowances}</p>}
             </div>
           </div>
 
           <div>
-            <Label htmlFor="benefits" className="text-base font-semibold text-gray-900">
-              Benefits & Perks
+            <Label htmlFor="justification" className="text-base font-semibold text-gray-900">
+              Onboarding Justification *
             </Label>
-            <p className="text-sm text-gray-600 mb-2">
-              Optional, e.g., health insurance, gym membership, remote work
-            </p>
-            <Input
-              id="benefits"
-              value={salaryData.benefits}
-              onChange={(e) => updateField('benefits', e.target.value)}
-              placeholder="e.g., Health insurance, gym membership, flexible hours..."
+            <p className="text-sm text-gray-600 mb-2">Provide a short justification for onboarding this candidate (required)</p>
+            <textarea
+              id="justification"
+              value={salaryData.justification}
+              onChange={(e) => updateField('justification', e.target.value)}
+              placeholder="e.g., Candidate accepted offer due to relocation support and competitive package..."
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={4}
             />
+            {errors.justification && <p className="text-sm text-red-600 mt-1">{errors.justification}</p>}
           </div>
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">

@@ -335,6 +335,50 @@ class ApplicationService {
       return { success: false, message: error.response?.data?.message || 'Failed to fetch scheduled rounds' };
     }
   }
+
+  /**
+   * Get interview feedback for all jobs with completed interviews
+   * GET /api/jobs/interview-feedback/
+   */
+  async getInterviewFeedback(): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/jobs/interview-feedback/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        return { success: true, data: response.data };
+      }
+
+      return { success: false, message: 'Failed to fetch interview feedback' };
+    } catch (error: any) {
+      console.error('Error fetching interview feedback:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to fetch interview feedback' };
+    }
+  }
+
+  /**
+   * Onboard an application
+   * POST /api/applications/{application_id}/onboard/
+   */
+  async onboardApplication(applicationId: number, payload: any): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/applications/${applicationId}/onboard/`,
+        payload,
+        { headers: this.getAuthHeader() }
+      );
+
+      if (response.status === 200 || response.status === 201) {
+        return { success: true, data: response.data };
+      }
+
+      return { success: false, message: 'Failed to onboard application' };
+    } catch (error: any) {
+      console.error('Error onboarding application:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to onboard application' };
+    }
+  }
 }
 
 export const applicationService = new ApplicationService();

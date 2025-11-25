@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import RoundDetailsModal from '@/components/onboarding/RoundDetailsModal';
 import RejectCandidateModal from '@/components/onboarding/RejectCandidateModal';
 import OnboardCandidateModal from '@/components/onboarding/OnboardCandidateModal';
+import { applicationService } from '@/services/jobPortalservice';
 
 // Types
 export interface InterviewerScore {
@@ -21,6 +22,7 @@ export interface Round {
   roundId: number;
   roundName: string;
   roundScore: number;
+  overallRoundScore?: number;
   interviewers: InterviewerScore[];
 }
 
@@ -29,6 +31,7 @@ export interface Candidate {
   candidateName: string;
   candidateEmail: string;
   candidatePhone?: string;
+  applicationId?: number;
   rounds: Round[];
 }
 
@@ -40,86 +43,9 @@ export interface Job {
   candidates: Candidate[];
 }
 
-// Mock data
-const MOCK_JOBS: Job[] = [
-  {
-    jobId: 1,
-    jobTitle: 'Senior Frontend Engineer',
-    department: 'Engineering',
-    candidatesCount: 2,
-    candidates: [
-      {
-        candidateId: 101,
-        candidateName: 'Aisha Khan',
-        candidateEmail: 'aisha.khan@example.com',
-        candidatePhone: '+92 300 111 2222',
-        rounds: [
-          {
-            roundId: 1,
-            roundName: 'Technical Round 1',
-            roundScore: 85,
-            interviewers: [
-              { interviewerId: 1, interviewerName: 'John Doe', score: 90, justification: 'Strong React skills and problem-solving ability.' },
-              { interviewerId: 2, interviewerName: 'Jane Smith', score: 80, justification: 'Good understanding of TypeScript and state management.' }
-            ]
-          },
-          {
-            roundId: 2,
-            roundName: 'Technical Round 2',
-            roundScore: 88,
-            interviewers: [
-              { interviewerId: 3, interviewerName: 'Mike Johnson', score: 88, justification: 'Excellent system design thinking and architecture knowledge.' }
-            ]
-          }
-        ]
-      },
-      {
-        candidateId: 102,
-        candidateName: 'Omar Farooq',
-        candidateEmail: 'omar.farooq@example.com',
-        candidatePhone: '+92 300 333 4444',
-        rounds: [
-          {
-            roundId: 1,
-            roundName: 'Technical Round 1',
-            roundScore: 75,
-            interviewers: [
-              { interviewerId: 1, interviewerName: 'John Doe', score: 75, justification: 'Decent React knowledge but needs improvement in testing.' }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    jobId: 2,
-    jobTitle: 'Backend Engineer',
-    department: 'Engineering',
-    candidatesCount: 1,
-    candidates: [
-      {
-        candidateId: 201,
-        candidateName: 'Sara Ahmed',
-        candidateEmail: 'sara.ahmed@example.com',
-        candidatePhone: '+92 300 555 6666',
-        rounds: [
-          {
-            roundId: 1,
-            roundName: 'Technical Assessment',
-            roundScore: 92,
-            interviewers: [
-              { interviewerId: 4, interviewerName: 'Alice Brown', score: 95, justification: 'Outstanding Python and Django expertise. Strong database design.' },
-              { interviewerId: 5, interviewerName: 'Bob Wilson', score: 89, justification: 'Great API design skills and clean code practices.' }
-            ]
-          }
-        ]
-      }
-    ]
-  }
-];
-
 const Onboarding: React.FC = () => {
-  const [jobs, setJobs] = useState<Job[]>(MOCK_JOBS);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [expandedJobId, setExpandedJobId] = useState<number | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showRoundDetails, setShowRoundDetails] = useState(false);
@@ -130,6 +56,51 @@ const Onboarding: React.FC = () => {
   // Lottie animation (same pattern as EmployeeCard)
   const lottieContainer = useRef<HTMLDivElement | null>(null);
   const lottieAnimRef = useRef<any | null>(null);
+
+  // Fetch interview feedback data on component mount
+  useEffect(() => {
+    const fetchInterviewFeedback = async () => {
+      setIsLoading(true);
+      try {
+        const response = await applicationService.getInterviewFeedback();
+        if (response.success && response.data) {
+          // Map API response to Job[] structure
+          const mappedJobs: Job[] = response.data.jobs.map((apiJob: any) => ({
+            jobId: apiJob.job_id,
+            jobTitle: apiJob.job_title,
+            department: apiJob.department,
+            candidatesCount: apiJob.number_of_applications,
+            candidates: apiJob.applications.map((app: any) => ({
+              candidateId: app.application_id || 0,
+              applicationId: app.application_id || 0,
+              candidateName: app.name,
+              candidateEmail: app.email,
+              candidatePhone: app.phone_number,
+              rounds: app.rounds.map((round: any) => ({
+                roundId: round.round_id || 0,
+                roundName: round.round_name,
+                roundScore: round.overall_round_score,
+                overallRoundScore: round.overall_round_score,
+                interviewers: round.interviewer_details.map((interviewer: any) => ({
+                  interviewerId: interviewer.interviewer_id || 0,
+                  interviewerName: interviewer.name,
+                  score: interviewer.score,
+                  justification: interviewer.summary?.justification || ''
+                }))
+              }))
+            }))
+          }));
+          setJobs(mappedJobs);
+        }
+      } catch (error) {
+        console.error('Failed to fetch interview feedback:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchInterviewFeedback();
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -198,11 +169,38 @@ const Onboarding: React.FC = () => {
     setSelectedCandidate(null);
   };
 
-  const handleOnboardConfirm = (salaryData: any) => {
-    // Process onboarding (UI flow only - no backend logic required)
-    console.log('Onboarding candidate:', selectedCandidate, 'with salary data:', salaryData);
-    setShowOnboardModal(false);
-    setSelectedCandidate(null);
+  const handleOnboardConfirm = async (salaryData: any) => {
+    if (!selectedCandidate) return;
+    // Map local SalaryData to API payload
+    const payload = {
+      base_salary: Number(salaryData.baseSalary),
+      allowances: salaryData.allowances ? Number(salaryData.allowances) : 0,
+      effective_from: salaryData.startDate,
+      hiring_justification: salaryData.justification,
+    };
+
+    // Call service to onboard application - candidate.candidateId holds application id
+    try {
+  const applicationId = selectedCandidate.applicationId ?? selectedCandidate.candidateId;
+      const resp = await applicationService.onboardApplication(applicationId, payload);
+      if (resp.success) {
+        // Remove the candidate from the job list (simple UI update)
+        setJobs(prevJobs => prevJobs.map(job => ({
+          ...job,
+          candidates: job.candidates.filter(c => c.candidateId !== selectedCandidate.candidateId),
+          candidatesCount: job.candidates.filter(c => c.candidateId !== selectedCandidate.candidateId).length
+        })));
+
+        // Close modal and clear selection
+        setShowOnboardModal(false);
+        setSelectedCandidate(null);
+      } else {
+        // show error in console for now — could use toast
+        console.error('Onboard failed:', resp.message);
+      }
+    } catch (err) {
+      console.error('Onboard error:', err);
+    }
   };
 
   const handleCloseJob = (jobId: number) => {
@@ -240,8 +238,17 @@ const Onboarding: React.FC = () => {
           <div className="max-w-7xl mx-auto">
             <div className="mb-6" />
 
-            <div className="space-y-4">
-              {jobs.map((job) => (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-lg">No candidates available for onboarding</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {jobs.map((job) => (
                 <Card key={job.jobId} className="border-2 border-gray-200 hover:border-indigo-300 transition-colors">
                   <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
                     <div className="flex items-center justify-between">
@@ -361,15 +368,8 @@ const Onboarding: React.FC = () => {
                   </AnimatePresence>
                 </Card>
               ))}
-
-              {jobs.length === 0 && (
-                <div className="text-center py-20">
-                  <Users className="h-20 w-20 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No jobs available</h3>
-                  <p className="text-gray-500">There are no job positions with selected candidates</p>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
