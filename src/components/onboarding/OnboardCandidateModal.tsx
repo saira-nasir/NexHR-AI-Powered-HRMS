@@ -38,13 +38,13 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof SalaryData, string>> = {};
-    
+
     if (!salaryData.baseSalary.trim()) {
       newErrors.baseSalary = 'Base salary is required';
     } else if (isNaN(Number(salaryData.baseSalary)) || Number(salaryData.baseSalary) <= 0) {
-      newErrors.baseSalary = 'Please enter a valid amount';
+      newErrors.baseSalary = 'Base salary must be a positive amount';
     }
-    
+
     if (!salaryData.startDate.trim()) {
       newErrors.startDate = 'Start date is required';
     } else {
@@ -59,7 +59,7 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
         newErrors.startDate = 'Start date must be in the future';
       }
     }
-    
+
     if (salaryData.allowances && (isNaN(Number(salaryData.allowances)) || Number(salaryData.allowances) < 0)) {
       newErrors.allowances = 'Please enter a valid amount (cannot be negative)';
     }
@@ -74,12 +74,12 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-    
+
     setIsSubmitting(true);
-    
+
     // Simulate processing
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     onConfirm(salaryData);
     setIsSubmitting(false);
     handleClose();
@@ -147,8 +147,13 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
                 <Input
                   id="baseSalary"
                   type="number"
+                  min={0}
                   value={salaryData.baseSalary}
-                  onChange={(e) => updateField('baseSalary', e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (parseFloat(val) < 0) return;
+                    updateField('baseSalary', val);
+                  }}
                   placeholder="e.g., 120000"
                   className="pl-12"
                 />
@@ -180,8 +185,13 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
               <Input
                 id="allowances"
                 type="number"
+                min={0}
                 value={salaryData.allowances}
-                onChange={(e) => updateField('allowances', e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (parseFloat(val) < 0) return;
+                  updateField('allowances', val);
+                }}
                 placeholder="e.g., 5000"
               />
               {errors.allowances && <p className="text-sm text-red-600 mt-1">{errors.allowances}</p>}
@@ -206,7 +216,7 @@ const OnboardCandidateModal: React.FC<OnboardCandidateModalProps> = ({
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <p className="text-sm text-green-800">
-              <span className="font-semibold">Note:</span> Once confirmed, an offer letter will be generated 
+              <span className="font-semibold">Note:</span> Once confirmed, an offer letter will be generated
               and sent to the candidate's email. HR can track onboarding progress in the dashboard.
             </p>
           </div>

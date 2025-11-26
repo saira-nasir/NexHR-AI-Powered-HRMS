@@ -3,12 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { 
-  Search, 
-  Filter, 
-  Eye, 
-  MessageSquare, 
-  Calendar, 
+import {
+  Search,
+  Filter,
+  Eye,
+  MessageSquare,
+  Calendar,
   Award,
   Download,
   ChevronRight,
@@ -105,36 +105,36 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
   const loadCandidates = async () => {
     try {
       setLoading(true);
-      
+
       // Get auth token from localStorage
       const token = localStorage.getItem('access_token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };
-      
+
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      
+
       const response = await fetch(`${API_BASE}/jobs/${jobId}/applications/`, {
         headers
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch candidates: ${response.status}`);
       }
 
       const data: ApiResponse = await response.json();
-      
+
       // Set recruiter from response
       setRecruiter(data.posted_by);
 
       // Transform API candidates to Candidate interface
       const transformedCandidates: Candidate[] = data.applications.map(app => {
         // Map API status to valid stage values
-        const stage: "applied" | "screened" | "assessment" | "interview" | "offer" | "hired" | "rejected" = 
-          app.status === 'pending' ? 'applied' : 
-          (app.status as any) || 'applied';
+        const stage: "applied" | "screened" | "assessment" | "interview" | "offer" | "hired" | "rejected" =
+          app.status === 'pending' ? 'applied' :
+            (app.status as any) || 'applied';
 
         return {
           id: String(app.id),
@@ -145,13 +145,13 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
           appliedAt: app.applied_at,
           stage,
           score: 0, // Not provided by API, set to 0
-          experienceYears: app.experiences.length > 0 
-            ? parseFloat(app.experiences[0].years_of_experience) 
+          experienceYears: app.experiences.length > 0
+            ? parseFloat(app.experiences[0].years_of_experience)
             : 0,
           recruiter: data.posted_by,
           location: app.address,
-          education: app.educations.length > 0 
-            ? `${app.educations[0].education_level} - ${app.educations[0].institution_name}` 
+          education: app.educations.length > 0
+            ? `${app.educations[0].education_level} - ${app.educations[0].institution_name}`
             : 'N/A',
           topSkills: app.skills.map(skill => skill.name),
           resumeUrl: '', // Not provided by API
@@ -271,85 +271,7 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
 
   return (
     <div className="space-y-6">
-      {/* Enhanced Header with Search and Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Users2 className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Candidate Pipeline</h2>
-                <p className="text-sm text-gray-600">Manage and track all your candidates</p>
-              </div>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search candidates by name, role, or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex gap-3">
-                <select
-                  value={selectedJob}
-                  onChange={(e) => setSelectedJob(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Jobs</option>
-                  {uniqueJobs.map(job => (
-                    <option key={job} value={job}>{job}</option>
-                  ))}
-                </select>
-                <select
-                  value={selectedStage}
-                  onChange={(e) => setSelectedStage(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Stages</option>
-                  {uniqueStages.map(stage => (
-                    <option key={stage} value={stage}>{stage.charAt(0).toUpperCase() + stage.slice(1)}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="flex items-center bg-gray-100 rounded-lg p-1">
-              <Button
-                variant={viewMode === 'table' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('table')}
-                className="h-8"
-              >
-                <FileText className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'cards' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('cards')}
-                className="h-8"
-              >
-                <Briefcase className="w-4 h-4" />
-              </Button>
-            </div>
-            <Button variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
-            <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Candidate
-            </Button>
-          </div>
-        </div>
-      </div>
+
 
       {/* Bulk Actions */}
       {selectedCandidates.length > 0 && (
@@ -405,7 +327,7 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No Candidates Found</h3>
               <p className="text-gray-600 text-center max-w-md mb-6">
-                {searchTerm || selectedStage !== 'all' || selectedJob !== 'all' 
+                {searchTerm || selectedStage !== 'all' || selectedJob !== 'all'
                   ? 'No candidates match your current filters. Try adjusting your search criteria.'
                   : 'There are no candidate applications at the moment. New applications will appear here.'}
               </p>
