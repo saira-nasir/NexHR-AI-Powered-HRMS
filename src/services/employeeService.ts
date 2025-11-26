@@ -2,88 +2,87 @@
 import api from "@/lib/api";
 
 export interface Employee {
-  id: number;
-  fname?: string;
-  lname?: string;
-  first_name?: string;
-  last_name?: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  phone?: string;
-  phone_number?: string;
-  mobile?: string;
-  company?: string;
-  department?: string;
-  branch?: string;
-  name?: string;
-  username?: string;
-  is_active?: boolean;
-  is_verified?: boolean;
+    id: number;
+    fname?: string;
+    lname?: string;
+    first_name?: string;
+    last_name?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    phone_number?: string;
+    mobile?: string;
+    company?: string;
+    department?: string;
+    branch?: string;
+    name?: string;
+    username?: string;
+    is_active?: boolean;
+    is_verified?: boolean;
 }
 
 const normalizeEmployee = (raw: any): Employee => {
-  if (!raw) return raw as Employee;
+    if (!raw) return raw as Employee;
 
-  const id = raw.id ?? raw.pk ?? raw.user_id ?? raw.uid ?? raw.employee_id;
-  const email = raw.email || raw.user_email || raw.username || "";
-  const phone = raw.phone || raw.phone_number || raw.mobile || "";
+    const id = raw.id ?? raw.pk ?? raw.user_id ?? raw.uid ?? raw.employee_id;
+    const email = raw.email || raw.user_email || raw.username || "";
+    const phone = raw.phone || raw.phone_number || raw.mobile || "";
 
-  const fname = raw.fname || raw.first_name || raw.firstName || "";
-  const lname = raw.lname || raw.last_name || raw.lastName || "";
-  const name = raw.name || `${fname} ${lname}`.trim() || raw.username || "";
+    const fname = raw.fname || raw.first_name || raw.firstName || "";
+    const lname = raw.lname || raw.last_name || raw.lastName || "";
+    const name = raw.name || `${fname} ${lname}`.trim() || raw.username || "";
 
-  const company =
-    raw.company && typeof raw.company === "object"
-      ? raw.company.name
-      : raw.company || raw.company_name;
+    const company =
+        raw.company && typeof raw.company === "object"
+            ? raw.company.name
+            : raw.company || raw.company_name;
 
-  const department = raw.department || raw.dept || raw.department_name;
-  const branch = raw.branch || raw.branch_name;
+    const department = raw.department || raw.dept || raw.department_name;
+    const branch = raw.branch || raw.branch_name;
 
-  return {
-    id: Number(id),
-    fname: fname || 'Unknown',
-    lname: lname || 'User',
-    first_name: raw.first_name,
-    last_name: raw.last_name,
-    firstName: raw.firstName,
-    lastName: raw.lastName,
-    email,
-    phone,
-    phone_number: raw.phone_number,
-    mobile: raw.mobile,
-    company: typeof company === 'string' ? company : company?.name || undefined,
-    department: department,
-    branch: branch,
-    name: name,
-    username: raw.username,
-    is_active: raw.is_active,
-    is_verified: raw.is_verified,
-  } as Employee;
+    return {
+        id: Number(id),
+        fname: fname || 'Unknown',
+        lname: lname || 'User',
+        first_name: raw.first_name,
+        last_name: raw.last_name,
+        firstName: raw.firstName,
+        lastName: raw.lastName,
+        email,
+        phone,
+        phone_number: raw.phone_number,
+        mobile: raw.mobile,
+        company: typeof company === 'string' ? company : company?.name || undefined,
+        department: department,
+        branch: branch,
+        name: name,
+        username: raw.username,
+        is_active: raw.is_active,
+        is_verified: raw.is_verified,
+    } as Employee;
 };
 
 export const employeeService = {
     async getEmployees(): Promise<Employee[]> {
         try {
             console.log('🔄 Fetching company employees...');
-            
+
             // Strategy: Fetch company-specific users and attendance data
             const allEmployees = new Map<number, Employee>(); // Use Map to avoid duplicates by ID
-            
-            // 1. Try /api/company-users/ to get company-specific users
+
+            // 1. Try /api/company-users/ to get company-specific users (FAST List Call)
             try {
                 console.log('📡 Fetching from /company-users/ (company users)...');
                 const companyUsersResponse = await api.get('/company-users/');
                 console.log('✅ Success with /company-users/:', companyUsersResponse.status);
-                
+
                 const companyUsers = Array.isArray(companyUsersResponse.data) ? companyUsersResponse.data : companyUsersResponse.data?.results || [];
                 console.log(`📊 Found ${companyUsers.length} users from /company-users/`);
-                
+
                 // Add company users to our collection
                 companyUsers.forEach((user: any) => {
                     const normalized = normalizeEmployee(user);
-                    // ✅ Log raw backend data to see what department field is being returned
                     console.log(`📥 Raw user data from /company-users/ for ID ${normalized.id}:`, {
                         rawDepartment: user.department,
                         rawDept: user.dept,
@@ -91,29 +90,29 @@ export const employeeService = {
                         normalizedDepartment: normalized.department,
                         fullUser: user
                     });
-                    
+
                     if (!isNaN(normalized.id)) {
                         allEmployees.set(normalized.id, normalized);
                     } else {
                         console.warn('⚠️ Skipping employee with invalid ID:', user);
                     }
                 });
-                
+
                 console.log('👥 Company users added to collection');
             } catch (error) {
                 console.warn('❌ Failed to fetch from /company-users/:', error);
             }
 
-            // 1.5. Try /auth/users/ if we have no employees yet or as a fallback
+            // 1.5. Try /auth/users/ if we have no employees yet or as a fallback (FAST List Call)
             if (allEmployees.size === 0) {
                 try {
                     console.log('📡 Fetching from /auth/users/ (fallback)...');
                     const authUsersResponse = await api.get('/auth/users/');
                     console.log('✅ Success with /auth/users/:', authUsersResponse.status);
-                    
+
                     const authUsers = Array.isArray(authUsersResponse.data) ? authUsersResponse.data : authUsersResponse.data?.results || [];
                     console.log(`📊 Found ${authUsers.length} users from /auth/users/`);
-                    
+
                     authUsers.forEach((user: any) => {
                         const normalized = normalizeEmployee(user);
                         if (!isNaN(normalized.id) && !allEmployees.has(normalized.id)) {
@@ -125,50 +124,30 @@ export const employeeService = {
                     console.warn('❌ Failed to fetch from /auth/users/:', error);
                 }
             }
-            
-            // 2. Try payroll-related endpoints for additional employee data
+
+            // 2. Try payroll-related endpoints for additional employee data (FAST List Call)
+            // REMOVED: Fetching all attendance records is too slow and redundant. 
+            // If employees are missing from /company-users/, they should be added there or fetched individually if needed.
+            /*
             try {
-                console.log('📡 Fetching from /payroll/attendance/ (attendance data)...');
-                const attendanceResponse = await api.get('/payroll/attendance/');
-                console.log('✅ Success with /payroll/attendance/:', attendanceResponse.status);
-                
-                const attendanceData = Array.isArray(attendanceResponse.data) ? attendanceResponse.data : attendanceResponse.data?.results || [];
-                console.log(`📊 Found ${attendanceData.length} attendance records`);
-                
-                // Extract unique employee IDs from attendance data
-                const attendanceEmployeeIds = new Set(attendanceData.map((record: any) => record.employee || record.employee_id).filter(Boolean));
-                console.log('👥 Unique employee IDs from attendance:', Array.from(attendanceEmployeeIds));
-                
-                // Try to fetch missing employees individually
-                for (const empId of attendanceEmployeeIds) {
-                    const employeeId = Number(empId);
-                    if (!isNaN(employeeId) && !allEmployees.has(employeeId)) {
-                        try {
-                            const individualEmployee = await this.getEmployee(employeeId);
-                            if (individualEmployee) {
-                                allEmployees.set(employeeId, individualEmployee);
-                                console.log(`✅ Fetched missing employee ${employeeId} from attendance data`);
-                            }
-                        } catch (error) {
-                            console.log(`❌ Could not fetch employee ${employeeId}:`, error);
-                        }
-                    }
-                }
+                console.log('📡 Fetching from /payroll/attendance/ (attendance data list)...');
+                // ... code removed for performance ...
             } catch (error) {
                 console.warn('❌ Failed to fetch from /payroll/attendance/:', error);
             }
-            
+            */
+
             // Convert Map to Array and sort by ID
             const finalEmployees = Array.from(allEmployees.values()).sort((a, b) => a.id - b.id);
             console.log(`🎯 Final result: ${finalEmployees.length} unique employees`);
-            
+
             // Debug: Log all employee IDs to see the range
             if (finalEmployees.length > 0) {
                 const employeeIds = finalEmployees.map(emp => emp.id);
                 console.log('📋 All employee IDs found:', employeeIds);
                 console.log('📊 Employee ID range:', { min: Math.min(...employeeIds), max: Math.max(...employeeIds) });
             }
-            
+
             return finalEmployees;
         } catch (error) {
             console.error('Error fetching employees:', error);
@@ -191,12 +170,12 @@ export const employeeService = {
                 const response = await api.get(endpoint);
                 console.log(`✅ Success with ${endpoint} for ID ${id}:`, response.status);
 
-            const data = response.data;
-                
+                const data = response.data;
+
                 // Handle different response formats
-            if (data && (data.id === id || data.pk === id)) {
+                if (data && (data.id === id || data.pk === id)) {
                     console.log(`✅ Found employee ${id} in ${endpoint}`);
-                return normalizeEmployee(data);
+                    return normalizeEmployee(data);
                 } else if (data && Array.isArray(data.results) && data.results.length > 0) {
                     // Handle paginated results
                     const found = data.results.find((d: any) => d.id === id || d.pk === id);
@@ -251,7 +230,7 @@ export const employeeService = {
         }
     },
 
-}; 
+};
 
 // Development helper: probe all candidate endpoints and return per-endpoint diagnostics
 export const probeEmployeeEndpoints = async () => {
@@ -262,30 +241,30 @@ export const probeEmployeeEndpoints = async () => {
         '/payroll/bank-info/',
     ];
     const results: any[] = [];
-    
+
     for (const endpoint of endpoints) {
         try {
             const res = await api.get(endpoint);
             const data = res.data;
             const count = Array.isArray(data) ? data.length : (data?.results?.length || 0);
-            results.push({ 
-                endpoint, 
-                ok: true, 
-                status: res.status, 
+            results.push({
+                endpoint,
+                ok: true,
+                status: res.status,
                 count,
                 hasData: count > 0,
                 sampleIds: Array.isArray(data) ? data.slice(0, 3).map((item: any) => item.id) : (data?.results?.slice(0, 3).map((item: any) => item.id) || [])
             });
         } catch (err: any) {
-            results.push({ 
-                endpoint, 
-                ok: false, 
-                status: err?.response?.status, 
-                error: err?.response?.data || err.message 
+            results.push({
+                endpoint,
+                ok: false,
+                status: err?.response?.status,
+                error: err?.response?.data || err.message
             });
         }
     }
-    
+
     return results;
 };
 

@@ -38,6 +38,7 @@ import RegisterFace from "@/pages/RegisterFace";
 import Interview from "@/pages/Interview";
 import HiringInterview from "@/pages/HiringInterview";
 import CompanyPolicy from "@/pages/CompanyPolicy";
+import Settings from "@/pages/Settings";
 
 // Finance pages
 import Expenses from "@/pages/Expenses";
@@ -54,13 +55,8 @@ import CompanyRegistrationGuard from "@/components/CompanyRegistrationGuard";
 import RoleBasedRoute from "@/components/RoleBasedRoute";
 import RoleBasedDashboard from "@/components/RoleBasedDashboard";
 
-// Placeholders
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className="flex flex-col items-center justify-center min-h-[60vh]">
-    <h1 className="text-2xl font-bold mb-4">{title}</h1>
-    <p className="text-muted-foreground">This page is under construction</p>
-  </div>
-);
+import PlaceholderPage from "@/components/PlaceholderPage";
+
 
 // Routes
 export const routes: RouteObject[] = [
@@ -339,8 +335,8 @@ export const routes: RouteObject[] = [
           },
 
           // Common routes
-          { path: "settings", element: <PlaceholderPage title="Settings" /> },
-          { path: "integrations", element: <PlaceholderPage title="Integrations" /> },
+          { path: "settings", element: <Settings /> },
+
           { path: "support", element: <PlaceholderPage title="Help & Support" /> },
           { path: "linkedin-auth/callback", element: <LinkedInAuth /> },
         ],
