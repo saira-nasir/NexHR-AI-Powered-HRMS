@@ -101,9 +101,17 @@ export const routes: RouteObject[] = [
     path: "/",
     element: <ProtectedRoute />,
     children: [
-      // 1. This route is ACCESSIBLE even if company is not registered
+      // 1. These routes are ACCESSIBLE even if company is not registered
       // This allows the Guard to redirect here safely
       { path: "company", element: <CompanyInfoForm /> },
+      {
+        path: "company-policy",
+        element: (
+          <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+            <CompanyPolicy />
+          </RoleBasedRoute>
+        ),
+      },
 
       // 2. These routes are GUARDED. 
       // You must have a company to enter here.
@@ -182,14 +190,6 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <AssessmentAndInterview />
-              </RoleBasedRoute>
-            ),
-          },
-          {
-            path: "company-policy",
-            element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
-                <CompanyPolicy />
               </RoleBasedRoute>
             ),
           },

@@ -717,8 +717,8 @@ const AttendanceLeave: React.FC = () => {
 
                 {/* Webcam / Result Section */}
                 {attendanceMode === 'checkin' && !todayAttendance?.check_out && (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                    <div className="lg:col-span-2">
+                  <div className="mb-6">
+                    <div>
                       {!attendanceResult ? (
                         <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
                           <CardHeader>
@@ -753,16 +753,17 @@ const AttendanceLeave: React.FC = () => {
                         </Card>
                       )}
                     </div>
-                    <div className="lg:col-span-1">
+                    {/* Recognition Status Card - Temporarily hidden */}
+                    {/* <div className="lg:col-span-1">
                       <EmployeeProfile employee={recognizedEmployee} timestamp={recognitionTime} />
-                    </div>
+                    </div> */}
                   </div>
                 )}
 
                 {/* Checkout Result */}
                 {attendanceResult && attendanceMode === 'checkin' && todayAttendance?.check_out && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                        <div className="lg:col-span-2">
+                    <div className="mb-6">
+                        <div>
                              <Card className="border-green-500 shadow-lg">
                                 <CardContent className="pt-12 pb-12 text-center space-y-6">
                                     <div className="mx-auto w-24 h-24 rounded-full bg-green-500 flex items-center justify-center">
@@ -776,7 +777,8 @@ const AttendanceLeave: React.FC = () => {
                                 </CardContent>
                              </Card>
                         </div>
-                        <div className="lg:col-span-1">
+                        {/* Recognition Status Card - Temporarily hidden */}
+                        {/* <div className="lg:col-span-1">
                              <EmployeeProfile 
                                employee={recognizedEmployee} 
                                timestamp={recognitionTime} 
@@ -784,7 +786,7 @@ const AttendanceLeave: React.FC = () => {
                                checkOutTime={checkOutTime?.toLocaleTimeString()}
                                isCheckedOut={true}
                              />
-                        </div>
+                        </div> */}
                     </div>
                 )}
 
