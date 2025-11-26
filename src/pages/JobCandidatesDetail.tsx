@@ -33,9 +33,8 @@ interface Candidate {
   name: string;
   email: string;
   phone: string;
-  location: string;
-  experience: string;
-  similarityScore: number;
+  status: string;
+  finalScore: number;
   resumeUrl?: string;
   interviewer?: string;
   interviewDate?: Date;
@@ -78,8 +77,8 @@ const JobCandidatesDetail: React.FC = () => {
   // Shortlist selector: show top N candidates by similarity score
   const [shortlistCount, setShortlistCount] = useState<number>(0);
   const maxCandidates = candidates.length;
-  // sorted candidates by similarity score (desc)
-  const sortedByScore = [...candidates].sort((a, b) => b.similarityScore - a.similarityScore);
+  // sorted candidates by final score (desc)
+  const sortedByScore = [...candidates].sort((a, b) => b.finalScore - a.finalScore);
   const displayedCandidates = shortlistCount >= maxCandidates ? sortedByScore : sortedByScore.slice(0, shortlistCount);
 
 
@@ -123,9 +122,8 @@ const JobCandidatesDetail: React.FC = () => {
               name: `${c.candidate_fname || ""} ${c.candidate_lname || ""}`.trim() || c.name || "Unknown",
               email: c.email || "",
               phone: c.phone || "",
-              location: c.address || c.location || "",
-              experience: c.experience ? `${c.experience} years` : "",
-              similarityScore: Math.round((c.similarity_score || c.score || 0) * 100),
+              status: c.status || "pending",
+              finalScore: Math.round((c.final_score || 0) * 100),
               resumeUrl: c.resume_url || c.resume,
               interviewer: c.interviewer || "",
               interviewDate: c.interview_date ? new Date(c.interview_date) : undefined,
@@ -344,11 +342,34 @@ const JobCandidatesDetail: React.FC = () => {
     // setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, interviewer: '...', interviewDate: date, interviewTime: time } : c));
   };
 
-  const getSimilarityColor = (score: number) => {
+  const handleDeleteRound = (roundId: number) => {
+    // Remove the deleted round from the local state
+    if (selectedCandidate) {
+      setScheduledRoundsByCandidate(prev => {
+        const prevList = prev[selectedCandidate.id] || [];
+        const updatedList = prevList.filter(r => r.id !== roundId);
+        return { ...prev, [selectedCandidate.id]: updatedList };
+      });
+    }
+  };
+
+  const getFinalScoreColor = (score: number) => {
     if (score >= 90) return "text-green-600 bg-green-50";
     if (score >= 80) return "text-blue-600 bg-blue-50";
     if (score >= 70) return "text-yellow-600 bg-yellow-50";
     return "text-gray-600 bg-gray-50";
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, { color: string; label: string }> = {
+      pending: { color: "bg-gray-100 text-gray-700 border-gray-200", label: "Pending" },
+      shortlisted: { color: "bg-blue-100 text-blue-700 border-blue-200", label: "Shortlisted" },
+      interviewed: { color: "bg-purple-100 text-purple-700 border-purple-200", label: "Interviewed" },
+      selected: { color: "bg-green-100 text-green-700 border-green-200", label: "Selected" },
+      rejected: { color: "bg-red-100 text-red-700 border-red-200", label: "Rejected" },
+    };
+    const { color, label } = statusMap[status.toLowerCase()] || statusMap.pending;
+    return <Badge variant="outline" className={`${color} font-medium`}>{label}</Badge>;
   };
 
   // Loading state
@@ -375,7 +396,7 @@ const JobCandidatesDetail: React.FC = () => {
           <div className="max-w-7xl mx-auto">
             <Button
               variant="ghost"
-              onClick={() => navigate("/hiring/assessment-interview")}
+              onClick={() => navigate("/assessment-interview")}
               className="mb-4 hover:bg-white/50"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -412,47 +433,14 @@ const JobCandidatesDetail: React.FC = () => {
           <div className="mb-6">
             <Button
               variant="ghost"
-              onClick={() => navigate("/hiring/assessment-interview")}
+              onClick={() => navigate("/assessment-interview")}
               className="mb-4 hover:bg-white/50"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Jobs
             </Button>
 
-            <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 rounded-2xl shadow-xl p-6 sm:p-8">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-                    {jobData.title}
-                  </h1>
-                  <div className="flex flex-wrap gap-3 text-sm text-indigo-100">
-                    <div className="flex items-center gap-1">
-                      <Briefcase className="h-4 w-4" />
-                      {jobData.department}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-4 w-4" />
-                      {jobData.location}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      {jobData.type}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                    <p className="text-xs text-indigo-100">Applicants</p>
-                    <p className="text-xl font-bold text-white">{jobData.applicants}</p>
-                  </div>
-                  <div className="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                    <p className="text-xs text-indigo-100">Shortlisted</p>
-                    <p className="text-xl font-bold text-white">{jobData.shortlisted}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Banner removed per request - only showing the candidates table below */}
           </div>
 
           {/* Candidates Table */}
@@ -485,16 +473,15 @@ const JobCandidatesDetail: React.FC = () => {
                     <TableRow className="bg-gray-50/50">
                       <TableHead className="font-semibold">Candidate</TableHead>
                       <TableHead className="font-semibold">Contact</TableHead>
-                      <TableHead className="font-semibold">Location</TableHead>
-                      <TableHead className="font-semibold">Experience</TableHead>
-                      <TableHead className="font-semibold">Match Score</TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold">Final Score</TableHead>
                       <TableHead className="font-semibold text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {displayedCandidates.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-12">
+                        <TableCell colSpan={5} className="text-center py-12">
                           <div className="flex flex-col items-center gap-2">
                             <User className="h-12 w-12 text-gray-300" />
                             <p className="text-gray-500 font-medium">No candidates found</p>
@@ -532,22 +519,14 @@ const JobCandidatesDetail: React.FC = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
-                            <MapPin className="h-3 w-3" />
-                            {candidate.location}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                            {candidate.experience}
-                          </Badge>
+                          {getStatusBadge(candidate.status)}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Badge
-                              className={`${getSimilarityColor(candidate.similarityScore)} font-bold px-3 py-1`}
+                              className={`${getFinalScoreColor(candidate.finalScore)} font-bold px-3 py-1`}
                             >
-                              {candidate.similarityScore}%
+                              {candidate.finalScore}%
                             </Badge>
                             <TrendingUp className="h-4 w-4 text-green-600" />
                           </div>
@@ -581,6 +560,7 @@ const JobCandidatesDetail: React.FC = () => {
             scheduledRounds={selectedCandidate ? scheduledRoundsByCandidate[selectedCandidate.id] || [] : []}
             onCreateRound={handleCreateRound}
             onEditRound={handleEditRound}
+            onDeleteRound={handleDeleteRound}
             scheduledLoading={scheduledRoundsLoading}
           />
 

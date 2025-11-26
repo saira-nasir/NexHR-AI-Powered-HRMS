@@ -25,7 +25,8 @@ import {
   TrendingUp,
   Zap,
   Target,
-  Star
+  Star,
+  ChevronRight
 } from 'lucide-react';
 
 // Import components
@@ -106,12 +107,12 @@ const HiringHandbook: React.FC<HiringHandbookProps> = ({ selectedJob, onClose, j
                   Streamline your hiring process with AI-powered screening, candidate management, and comprehensive analytics.
                 </p>
               </div>
-              <div className="flex flex-col sm:flex-row gap-3">
+              {/* <div className="flex flex-col sm:flex-row gap-3">
                 <Button size="lg" className="bg-white text-indigo-600 hover:bg-gray-100">
                   <Plus className="w-5 h-5 mr-2" />
                   Add Candidate
                 </Button>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
@@ -221,6 +222,23 @@ const HiringHandbook: React.FC<HiringHandbookProps> = ({ selectedJob, onClose, j
           </div>
         </div>
       </div>
+
+      {/* Bottom Action Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50">
+        <div className="max-w-7xl mx-auto flex justify-end px-4 sm:px-8">
+          <Button
+            size="lg"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 rounded-xl px-8"
+            onClick={() => navigate('/assessment-interview')}
+          >
+            Next Stage: Assessment & Schedule
+            <ChevronRight className="ml-2 w-5 h-5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Spacer for bottom bar */}
+      <div className="h-24" />
     </div>
   );
 };

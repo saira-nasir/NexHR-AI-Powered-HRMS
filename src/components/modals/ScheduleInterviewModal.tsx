@@ -23,9 +23,8 @@ interface Candidate {
   name: string;
   email: string;
   phone: string;
-  location: string;
-  experience: string;
-  similarityScore: number;
+  status: string;
+  finalScore: number;
   resumeUrl?: string;
   interviewer?: string;
   interviewDate?: Date;

@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { Clock, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from '@/hooks/use-toast';
 // import GoogleCalendarConnectButton from '@/components/auth/GoogleCalendarConnectButton';
 
 
@@ -156,7 +157,7 @@ const JobPostForm: React.FC = () => {
 
   // --- State to Trigger Modal and Mark Review as Completed ---
   const [jobPostedModal, setJobPostedModal] = useState(false);
-  
+
   const [reviewCompleted, setReviewCompleted] = useState(false);
 
   // Loading state to prevent double submit and show loader
@@ -460,8 +461,8 @@ const JobPostForm: React.FC = () => {
         const headers: Record<string, string> = { Accept: 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const baseApi = import.meta.env.VITE_API_URL 
-          ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '') 
+        const baseApi = import.meta.env.VITE_API_URL
+          ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '')
           : 'http://127.0.0.1:8000/api';
         const url = `${baseApi}/departments/`;
 
@@ -738,9 +739,16 @@ const JobPostForm: React.FC = () => {
     console.log(`job of id ${jobId} is going to be posted on linked in`)
     try {
       const res = await linkedinService.postJobToLinkedIn(jobId);
-      alert(res.message);
+      toast({
+        title: "Success",
+        description: res.message,
+      });
     } catch {
-      alert('Failed to post job to LinkedIn');
+      toast({
+        title: "Error",
+        description: "Failed to post job to LinkedIn",
+        variant: "destructive",
+      });
     }
   };
 
@@ -756,7 +764,7 @@ const JobPostForm: React.FC = () => {
           Post a New Job
         </h1>
 
-  <StepProgressBar currentStep={currentStep} steps={steps} reviewCompleted={reviewCompleted} prevStep={prevStep} />
+        <StepProgressBar currentStep={currentStep} steps={steps} reviewCompleted={reviewCompleted} prevStep={prevStep} />
 
         <form onSubmit={(e) => {
           e.preventDefault();
@@ -875,9 +883,9 @@ const JobPostForm: React.FC = () => {
           <JobPostedModal
             open={jobPostedModal}
             onClose={() => {
-              setJobPostedModal(false) 
-              navigate('/job-portal')}
-            }
+              setJobPostedModal(false);
+              navigate('/hiring/job-screening');
+            }}
             onPostLinkedIn={handlePostLinkedIn}
           />
         )}

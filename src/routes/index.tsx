@@ -111,7 +111,7 @@ export const routes: RouteObject[] = [
         element: <CompanyRegistrationGuard />,
         children: [
           { path: "dashboard", element: <RoleBasedDashboard /> },
-          
+
           // HR & Admin Routes
           {
             path: "jobs/create",
@@ -178,7 +178,7 @@ export const routes: RouteObject[] = [
             ),
           },
           {
-            path: "hiring/assessment-interview",
+            path: "assessment-interview",
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <AssessmentAndInterview />
@@ -218,7 +218,7 @@ export const routes: RouteObject[] = [
             ),
           },
           {
-            path: "hr-attendance-management",
+            path: "attendance-management",
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <HRAttendanceManagement />

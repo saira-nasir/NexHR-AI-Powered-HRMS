@@ -43,6 +43,7 @@ const NotificationsDropdown: React.FC = () => {
 
     // 2. LOGIC TO SHOW TOAST ON NEW NOTIFICATION (REPLACES COMPLEX POLLING LOGIC)
     const latestIdRef = React.useRef<number | null>(null);
+    const errorShownRef = React.useRef<boolean>(false);
     
     React.useEffect(() => {
         if (items.length > 0) {
@@ -72,16 +73,23 @@ const NotificationsDropdown: React.FC = () => {
         }
     }, [items, open, toast]);
 
-    // SWR Error Handling
-    if (error && !(error as AxiosError).response) { 
-        console.error('Notifications SWR Network Error:', error);
-        // Show a general error if it's a true network/connection issue
-        toast({ 
-            title: 'Connection Issue', 
-            description: 'Failed to connect to the server to fetch notifications.', 
-            variant: 'destructive' 
-        });
-    }
+    // SWR Error Handling - wrapped in useEffect to prevent infinite re-renders
+    React.useEffect(() => {
+        if (error && !(error as AxiosError).response && !errorShownRef.current) { 
+            console.error('Notifications SWR Network Error:', error);
+            errorShownRef.current = true;
+            // Show a general error if it's a true network/connection issue
+            toast({ 
+                title: 'Connection Issue', 
+                description: 'Failed to connect to the server to fetch notifications.', 
+                variant: 'destructive' 
+            });
+        }
+        // Reset error shown flag when error is cleared
+        if (!error) {
+            errorShownRef.current = false;
+        }
+    }, [error, toast]);
 
 
     // 3. HANDLERS USING OPTIMISTIC MUTATION

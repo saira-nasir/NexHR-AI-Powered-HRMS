@@ -2,14 +2,14 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  X, 
-  ChevronRight, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  GraduationCap, 
-  FileText, 
+import {
+  X,
+  ChevronRight,
+  Mail,
+  Phone,
+  MapPin,
+  GraduationCap,
+  FileText,
   Calendar,
   Clock,
   CheckCircle,
@@ -37,6 +37,8 @@ import {
 } from 'lucide-react';
 import { Candidate } from '@/data/hiringHandbookData';
 
+import { useNavigate } from 'react-router-dom';
+
 interface CandidateDetailDrawerProps {
   candidate: Candidate;
   open: boolean;
@@ -50,6 +52,8 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
   onClose,
   onAdvanceStage
 }) => {
+  const navigate = useNavigate();
+
   if (!open) return null;
 
   const getStageBadge = (stage: string) => {
@@ -352,9 +356,15 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
               <MessageSquare className="w-4 h-4 mr-2" />
               Send Message
             </Button>
-            <Button variant="outline" className="flex-1">
+            <Button
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {
+                onClose();
+                navigate('/assessment-interview');
+              }}
+            >
               <Calendar className="w-4 h-4 mr-2" />
-              Schedule Interview
+              Schedule Interviews
             </Button>
           </div>
         </div>
