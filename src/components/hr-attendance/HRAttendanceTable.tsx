@@ -34,13 +34,13 @@ interface HRAttendanceTableProps {
   onMarkReviewed: (id: string) => void;
 }
 
-export function HRAttendanceTable({ 
-  data, 
-  selectedRows, 
-  onRowSelect, 
+export function HRAttendanceTable({
+  data,
+  selectedRows,
+  onRowSelect,
   onSelectAll,
   onViewDetail,
-  onMarkReviewed 
+  onMarkReviewed
 }: HRAttendanceTableProps) {
   const allSelected = data.length > 0 && selectedRows.size === data.length;
 
@@ -50,7 +50,7 @@ export function HRAttendanceTable({
         <TableHeader>
           <TableRow>
             <TableHead className="w-12">
-              <Checkbox 
+              <Checkbox
                 checked={allSelected}
                 onCheckedChange={onSelectAll}
               />
@@ -60,8 +60,7 @@ export function HRAttendanceTable({
             <TableHead>Department</TableHead>
             <TableHead>Check In</TableHead>
             <TableHead>Check Out</TableHead>
-            <TableHead>Face Scan</TableHead>
-            <TableHead>Confidence</TableHead>
+
             <TableHead>Device</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Flags</TableHead>
@@ -77,19 +76,19 @@ export function HRAttendanceTable({
             </TableRow>
           ) : (
             data.map((row) => (
-              <TableRow 
+              <TableRow
                 key={row.id}
                 className={`${row.needsReview ? 'bg-orange-50' : ''} ${selectedRows.has(row.id) ? 'bg-blue-50' : ''}`}
               >
                 <TableCell>
-                  <Checkbox 
+                  <Checkbox
                     checked={selectedRows.has(row.id)}
                     onCheckedChange={() => onRowSelect(row.id)}
                   />
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
-                  {new Date(row.date).toLocaleDateString('en-US', { 
-                    month: 'short', 
+                  {new Date(row.date).toLocaleDateString('en-US', {
+                    month: 'short',
                     day: 'numeric',
                     year: 'numeric'
                   })}
@@ -113,21 +112,7 @@ export function HRAttendanceTable({
                 </TableCell>
                 <TableCell className="whitespace-nowrap">{row.checkIn || '-'}</TableCell>
                 <TableCell className="whitespace-nowrap">{row.checkOut || '-'}</TableCell>
-                <TableCell>
-                  <FaceThumbnail 
-                    imageUrl={row.faceImageUrl}
-                    confidence={row.confidence}
-                    size="sm"
-                    showConfidence={false}
-                  />
-                </TableCell>
-                <TableCell>
-                  {row.confidence !== undefined ? (
-                    <ConfidenceBadge confidence={row.confidence} size="sm" />
-                  ) : (
-                    <span className="text-xs text-muted-foreground">N/A</span>
-                  )}
-                </TableCell>
+
                 <TableCell className="text-xs text-muted-foreground">
                   {row.device || '-'}
                 </TableCell>
@@ -149,16 +134,16 @@ export function HRAttendanceTable({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="sm"
                       onClick={() => onViewDetail(row)}
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
                     {row.needsReview && (
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         onClick={() => onMarkReviewed(row.id)}
                       >

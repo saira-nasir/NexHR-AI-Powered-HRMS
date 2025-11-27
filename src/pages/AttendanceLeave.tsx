@@ -70,7 +70,7 @@ const AttendanceLeave: React.FC = () => {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [attendanceLoading, setAttendanceLoading] = useState(true);
   const [leavesLoading, setLeavesLoading] = useState(true);
-  
+
   // Get current user from Redux store to check role
   const user = useSelector((state: RootState) => state.auth.user);
   const userRole = getUserRole(user);
@@ -81,7 +81,7 @@ const AttendanceLeave: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [selectedRecord, setSelectedRecord] = useState<TimeCardData | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  
+
   // Check-in/out State
   const [recognizedEmployee, setRecognizedEmployee] = useState<any>(null);
   const [recognitionTime, setRecognitionTime] = useState<string>('');
@@ -92,7 +92,7 @@ const AttendanceLeave: React.FC = () => {
   const [checkOutTime, setCheckOutTime] = useState<Date | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<Attendance | null>(null);
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
-  
+
   // Leave Modal State
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -103,11 +103,12 @@ const AttendanceLeave: React.FC = () => {
 
   const fetchInProgress = useRef(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
-  
+
   // Leave Approval State (for HR)
   const [allLeaves, setAllLeaves] = useState<LeaveRecord[]>([]);
   const [allLeavesLoading, setAllLeavesLoading] = useState(false);
   const [employeesMap, setEmployeesMap] = useState<Map<number, Employee>>(new Map());
+  const [isSubmittingLeave, setIsSubmittingLeave] = useState(false);
 
   // --- Helpers ---
 
@@ -151,7 +152,7 @@ const AttendanceLeave: React.FC = () => {
   const mergeAttendanceRecords = (incoming: Attendance[], existing: Attendance[], userId: number): Attendance[] => {
     const userExisting = existing.filter((record) => record.employee === userId);
     const existingByDate = new Map<string, Attendance>();
-    
+
     userExisting.forEach((record) => {
       const key = normalizeDate(record.date) ?? record.date;
       if (!existingByDate.has(key)) existingByDate.set(key, record);
@@ -163,7 +164,7 @@ const AttendanceLeave: React.FC = () => {
       if (record.employee !== userId) return;
       const key = normalizeDate(record.date) ?? record.date;
       const previous = existingByDate.get(key);
-      
+
       const merged: Attendance = { ...(previous ?? {}), ...record };
 
       // Preserve local optimistic data if backend data is missing fields
@@ -184,7 +185,7 @@ const AttendanceLeave: React.FC = () => {
         // If backend returned record but we have optimistic updates (negative ID check is a proxy)
         const backendRecord = mergedByDate.get(key);
         if (backendRecord && record.id < 0) {
-           const merged = {
+          const merged = {
             ...backendRecord,
             check_in: backendRecord.check_in || record.check_in,
             check_out: backendRecord.check_out || record.check_out,
@@ -213,20 +214,20 @@ const AttendanceLeave: React.FC = () => {
       }
 
       const data = await apiGet(`/payroll/attendance/?employee=${userId}`);
-      
+
       // Client-side filtering for safety
-      const filteredData = Array.isArray(data) 
-        ? data.filter((record: Attendance) => record.employee === userId) 
+      const filteredData = Array.isArray(data)
+        ? data.filter((record: Attendance) => record.employee === userId)
         : [];
 
       const todayKey = normalizeDate(new Date().toISOString());
       let todayRecord: Attendance | null = null;
 
       setAttendance((prevRecords) => {
-        const merged = skipMerge 
+        const merged = skipMerge
           ? filteredData.sort((a, b) => dateValue(b.date) - dateValue(a.date))
           : mergeAttendanceRecords(filteredData, prevRecords, userId);
-        
+
         todayRecord = merged.find((record) => sameDate(record.date, todayKey) && record.employee === userId) ?? null;
         return merged;
       });
@@ -238,20 +239,20 @@ const AttendanceLeave: React.FC = () => {
 
         // Parse Check-in
         if (rec.check_in) {
-           const d = new Date(rec.check_in);
-           setCheckInTime(!isNaN(d.getTime()) ? d : new Date());
+          const d = new Date(rec.check_in);
+          setCheckInTime(!isNaN(d.getTime()) ? d : new Date());
         } else {
-           setCheckInTime(null);
+          setCheckInTime(null);
         }
 
         // Parse Check-out
         if (rec.check_out) {
-           // Only set checkout if it's different from previous state (avoids flickering)
-           const d = new Date(rec.check_out);
-           setCheckOutTime(!isNaN(d.getTime()) ? d : new Date());
-           setAttendanceMode('checkin'); // Reset mode if cycle complete
+          // Only set checkout if it's different from previous state (avoids flickering)
+          const d = new Date(rec.check_out);
+          setCheckOutTime(!isNaN(d.getTime()) ? d : new Date());
+          setAttendanceMode('checkin'); // Reset mode if cycle complete
         } else {
-           setCheckOutTime(null);
+          setCheckOutTime(null);
         }
       } else {
         setTodayAttendance(null);
@@ -287,7 +288,7 @@ const AttendanceLeave: React.FC = () => {
       }
       if (userId !== currentUserId) setCurrentUserId(userId);
     };
-    
+
     checkUserChange();
     const interval = setInterval(checkUserChange, 5000);
     return () => clearInterval(interval);
@@ -359,11 +360,15 @@ const AttendanceLeave: React.FC = () => {
 
   const handleLeaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingLeave) return;
+
     const employee = getUserId();
     if (!employee) {
       toast.error('User not identified');
       return;
     }
+
+    setIsSubmittingLeave(true);
     try {
       await apiPost('/payroll/leaves/', { ...formData, employee });
       toast.success('Leave application submitted');
@@ -377,6 +382,8 @@ const AttendanceLeave: React.FC = () => {
       await fetchAllLeaves();
     } catch (error) {
       toast.error('Failed to submit leave application');
+    } finally {
+      setIsSubmittingLeave(false);
     }
   };
 
@@ -456,7 +463,7 @@ const AttendanceLeave: React.FC = () => {
 
       const formData = new FormData();
       formData.append('captured_image', fileToSend);
-      formData.append('photo', fileToSend); 
+      formData.append('photo', fileToSend);
 
       const response = await apiPostFormData('/attendance/mark-attendance-face/', formData) as AttendanceMarkResponse;
       setAttendanceResult(response);
@@ -485,18 +492,18 @@ const AttendanceLeave: React.FC = () => {
         setAttendanceMode('checkin');
 
         toast.success('Check-In Successful', { description: response.message });
-        
+
         // Refresh background
         setTimeout(() => fetchAttendance(false), 1000);
-        
+
         // Auto-dismiss result to show UI
         setTimeout(() => setAttendanceResult(null), 2000);
       } else {
         toast.error('Verification Failed', { description: response.message });
       }
     } catch (error: any) {
-       const msg = error.response?.data?.message || 'Failed to check in';
-       toast.error('Check-In Failed', { description: msg });
+      const msg = error.response?.data?.message || 'Failed to check in';
+      toast.error('Check-In Failed', { description: msg });
     } finally {
       setMarkAttendanceLoading(false);
     }
@@ -523,7 +530,7 @@ const AttendanceLeave: React.FC = () => {
           date: normalizeDate(nowIso) ?? nowIso.split('T')[0],
           check_in: nowIso,
         }));
-        
+
         setCheckInTime(now);
         setCheckOutTime(null);
         setAttendanceMode('checkin');
@@ -598,9 +605,9 @@ const AttendanceLeave: React.FC = () => {
       const parseTime = (t?: string) => {
         if (!t) return undefined;
         try {
-            // Handle "HH:MM:SS" vs ISO
-            if (t.includes('T')) return new Date(t).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            return t.split('.')[0].substring(0, 5); 
+          // Handle "HH:MM:SS" vs ISO
+          if (t.includes('T')) return new Date(t).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          return t.split('.')[0].substring(0, 5);
         } catch { return t; }
       };
 
@@ -674,11 +681,10 @@ const AttendanceLeave: React.FC = () => {
                       }
                     }}
                     disabled={!!todayAttendance?.check_in && !todayAttendance?.check_out}
-                    className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${
-                       attendanceMode === 'checkin' && (!todayAttendance?.check_in || todayAttendance?.check_out)
-                       ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' 
-                       : 'bg-white text-green-700 border-2 border-green-300'
-                    }`}
+                    className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${attendanceMode === 'checkin' && (!todayAttendance?.check_in || todayAttendance?.check_out)
+                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                      : 'bg-white text-green-700 border-2 border-green-300'
+                      }`}
                   >
                     <div className="flex items-center gap-2">
                       <Camera className="h-4 w-4" />
@@ -697,16 +703,15 @@ const AttendanceLeave: React.FC = () => {
                       <span>Manual Check In</span>
                     </div>
                   </Button>
-                  
+
                   {/* Check Out */}
                   <Button
                     onClick={() => setShowCheckoutConfirm(true)}
                     disabled={!todayAttendance?.check_in || !!todayAttendance?.check_out}
-                    className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${
-                        todayAttendance?.check_in && !todayAttendance?.check_out
-                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
-                        : 'bg-white text-blue-700 border-2 border-blue-300 opacity-50'
-                    }`}
+                    className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${todayAttendance?.check_in && !todayAttendance?.check_out
+                      ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                      : 'bg-white text-blue-700 border-2 border-blue-300 opacity-50'
+                      }`}
                   >
                     <div className="flex items-center gap-2">
                       <XCircle className="h-4 w-4" />
@@ -726,29 +731,29 @@ const AttendanceLeave: React.FC = () => {
                             <CardDescription>Capture your photo to check in via facial recognition</CardDescription>
                           </CardHeader>
                           <CardContent>
-                            <WebcamCapture 
-                              key="webcam-checkin" 
-                              onCapture={handleCheckIn} 
-                              isLoading={markAttendanceLoading} 
+                            <WebcamCapture
+                              key="webcam-checkin"
+                              onCapture={handleCheckIn}
+                              isLoading={markAttendanceLoading}
                             />
                           </CardContent>
                         </Card>
                       ) : (
                         <Card className={`shadow-lg ${attendanceResult.verified ? 'border-green-500' : 'border-red-500'}`}>
                           <CardContent className="pt-12 pb-12 text-center space-y-6">
-                             <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center ${attendanceResult.verified ? 'bg-green-500' : 'bg-red-500'}`}>
-                                {attendanceResult.verified ? <CheckCircle2 className="h-12 w-12 text-white" /> : <XCircle className="h-12 w-12 text-white" />}
-                             </div>
-                             <div>
-                               <h2 className="text-3xl font-bold mb-2">{attendanceResult.verified ? 'Success!' : 'Failed'}</h2>
-                               <p className="text-muted-foreground">{attendanceResult.message}</p>
-                             </div>
-                             <Button 
-                               onClick={() => resetAttendanceResult(attendanceResult.verified ? 'checkin' : undefined)}
-                               variant={attendanceResult.verified ? "outline" : "default"}
-                             >
-                               {attendanceResult.verified ? 'Done' : 'Try Again'}
-                             </Button>
+                            <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center ${attendanceResult.verified ? 'bg-green-500' : 'bg-red-500'}`}>
+                              {attendanceResult.verified ? <CheckCircle2 className="h-12 w-12 text-white" /> : <XCircle className="h-12 w-12 text-white" />}
+                            </div>
+                            <div>
+                              <h2 className="text-3xl font-bold mb-2">{attendanceResult.verified ? 'Success!' : 'Failed'}</h2>
+                              <p className="text-muted-foreground">{attendanceResult.message}</p>
+                            </div>
+                            <Button
+                              onClick={() => resetAttendanceResult(attendanceResult.verified ? 'checkin' : undefined)}
+                              variant={attendanceResult.verified ? "outline" : "default"}
+                            >
+                              {attendanceResult.verified ? 'Done' : 'Try Again'}
+                            </Button>
                           </CardContent>
                         </Card>
                       )}
@@ -762,32 +767,32 @@ const AttendanceLeave: React.FC = () => {
 
                 {/* Checkout Result */}
                 {attendanceResult && attendanceMode === 'checkin' && todayAttendance?.check_out && (
-                    <div className="mb-6">
-                        <div>
-                             <Card className="border-green-500 shadow-lg">
-                                <CardContent className="pt-12 pb-12 text-center space-y-6">
-                                    <div className="mx-auto w-24 h-24 rounded-full bg-green-500 flex items-center justify-center">
-                                        <CheckCircle2 className="h-12 w-12 text-white" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-3xl font-bold mb-2">Check-Out Successful!</h2>
-                                        <p className="text-muted-foreground">{attendanceResult.message}</p>
-                                    </div>
-                                    <Button onClick={() => setAttendanceResult(null)} variant="outline" size="lg">Done</Button>
-                                </CardContent>
-                             </Card>
-                        </div>
-                        {/* Recognition Status Card - Temporarily hidden */}
-                        {/* <div className="lg:col-span-1">
-                             <EmployeeProfile 
-                               employee={recognizedEmployee} 
-                               timestamp={recognitionTime} 
-                               checkInTime={checkInTime?.toLocaleTimeString()}
-                               checkOutTime={checkOutTime?.toLocaleTimeString()}
-                               isCheckedOut={true}
-                             />
-                        </div> */}
+                  <div className="mb-6">
+                    <div>
+                      <Card className="border-green-500 shadow-lg">
+                        <CardContent className="pt-12 pb-12 text-center space-y-6">
+                          <div className="mx-auto w-24 h-24 rounded-full bg-green-500 flex items-center justify-center">
+                            <CheckCircle2 className="h-12 w-12 text-white" />
+                          </div>
+                          <div>
+                            <h2 className="text-3xl font-bold mb-2">Check-Out Successful!</h2>
+                            <p className="text-muted-foreground">{attendanceResult.message}</p>
+                          </div>
+                          <Button onClick={() => setAttendanceResult(null)} variant="outline" size="lg">Done</Button>
+                        </CardContent>
+                      </Card>
                     </div>
+                    {/* Recognition Status Card - Temporarily hidden */}
+                    {/* <div className="lg:col-span-1">
+                      <EmployeeProfile 
+                        employee={recognizedEmployee} 
+                        timestamp={recognitionTime} 
+                        checkInTime={checkInTime?.toLocaleTimeString()}
+                        checkOutTime={checkOutTime?.toLocaleTimeString()}
+                        isCheckedOut={true}
+                      />
+                    </div> */}
+                  </div>
                 )}
 
                 {/* Dialogs */}
@@ -799,8 +804,8 @@ const AttendanceLeave: React.FC = () => {
                     </DialogHeader>
                     <div className="flex gap-3 justify-end mt-4">
                       <Button variant="outline" onClick={() => setShowCheckoutConfirm(false)} disabled={markAttendanceLoading}>Cancel</Button>
-                      <Button 
-                        onClick={handleCheckOut} 
+                      <Button
+                        onClick={handleCheckOut}
                         disabled={markAttendanceLoading}
                         className="bg-red-500 hover:bg-red-600 text-white"
                       >
@@ -817,15 +822,15 @@ const AttendanceLeave: React.FC = () => {
                       year={currentYear}
                       month={currentMonth}
                       attendanceData={attendanceMap}
-                      onDateClick={(date) => { 
-                          const rec = timeCards.find(r => r.date === date);
-                          if (rec) { setSelectedRecord(rec); setShowDetailModal(true); }
+                      onDateClick={(date) => {
+                        const rec = timeCards.find(r => r.date === date);
+                        if (rec) { setSelectedRecord(rec); setShowDetailModal(true); }
                       }}
                       onMonthChange={(dir) => {
-                          if (dir === 'prev') setCurrentMonth(prev => prev === 0 ? 11 : prev - 1);
-                          else setCurrentMonth(prev => prev === 11 ? 0 : prev + 1);
-                          if (dir === 'prev' && currentMonth === 0) setCurrentYear(y => y - 1);
-                          if (dir === 'next' && currentMonth === 11) setCurrentYear(y => y + 1);
+                        if (dir === 'prev') setCurrentMonth(prev => prev === 0 ? 11 : prev - 1);
+                        else setCurrentMonth(prev => prev === 11 ? 0 : prev + 1);
+                        if (dir === 'prev' && currentMonth === 0) setCurrentYear(y => y - 1);
+                        if (dir === 'next' && currentMonth === 11) setCurrentYear(y => y + 1);
                       }}
                     />
                   </div>
@@ -834,12 +839,12 @@ const AttendanceLeave: React.FC = () => {
                       <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
                       <CardContent className="space-y-3">
                         {timeCards.slice(0, 10).map((record, i) => (
-                           <TimeCard 
-                             key={`${record.id}-${i}`} 
-                             data={record} 
-                             onClick={() => { setSelectedRecord(record); setShowDetailModal(true); }} 
-                             compact 
-                           />
+                          <TimeCard
+                            key={`${record.id}-${i}`}
+                            data={record}
+                            onClick={() => { setSelectedRecord(record); setShowDetailModal(true); }}
+                            compact
+                          />
                         ))}
                       </CardContent>
                     </Card>
@@ -858,64 +863,73 @@ const AttendanceLeave: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="leave" className="space-y-6">
-             <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold">Leave Management</h2>
-                  <p className="text-muted-foreground">Apply for leave and track your applications</p>
-                </div>
-                <Dialog open={open} onOpenChange={setOpen}>
-                  <DialogTrigger asChild>
-                    <Button><Plus className="mr-2 h-4 w-4" /> Apply for Leave</Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Apply for Leave</DialogTitle>
-                      <DialogDescription>Fill in the details to submit your leave request</DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleLeaveSubmit} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Leave Type</Label>
-                        <Select value={formData.leave_type} onValueChange={(v) => setFormData({ ...formData, leave_type: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Casual">Casual</SelectItem>
-                            <SelectItem value="Sick">Sick</SelectItem>
-                            <SelectItem value="Annual">Annual</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>From Date</Label>
-                        <Input type="date" value={formData.from_date} onChange={(e) => setFormData({ ...formData, from_date: e.target.value })} required />
-                      </div>
-                      <div className="space-y-2">
-                         <Label>To Date</Label>
-                         <Input type="date" value={formData.to_date} onChange={(e) => setFormData({ ...formData, to_date: e.target.value })} required />
-                      </div>
-                      <Button type="submit" className="w-full">Submit Application</Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-             </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">Leave Management</h2>
+                <p className="text-muted-foreground">Apply for leave and track your applications</p>
+              </div>
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button><Plus className="mr-2 h-4 w-4" /> Apply for Leave</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Apply for Leave</DialogTitle>
+                    <DialogDescription>Fill in the details to submit your leave request</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleLeaveSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Leave Type</Label>
+                      <Select value={formData.leave_type} onValueChange={(v) => setFormData({ ...formData, leave_type: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Casual">Casual</SelectItem>
+                          <SelectItem value="Sick">Sick</SelectItem>
+                          <SelectItem value="Annual">Annual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>From Date</Label>
+                      <Input type="date" value={formData.from_date} onChange={(e) => setFormData({ ...formData, from_date: e.target.value })} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>To Date</Label>
+                      <Input type="date" value={formData.to_date} onChange={(e) => setFormData({ ...formData, to_date: e.target.value })} required />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isSubmittingLeave}>
+                      {isSubmittingLeave ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        'Submit Application'
+                      )}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
 
-             {leavesLoading ? <div>Loading...</div> : (
-                <div className="grid gap-4">
-                  {leaves.map((leave) => (
-                    <Card key={leave.id} className="border-l-4 border-l-primary/50">
-                      <CardHeader>
-                        <div className="flex justify-between items-center">
-                          <div>
-                             <CardTitle>{leave.leave_type} Leave</CardTitle>
-                             <CardDescription>{new Date(leave.from_date).toLocaleDateString()} - {new Date(leave.to_date).toLocaleDateString()}</CardDescription>
-                          </div>
-                          <Badge variant="outline" className="capitalize">{leave.status}</Badge>
+            {leavesLoading ? <div>Loading...</div> : (
+              <div className="grid gap-4">
+                {leaves.map((leave) => (
+                  <Card key={leave.id} className="border-l-4 border-l-primary/50">
+                    <CardHeader>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <CardTitle>{leave.leave_type} Leave</CardTitle>
+                          <CardDescription>{new Date(leave.from_date).toLocaleDateString()} - {new Date(leave.to_date).toLocaleDateString()}</CardDescription>
                         </div>
-                      </CardHeader>
-                    </Card>
-                  ))}
-                  {leaves.length === 0 && <div className="text-center p-8 text-muted-foreground">No leave records found.</div>}
-                </div>
-             )}
+                        <Badge variant="outline" className="capitalize">{leave.status}</Badge>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                ))}
+                {leaves.length === 0 && <div className="text-center p-8 text-muted-foreground">No leave records found.</div>}
+              </div>
+            )}
           </TabsContent>
 
           {isHR && (
@@ -925,148 +939,148 @@ const AttendanceLeave: React.FC = () => {
                 <p className="text-muted-foreground">Review and approve or reject employee leave requests</p>
               </div>
 
-            {pendingLeaves.length > 0 && (
-              <Card className="border-l-4 border-l-amber-500">
+              {pendingLeaves.length > 0 && (
+                <Card className="border-l-4 border-l-amber-500">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <UserCheck className="h-5 w-5 text-amber-600" />
+                      Pending Leave Requests ({pendingLeaves.length})
+                    </CardTitle>
+                    <CardDescription>Review and approve or reject employee leave applications</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {pendingLeaves.map((leave) => (
+                        <div key={leave.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-4 mb-2">
+                              <h3 className="font-semibold">{getEmployeeName(leave.employee)}</h3>
+                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Pending Review</Badge>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Leave Type</p>
+                                <p className="font-medium">{leave.leave_type}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">From Date</p>
+                                <p className="font-medium">{new Date(leave.from_date).toLocaleDateString()}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">To Date</p>
+                                <p className="font-medium">{new Date(leave.to_date).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            {leave.reason && (
+                              <div className="mt-2 text-sm">
+                                <p className="text-muted-foreground">Reason:</p>
+                                <p className="font-medium">{leave.reason}</p>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-2 ml-4">
+                            <Button
+                              size="sm"
+                              onClick={() => handleApproveLeave(leave.id)}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleRejectLeave(leave.id)}
+                            >
+                              <XCircle className="h-4 w-4 mr-1" />Reject
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <UserCheck className="h-5 w-5 text-amber-600" />
-                    Pending Leave Requests ({pendingLeaves.length})
-                  </CardTitle>
-                  <CardDescription>Review and approve or reject employee leave applications</CardDescription>
+                  <CardTitle>All Leave Requests</CardTitle>
+                  <CardDescription>Complete history of all employee leave requests</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {pendingLeaves.map((leave) => (
-                      <div key={leave.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-4 mb-2">
-                            <h3 className="font-semibold">{getEmployeeName(leave.employee)}</h3>
-                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Pending Review</Badge>
-                          </div>
-                          <div className="grid grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">Leave Type</p>
-                              <p className="font-medium">{leave.leave_type}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">From Date</p>
-                              <p className="font-medium">{new Date(leave.from_date).toLocaleDateString()}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">To Date</p>
-                              <p className="font-medium">{new Date(leave.to_date).toLocaleDateString()}</p>
-                            </div>
-                          </div>
-                          {leave.reason && (
-                            <div className="mt-2 text-sm">
-                              <p className="text-muted-foreground">Reason:</p>
-                              <p className="font-medium">{leave.reason}</p>
-                            </div>
-                          )}
+                  {allLeavesLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <RefreshCw className="h-6 w-6 animate-spin text-primary mr-2" />
+                      <span className="text-muted-foreground">Loading leave requests...</span>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left p-4">Employee</th>
+                            <th className="text-left p-4">Leave Type</th>
+                            <th className="text-left p-4">From Date</th>
+                            <th className="text-left p-4">To Date</th>
+                            <th className="text-left p-4">Status</th>
+                            <th className="text-left p-4">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allLeaves.map((leave) => (
+                            <tr key={leave.id} className="border-b border-border hover:bg-muted/50">
+                              <td className="p-4 font-medium">{getEmployeeName(leave.employee)}</td>
+                              <td className="p-4">{leave.leave_type}</td>
+                              <td className="p-4">{new Date(leave.from_date).toLocaleDateString()}</td>
+                              <td className="p-4">{new Date(leave.to_date).toLocaleDateString()}</td>
+                              <td className="p-4">
+                                <Badge
+                                  variant={
+                                    leave.status === 'APPROVED' ? 'secondary' :
+                                      leave.status === 'REJECTED' ? 'destructive' :
+                                        'outline'
+                                  }
+                                  className="capitalize"
+                                >
+                                  {leave.status}
+                                </Badge>
+                              </td>
+                              <td className="p-4">
+                                <div className="flex gap-2">
+                                  {leave.status === 'PENDING' && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleApproveLeave(leave.id)}
+                                        className="text-green-600 hover:text-green-700"
+                                      >
+                                        <CheckCircle className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleRejectLeave(leave.id)}
+                                        className="text-red-600 hover:text-red-700"
+                                      >
+                                        <XCircle className="h-4 w-4" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {allLeaves.length === 0 && (
+                        <div className="text-center p-8 text-muted-foreground">
+                          No leave requests found.
                         </div>
-                        <div className="flex gap-2 ml-4">
-                          <Button 
-                            size="sm" 
-                            onClick={() => handleApproveLeave(leave.id)} 
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />Approve
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="destructive" 
-                            onClick={() => handleRejectLeave(leave.id)}
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />Reject
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            )}
-
-            <Card>
-              <CardHeader>
-                <CardTitle>All Leave Requests</CardTitle>
-                <CardDescription>Complete history of all employee leave requests</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {allLeavesLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <RefreshCw className="h-6 w-6 animate-spin text-primary mr-2" />
-                    <span className="text-muted-foreground">Loading leave requests...</span>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="text-left p-4">Employee</th>
-                          <th className="text-left p-4">Leave Type</th>
-                          <th className="text-left p-4">From Date</th>
-                          <th className="text-left p-4">To Date</th>
-                          <th className="text-left p-4">Status</th>
-                          <th className="text-left p-4">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {allLeaves.map((leave) => (
-                          <tr key={leave.id} className="border-b border-border hover:bg-muted/50">
-                            <td className="p-4 font-medium">{getEmployeeName(leave.employee)}</td>
-                            <td className="p-4">{leave.leave_type}</td>
-                            <td className="p-4">{new Date(leave.from_date).toLocaleDateString()}</td>
-                            <td className="p-4">{new Date(leave.to_date).toLocaleDateString()}</td>
-                            <td className="p-4">
-                              <Badge 
-                                variant={
-                                  leave.status === 'APPROVED' ? 'secondary' : 
-                                  leave.status === 'REJECTED' ? 'destructive' : 
-                                  'outline'
-                                }
-                                className="capitalize"
-                              >
-                                {leave.status}
-                              </Badge>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex gap-2">
-                                {leave.status === 'PENDING' && (
-                                  <>
-                                    <Button 
-                                      size="sm" 
-                                      variant="outline" 
-                                      onClick={() => handleApproveLeave(leave.id)}
-                                      className="text-green-600 hover:text-green-700"
-                                    >
-                                      <CheckCircle className="h-4 w-4"/>
-                                    </Button>
-                                    <Button 
-                                      size="sm" 
-                                      variant="outline" 
-                                      onClick={() => handleRejectLeave(leave.id)}
-                                      className="text-red-600 hover:text-red-700"
-                                    >
-                                      <XCircle className="h-4 w-4"/>
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {allLeaves.length === 0 && (
-                      <div className="text-center p-8 text-muted-foreground">
-                        No leave requests found.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
             </TabsContent>
           )}
         </Tabs>

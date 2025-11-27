@@ -120,12 +120,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/settings',
     icon: Settings,
   },
-  {
-    title: 'Integrations',
-    path: '/integrations',
-    icon: PanelRight,
-    allowedRoles: ['Admin', 'Finance Manager'],
-  },
+
   {
     title: 'Help and support',
     path: '/support',
