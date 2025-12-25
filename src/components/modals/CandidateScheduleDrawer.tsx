@@ -273,12 +273,7 @@ const CandidateScheduleDrawer: React.FC<CandidateScheduleDrawerProps> = ({
                                         <span>{new Date(r.scheduledDate).toLocaleString()}</span>
                                       </div>
                                     )}
-                                    {r.scheduledTime && (
-                                      <div className="flex items-center gap-1">
-                                        <Clock className="h-4 w-4 text-purple-600" />
-                                        <span>{r.scheduledTime}</span>
-                                      </div>
-                                    )}
+                                    
                                     {r.interviewers && r.interviewers.length > 0 && (
                                       <div className="flex items-center gap-1">
                                         <User className="h-4 w-4 text-purple-600" />

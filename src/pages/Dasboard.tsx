@@ -52,12 +52,12 @@ const Dasboard = () => {
 
 
           {/* New Recruitment Charts Section */}
-          <div className="mt-6">
+          {/* <div className="mt-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-slate-800">Recruitment Analytics</h2>
             </div>
             <RecruitmentCharts />
-          </div>
+          </div> */}
         </div>
       </div>
     </DashboardLayout>

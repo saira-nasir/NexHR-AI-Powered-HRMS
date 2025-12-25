@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DashboardLayout from '@/layouts/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -68,13 +69,14 @@ const Settings = () => {
     };
 
     return (
-        <div className="container mx-auto py-8 max-w-5xl animate-in fade-in duration-500">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-                <p className="text-muted-foreground mt-2">
-                    Manage your account settings and preferences.
-                </p>
-            </div>
+        <DashboardLayout>
+            <div className="container mx-auto py-8 max-w-5xl animate-in fade-in duration-500">
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+                    <p className="text-muted-foreground mt-2">
+                        Manage your account settings and preferences.
+                    </p>
+                </div>
 
             <Tabs defaultValue="profile" className="w-full">
                 <TabsList className="grid w-full grid-cols-3 lg:w-[400px] mb-8">
@@ -196,7 +198,8 @@ const Settings = () => {
 
 
             </Tabs>
-        </div>
+            </div>
+        </DashboardLayout>
     );
 };
 

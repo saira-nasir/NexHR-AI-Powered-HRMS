@@ -306,9 +306,12 @@ const AttendanceLeave: React.FC = () => {
         const userId = getUserId();
         if (!userId) return;
         const data = await apiGet(`/payroll/leaves/?employee=${userId}`);
+        console.log('Fetched leaves data:', data);
         const filtered = Array.isArray(data) ? data.filter((l: Leave) => l.employee === userId) : [];
+        console.log('Filtered leaves:', filtered);
         setLeaves(filtered);
       } catch (error) {
+        console.error('Error fetching leaves:', error);
         toast.error('Failed to fetch leaves');
       } finally {
         setLeavesLoading(false);
@@ -726,10 +729,10 @@ const AttendanceLeave: React.FC = () => {
                     <div>
                       {!attendanceResult ? (
                         <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-                          <CardHeader>
+                          {/* <CardHeader>
                             <CardTitle className="flex items-center gap-2"><Camera className="w-5 h-5" /> Check In</CardTitle>
                             <CardDescription>Capture your photo to check in via facial recognition</CardDescription>
-                          </CardHeader>
+                          </CardHeader> */}
                           <CardContent>
                             <WebcamCapture
                               key="webcam-checkin"
@@ -912,7 +915,12 @@ const AttendanceLeave: React.FC = () => {
               </Dialog>
             </div>
 
-            {leavesLoading ? <div>Loading...</div> : (
+            {leavesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-primary mr-2" />
+                <span className="text-muted-foreground">Loading leave records...</span>
+              </div>
+            ) : (
               <div className="grid gap-4">
                 {leaves.map((leave) => (
                   <Card key={leave.id} className="border-l-4 border-l-primary/50">
@@ -920,14 +928,37 @@ const AttendanceLeave: React.FC = () => {
                       <div className="flex justify-between items-center">
                         <div>
                           <CardTitle>{leave.leave_type} Leave</CardTitle>
-                          <CardDescription>{new Date(leave.from_date).toLocaleDateString()} - {new Date(leave.to_date).toLocaleDateString()}</CardDescription>
+                          <CardDescription>
+                            {new Date(leave.from_date).toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })} - {new Date(leave.to_date).toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </CardDescription>
                         </div>
-                        <Badge variant="outline" className="capitalize">{leave.status}</Badge>
+                        <Badge 
+                          variant="outline" 
+                          className={`capitalize ${
+                            leave.status === 'APPROVED' ? 'bg-green-100 text-green-700 border-green-300' :
+                            leave.status === 'REJECTED' ? 'bg-red-100 text-red-700 border-red-300' :
+                            'bg-yellow-100 text-yellow-700 border-yellow-300'
+                          }`}
+                        >
+                          {leave.status.toLowerCase()}
+                        </Badge>
                       </div>
                     </CardHeader>
                   </Card>
                 ))}
-                {leaves.length === 0 && <div className="text-center p-8 text-muted-foreground">No leave records found.</div>}
+                {leaves.length === 0 && (
+                  <div className="text-center p-8 text-muted-foreground">
+                    No leave records found.
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>

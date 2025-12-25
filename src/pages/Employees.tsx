@@ -196,10 +196,11 @@ const Employees = () => {
                             {isImporting ? 'Importing...' : 'Import Employees'}
                         </Button>
                         
-                        <Button className="flex items-center gap-2 bg-[#5C5470] hover:bg-[#352F44] text-white shadow-lg hover:shadow-xl transition-all duration-300">
+                        {/* COMMENTED OUT FOR NOW - Add Employee Button */}
+                        {/* <Button className="flex items-center gap-2 bg-[#5C5470] hover:bg-[#352F44] text-white shadow-lg hover:shadow-xl transition-all duration-300">
                             <Plus className="w-4 h-4" />
                             Add Employee
-                        </Button>
+                        </Button> */}
                     </div>
                 </div>
 
@@ -314,13 +315,14 @@ const Employees = () => {
                                             <TableHead className="font-semibold text-gray-700 px-6 py-4">Contact</TableHead>
                                             <TableHead className="font-semibold text-gray-700 px-6 py-4">Company</TableHead>
                                             <TableHead className="font-semibold text-gray-700 px-6 py-4">Branch</TableHead>
-                                            <TableHead className="font-semibold text-gray-700 px-6 py-4 text-center">Actions</TableHead>
+                                            {/* COMMENTED OUT FOR NOW - Actions Column Header */}
+                                            {/* <TableHead className="font-semibold text-gray-700 px-6 py-4 text-center">Actions</TableHead> */}
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {filteredEmployees.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={6} className="text-center py-12">
+                                                <TableCell colSpan={5} className="text-center py-12">
                                                     <div className="flex flex-col items-center space-y-3">
                                                         <Users className="w-12 h-12 text-gray-400" />
                                                         <p className="text-lg font-medium text-gray-600">No employees found</p>
@@ -370,7 +372,8 @@ const Employees = () => {
                                                             {employee.branch || 'No branch'}
                                                         </Badge>
                                                     </TableCell>
-                                                    <TableCell className="px-6 py-4">
+                                                    {/* COMMENTED OUT FOR NOW - Action Buttons */}
+                                                    {/* <TableCell className="px-6 py-4">
                                                         <div className="flex items-center justify-center space-x-2">
                                                             <Button
                                                                 variant="ghost"
@@ -397,7 +400,7 @@ const Employees = () => {
                                                                 <Trash2 className="w-4 h-4" />
                                                             </Button>
                                                         </div>
-                                                    </TableCell>
+                                                    </TableCell> */}
                                                 </TableRow>
                                             ))
                                         )}

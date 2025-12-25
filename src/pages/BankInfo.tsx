@@ -47,10 +47,10 @@ const BankInfo: React.FC = () => {
           setLoading(false);
           return;
         }
-        
+
         // Fetch bank info filtered by current user's employee ID
         const data = await payrollService.listBankInfo();
-        
+
         if (data && Array.isArray(data)) {
           // Find bank info for current user
           const userBankInfo = data.find((bi: any) => bi.employee === userId);
@@ -75,34 +75,66 @@ const BankInfo: React.FC = () => {
     fetchBankInfo();
   }, []);
 
+  const validateIBAN = (iban: string) => {
+    // Basic IBAN validation:
+    // 1. Length check (15-34 characters)
+    // 2. Pattern check (2 letters, 2 digits, followed by alphanumeric)
+    const ibanRegex = /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/;
+    const cleanIBAN = iban.replace(/\s/g, '').toUpperCase();
+
+    if (cleanIBAN.length < 15 || cleanIBAN.length > 34) {
+      return { valid: false, message: 'IBAN must be between 15 and 34 characters' };
+    }
+
+    if (!ibanRegex.test(cleanIBAN)) {
+      return { valid: false, message: 'Invalid IBAN format. Must start with 2 letters (Country Code) and 2 digits.' };
+    }
+
+    return { valid: true, cleanIBAN };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate IBAN
+    const ibanValidation = validateIBAN(bankInfo.account_number);
+    if (!ibanValidation.valid) {
+      toast.error(ibanValidation.message);
+      return;
+    }
+
     setSaving(true);
-    
+
     try {
       const userId = getUserId();
       if (!userId) {
         throw new Error('User ID not found. Please log in again.');
       }
-      
+
+      // Use the cleaned/formatted IBAN
+      const finalBankInfo = {
+        ...bankInfo,
+        account_number: ibanValidation.cleanIBAN || bankInfo.account_number
+      };
+
       // If bankInfo has an id, it means we're updating existing data
       if (bankInfo.id) {
         await payrollService.updateBankInfo(bankInfo.id, {
-          ...bankInfo,
+          ...finalBankInfo,
           employee: userId
         });
         toast.success('Bank information updated successfully');
       } else {
         // Create new bank info - ensure employee ID is provided
         const bankInfoWithEmployee = {
-          ...bankInfo,
+          ...finalBankInfo,
           employee: userId
         };
-        
+
         await payrollService.createBankInfo(bankInfoWithEmployee);
         toast.success('Bank information saved successfully');
       }
-      
+
       // Refresh bank info after save
       const data = await payrollService.listBankInfo();
       if (data && Array.isArray(data)) {
@@ -113,9 +145,9 @@ const BankInfo: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Bank info save error:', error);
-      const errorMessage = error.response?.data?.detail || 
-                          error.response?.data?.message || 
-                          'Failed to save bank information';
+      const errorMessage = error.response?.data?.detail ||
+        error.response?.data?.message ||
+        'Failed to save bank information';
       toast.error(errorMessage);
     } finally {
       setSaving(false);
@@ -168,12 +200,12 @@ const BankInfo: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="account_number">Account Number</Label>
+                  <Label htmlFor="account_number">IBAN / Account Number</Label>
                   <Input
                     id="account_number"
                     placeholder="e.g., PK12HABB000123456789"
                     value={bankInfo.account_number}
-                    onChange={(e) => setBankInfo({ ...bankInfo, account_number: e.target.value })}
+                    onChange={(e) => setBankInfo({ ...bankInfo, account_number: e.target.value.toUpperCase() })}
                     required
                   />
                 </div>
@@ -198,8 +230,8 @@ const BankInfo: React.FC = () => {
                   />
                 </div>
 
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full bg-gradient-primary hover:opacity-90"
                   disabled={saving}
                 >

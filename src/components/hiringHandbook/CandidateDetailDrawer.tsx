@@ -112,8 +112,8 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
   const canAdvance = candidate.stage !== 'hired' && candidate.stage !== 'rejected';
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white rounded-xl shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[99999] p-4">
+      <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-xl">
           <div className="flex items-center justify-between">
@@ -145,7 +145,7 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Main Information Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Contact Information */}

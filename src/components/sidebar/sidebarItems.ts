@@ -120,10 +120,4 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/settings',
     icon: Settings,
   },
-
-  {
-    title: 'Help and support',
-    path: '/support',
-    icon: LifeBuoy,
-  },
 ];

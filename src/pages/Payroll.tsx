@@ -747,12 +747,12 @@ const handleBulkGeneratePayslips = async () => {
                 <div className="flex">
                   <div className="w-0.5 bg-gradient-to-b from-[#6C63FF]/60 to-[#FF6B6B]/60" />
                   <div className="flex-1">
-                    <CardHeader>
+                    {/* <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-lg">
                         <Banknote className="w-5 h-5" />
                         Quick Actions
                       </CardTitle>
-                    </CardHeader>
+                    </CardHeader> */}
                     <CardContent className="space-y-3 px-4 py-2">
                       <Button 
                         className="w-full justify-start" 
@@ -1061,7 +1061,7 @@ const handleBulkGeneratePayslips = async () => {
 
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-200">
-                    <Button
+                    {/* <Button
                       onClick={handleApprovePayroll}
                       disabled={selectedEmployees.length === 0}
                       className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-md transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
@@ -1091,7 +1091,7 @@ const handleBulkGeneratePayslips = async () => {
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Generate All Payslips
-                  </Button>
+                  </Button> */}
                   </div>
                 </div>
               </CardContent>

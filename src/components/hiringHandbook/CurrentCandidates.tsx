@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
 import {
   Search,
   Filter,
@@ -93,6 +95,8 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [recruiter, setRecruiter] = useState<string>('');
+  const [updatingStatus, setUpdatingStatus] = useState<{ [key: string]: boolean }>({});
+  const { toast } = useToast();
 
   useEffect(() => {
     loadCandidates();
@@ -132,9 +136,19 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
       // Transform API candidates to Candidate interface
       const transformedCandidates: Candidate[] = data.applications.map(app => {
         // Map API status to valid stage values
-        const stage: "applied" | "screened" | "assessment" | "interview" | "offer" | "hired" | "rejected" =
-          app.status === 'pending' ? 'applied' :
-            (app.status as any) || 'applied';
+        // API returns: 'pending', 'shortlisted', 'rejected', etc.
+        // Map 'shortlisted' to 'screened' for internal consistency, but keep original in apiData
+        let stage: "applied" | "screened" | "assessment" | "interview" | "offer" | "hired" | "rejected" = 'applied';
+        
+        if (app.status === 'pending') {
+          stage = 'applied';
+        } else if (app.status === 'shortlisted') {
+          stage = 'screened'; // Map shortlisted to screened
+        } else if (app.status === 'rejected') {
+          stage = 'rejected';
+        } else if (['applied', 'screened', 'assessment', 'interview', 'offer', 'hired'].includes(app.status)) {
+          stage = app.status as any;
+        }
 
         return {
           id: String(app.id),
@@ -158,9 +172,10 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
           attachments: [], // Not provided by API
           interviewHistory: [], // Not provided by API
           notes: '',
-          // Store additional data for detail view
-          apiData: app
-        } as Candidate & { apiData: ApiCandidate };
+          // Store additional data for detail view including original API status
+          apiData: app,
+          originalStatus: app.status // Keep track of original API status
+        } as Candidate & { apiData: ApiCandidate; originalStatus: string };
       });
 
       setCandidates(transformedCandidates);
@@ -228,16 +243,73 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
     }
   };
 
+  const handleStatusChange = async (candidateId: string, newStatus: string) => {
+    try {
+      setUpdatingStatus(prev => ({ ...prev, [candidateId]: true }));
+
+      const token = localStorage.getItem('access_token');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE}/applications/${candidateId}/status/`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Map the status: shortlisted -> screened for internal use
+      const mappedStage = newStatus === 'shortlisted' ? 'screened' : (newStatus === 'rejected' ? 'rejected' : 'applied');
+      
+      // Update local state with new status
+      setCandidates(prevCandidates =>
+        prevCandidates.map(candidate =>
+          candidate.id === candidateId
+            ? { ...candidate, stage: mappedStage as any, originalStatus: newStatus } as any
+            : candidate
+        )
+      );
+
+      toast({
+        title: 'Status Updated',
+        description: `Candidate status changed to ${newStatus}`,
+      });
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update candidate status',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingStatus(prev => ({ ...prev, [candidateId]: false }));
+    }
+  };
+
   const getStageBadge = (stage: string) => {
     const stageConfig = {
       applied: { label: 'Applied', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-      screened: { label: 'Screened', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+      // Shortlisted (screened) should appear green
+      screened: { label: 'Shortlisted', color: 'bg-green-100 text-green-800 border-green-200' },
       assessment: { label: 'Assessment', color: 'bg-purple-100 text-purple-800 border-purple-200' },
       interview: { label: 'Interview', color: 'bg-orange-100 text-orange-800 border-orange-200' },
       offer: { label: 'Offer', color: 'bg-green-100 text-green-800 border-green-200' },
       hired: { label: 'Hired', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
       rejected: { label: 'Rejected', color: 'bg-red-100 text-red-800 border-red-200' }
     };
+
+    // If a candidate is marked for manual review (needs_review), don't show the review badge in the table
+    if (stage === 'needs_review' || stage === 'review') return null;
 
     const config = stageConfig[stage as keyof typeof stageConfig] || stageConfig.applied;
     return <Badge className={`${config.color} border`}>{config.label}</Badge>;
@@ -320,7 +392,13 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {filteredCandidates.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Loading Candidates</h3>
+              <p className="text-gray-600 text-center">Please wait while we fetch the candidate data...</p>
+            </div>
+          ) : filteredCandidates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-4">
               <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                 <Users className="w-12 h-12 text-gray-400" />
@@ -360,8 +438,7 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
                     <th className="text-left p-4 font-medium text-gray-700">Name</th>
                     <th className="text-left p-4 font-medium text-gray-700">Email</th>
                     <th className="text-left p-4 font-medium text-gray-700">Phone</th>
-                    <th className="text-left p-4 font-medium text-gray-700">Applied At</th>
-                    <th className="text-left p-4 font-medium text-gray-700">Stage</th>
+                    <th className="text-left p-4 font-medium text-gray-700">Status</th>
                     <th className="text-left p-4 font-medium text-gray-700">Recruiter</th>
                     <th className="text-left p-4 font-medium text-gray-700">Actions</th>
                   </tr>
@@ -389,10 +466,47 @@ const CurrentCandidates: React.FC<CurrentCandidatesProps> = ({ selectedJobId = n
                       </td>
                       <td className="p-4 text-sm text-gray-600">{candidate.email}</td>
                       <td className="p-4 text-sm text-gray-600">{candidate.phone}</td>
-                      <td className="p-4 text-sm">
-                        {new Date(candidate.appliedAt).toLocaleDateString()}
+                      <td className="p-4">
+                        <Select
+                          value={(candidate as any).originalStatus || (candidate.stage === 'screened' ? 'shortlisted' : candidate.stage)}
+                          onValueChange={(value) => handleStatusChange(candidate.id, value)}
+                          disabled={updatingStatus[candidate.id]}
+                        >
+                          <SelectTrigger className="w-[140px] h-9">
+                            <SelectValue placeholder="Select status">
+                              {((candidate as any).originalStatus === 'shortlisted' || candidate.stage === 'screened') && (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                  <span>Shortlisted</span>
+                                </div>
+                              )}
+                              {candidate.stage === 'rejected' && (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                  <span>Rejected</span>
+                                </div>
+                              )}
+                              {candidate.stage !== 'screened' && candidate.stage !== 'rejected' && (
+                                <span className="capitalize">{candidate.stage}</span>
+                              )}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="z-[99999] bg-white">
+                            <SelectItem value="shortlisted">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                <span>Shortlisted</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="rejected">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                <span>Rejected</span>
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
                       </td>
-                      <td className="p-4">{getStageBadge(candidate.stage)}</td>
                       <td className="p-4 text-sm">{candidate.recruiter}</td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">

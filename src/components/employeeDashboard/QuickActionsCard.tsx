@@ -20,7 +20,7 @@ const QuickActionsCard: React.FC<QuickActionsCardProps> = ({ onCheckInOut, onReq
 
   return (
     <Card>
-      <CardHeader>
+      {/* <CardHeader>
         <CardTitle className="text-lg">Quick Actions</CardTitle>
       </CardHeader>
       <CardContent>
@@ -37,7 +37,7 @@ const QuickActionsCard: React.FC<QuickActionsCardProps> = ({ onCheckInOut, onReq
             </Button>
           ))}
         </div>
-      </CardContent>
+      </CardContent> */}
     </Card>
   );
 };
