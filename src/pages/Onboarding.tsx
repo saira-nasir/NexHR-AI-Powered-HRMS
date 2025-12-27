@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,6 @@ import { ChevronDown, ChevronUp, Users, Trash, AlertTriangle } from 'lucide-reac
 import { motion, AnimatePresence } from 'framer-motion';
 import RoundDetailsModal from '@/components/onboarding/RoundDetailsModal';
 import RejectCandidateModal from '@/components/onboarding/RejectCandidateModal';
-import OnboardCandidateModal from '@/components/onboarding/OnboardCandidateModal';
 import { applicationService } from '@/services/jobPortalservice';
 
 // Types
@@ -62,7 +62,6 @@ const Onboarding: React.FC = () => {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showRoundDetails, setShowRoundDetails] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [closingJobId, setClosingJobId] = useState<number | null>(null);
   const [showCloseJobDialog, setShowCloseJobDialog] = useState(false);
   const [jobToClose, setJobToClose] = useState<Job | null>(null);
@@ -70,6 +69,8 @@ const Onboarding: React.FC = () => {
   // Lottie animation (same pattern as EmployeeCard)
   const lottieContainer = useRef<HTMLDivElement | null>(null);
   const lottieAnimRef = useRef<any | null>(null);
+
+  const navigate = useNavigate();
 
   // Fetch interview feedback data on component mount
   useEffect(() => {
@@ -166,7 +167,8 @@ const Onboarding: React.FC = () => {
 
   const handleOnboardClick = (candidate: Candidate) => {
     setSelectedCandidate(candidate);
-    setShowOnboardModal(true);
+    const applicationId = candidate.applicationId ?? candidate.candidateId;
+    navigate(`/onboard/${applicationId}`, { state: { candidate } });
   };
 
   const handleRejectConfirm = (justification: string) => {
@@ -207,8 +209,7 @@ const Onboarding: React.FC = () => {
           candidatesCount: job.candidates.filter(c => c.candidateId !== selectedCandidate.candidateId).length
         })));
 
-        // Close modal and clear selection
-        setShowOnboardModal(false);
+        // Clear selection after onboarding
         setSelectedCandidate(null);
       } else {
         // show error in console for now — could use toast
@@ -441,12 +442,6 @@ const Onboarding: React.FC = () => {
             onClose={() => setShowRejectModal(false)}
             candidate={selectedCandidate}
             onConfirm={handleRejectConfirm}
-          />
-          <OnboardCandidateModal
-            isOpen={showOnboardModal}
-            onClose={() => setShowOnboardModal(false)}
-            candidate={selectedCandidate}
-            onConfirm={handleOnboardConfirm}
           />
         </>
       )}

@@ -70,9 +70,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   };
 
   const isActive = (path: string) => {
-    return location.pathname === path || 
-           location.pathname.startsWith(path + '/') ||
-           (path !== '/' && location.pathname.startsWith(path));
+      // Treat onboarding submenu (/onboarding) as active also when on /onboard/:applicationId
+      if (path === '/onboarding' && location.pathname.startsWith('/onboard')) return true;
+      return location.pathname === path || 
+        location.pathname.startsWith(path + '/') ||
+        (path !== '/' && location.pathname.startsWith(path));
   };
 
   return (
