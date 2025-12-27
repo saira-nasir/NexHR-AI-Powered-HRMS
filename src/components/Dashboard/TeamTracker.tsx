@@ -91,7 +91,7 @@ const TeamTracker: React.FC = () => {
   }
 
   return (
-    <div className="hr-card col-span-1 row-span-2 flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300">
+    <div className="hr-card col-span-1 row-span-2 flex flex-col h-full bg-white rounded-xl hover:shadow-xl transition-all duration-300">
       <div className="p-5 border-b border-slate-100">
         <div className="flex items-center justify-between">
           <div>

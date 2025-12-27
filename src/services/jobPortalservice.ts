@@ -315,6 +315,23 @@ class ApplicationService {
     }
   }
 
+  async deleteInterviewRound(roundId: number | string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await axios.delete(`${API_BASE_URL}/interview/rounds/${roundId}/delete/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200 || response.status === 204) {
+        return { success: true, message: 'Interview round deleted successfully' };
+      }
+
+      return { success: false, message: 'Failed to delete interview round' };
+    } catch (error: any) {
+      console.error('Error deleting interview round:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to delete interview round' };
+    }
+  }
+
   /**
    * Get all scheduled interview rounds (for conduct & scoring tab)
    * GET /api/interview/rounds/scheduled/

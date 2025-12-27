@@ -11,7 +11,7 @@ import { toast } from '@/hooks/use-toast';
 interface JobPostedModalProps {
   open: boolean;
   onClose: () => void;
-  onPostLinkedIn?: () => void;
+  onPostLinkedIn?: () => Promise<void>;
 }
 
 const JobPostedModal: React.FC<JobPostedModalProps> = ({ open, onClose, onPostLinkedIn }) => {
@@ -23,9 +23,9 @@ const JobPostedModal: React.FC<JobPostedModalProps> = ({ open, onClose, onPostLi
     if (!isConnected) {
       await connectLinkedIn();
     } else if (onPostLinkedIn && !isPostedToLinkedIn) {
-      onPostLinkedIn(); // Assume this is async and handles actual API posting
+      await onPostLinkedIn(); // Assume this is async and handles actual API posting
       setIsPostedToLinkedIn(true); // Mark as posted
-      navigate('/dashboard')
+      navigate('/hiring/job-screening');
     }
   };
 
@@ -46,11 +46,11 @@ const JobPostedModal: React.FC<JobPostedModalProps> = ({ open, onClose, onPostLi
         });
       }
     };
-  
+
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, []);
-  
+
 
   return (
     <Dialog open={open} onOpenChange={onClose}>

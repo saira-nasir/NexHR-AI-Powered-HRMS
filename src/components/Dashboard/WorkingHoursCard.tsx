@@ -56,7 +56,7 @@ const WorkingHoursCard: React.FC = () => {
     const percentageChange = "+0.5%";
 
     return (
-        <Card className="flex-1 flex flex-col border-slate-200 shadow-sm overflow-hidden">
+        <Card className="hr-card flex-1 flex flex-col shadow-lg">
             <CardContent className="p-4 sm:p-5 flex flex-col h-full justify-between">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">

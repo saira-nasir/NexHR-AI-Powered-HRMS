@@ -121,7 +121,7 @@ export interface Notification {
 }
 
 // Type for Paginated API responses (required after backend pagination was added)
-interface PaginatedResponse<T> {
+export interface PaginatedResponse<T> {
   count: number;
   next: string | null;
   previous: string | null;
@@ -311,8 +311,26 @@ const payrollService = {
   },
 
   // Attendance
-  listAttendance: async () => {
-    const { data } = await api.get<EmployeeAttendance[]>(`${BASE}/attendance/`);
+  listAttendance: async (params?: {
+    page?: number;
+    page_size?: number;
+    date_from?: string;
+    date_to?: string;
+    employee_id?: number;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      if (params.page) queryParams.append('page', String(params.page));
+      if (params.page_size) queryParams.append('page_size', String(params.page_size));
+      if (params.date_from) queryParams.append('date__gte', params.date_from);
+      if (params.date_to) queryParams.append('date__lte', params.date_to);
+      if (params.employee_id) queryParams.append('employee', String(params.employee_id));
+    }
+
+    const queryString = queryParams.toString();
+    const url = `${BASE}/attendance/${queryString ? `?${queryString}` : ''}`;
+
+    const { data } = await api.get<EmployeeAttendance[] | PaginatedResponse<EmployeeAttendance>>(url);
     return data;
   },
 

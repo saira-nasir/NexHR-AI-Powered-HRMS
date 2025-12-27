@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { MapPin, Briefcase, Clock, DollarSign, Calendar, ChevronDown, ChevronUp } from "lucide-react";
+import { MapPin, Briefcase, Clock, DollarSign, Calendar, ChevronDown, ChevronUp, Share2, ArrowLeft, Building2, Globe, Loader2 } from "lucide-react";
 import { useParams, useNavigate } from 'react-router-dom';
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 
 // Job details API response shape (partial)
 interface JobApiResponse {
@@ -23,30 +28,11 @@ interface JobApiResponse {
   created_at: string;
 }
 
-// Job interface
-interface Job {
-  id: string;
-  title: string;
-  company: string;
-  companyLogo: string;
-  location: string;
-  salary: string;
-  jobType: string;
-  postedDate: string;
-  applicationDeadline: string;
-  experience: string;
-  description: string;
-  responsibilities: string[];
-  requirements: string[];
-}
-
 // Component-local types
 type Nullable<T> = T | null;
 
-
 // JobDetail component
 export default function JobDetail() {
-  const [activeTab, setActiveTab] = useState<string>("description");
   const [showFullDescription, setShowFullDescription] = useState<boolean>(false);
   const [job, setJob] = useState<Nullable<JobApiResponse>>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -88,221 +74,260 @@ export default function JobDetail() {
     }
   }, [jobIdParam, fetchJob]);
 
-  const displayedDescription = showFullDescription 
-    ? (job?.description || '') 
-    : (job?.description && job.description.length > 150) 
-      ? job.description.substring(0, 150) + "..." 
+  const displayedDescription = showFullDescription
+    ? (job?.description || '')
+    : (job?.description && job.description.length > 300)
+      ? job.description.substring(0, 300) + "..."
       : (job?.description || '');
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left: Header */}
-            <div>
-              <div className="flex items-center space-x-6 mb-6">
-                <div className="w-20 h-20 bg-gray-200 rounded-xl animate-pulse" />
-                <div className="flex-1">
-                  <div className="h-6 bg-gray-200 rounded w-3/4 mb-3 animate-pulse" />
-                  <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="h-4 bg-gray-200 rounded w-1/3 animate-pulse" />
-                <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
-                <div className="h-4 bg-gray-200 rounded w-1/4 animate-pulse" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mt-6">
-                <div className="h-16 bg-gray-100 rounded animate-pulse" />
-                <div className="h-16 bg-gray-100 rounded animate-pulse" />
-              </div>
-            </div>
-
-            {/* Right: Description skeleton */}
-            <div>
-              <div className="h-6 bg-gray-200 rounded w-1/3 mb-4 animate-pulse" />
-              <div className="space-y-3">
-                <div className="h-3 bg-gray-100 rounded w-full animate-pulse" />
-                <div className="h-3 bg-gray-100 rounded w-11/12 animate-pulse" />
-                <div className="h-3 bg-gray-100 rounded w-10/12 animate-pulse" />
-                <div className="h-3 bg-gray-100 rounded w-9/12 animate-pulse" />
-                <div className="h-3 bg-gray-100 rounded w-8/12 animate-pulse" />
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-2">
-                <div className="h-6 bg-gray-100 rounded px-3 animate-pulse" style={{width: '64px'}} />
-                <div className="h-6 bg-gray-100 rounded px-3 animate-pulse" style={{width: '84px'}} />
-                <div className="h-6 bg-gray-100 rounded px-3 animate-pulse" style={{width: '56px'}} />
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="min-h-screen bg-gray-50/50 flex flex-col items-center justify-center py-20">
+        <Loader2 className="h-16 w-16 text-blue-600 animate-spin mb-4" />
+        <h3 className="text-xl font-semibold text-gray-700 mb-2">Loading Job Details...</h3>
+        <p className="text-gray-500">Please wait while we fetch the job information</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-3xl mx-auto p-6">
-        <div className="bg-white p-8 rounded-2xl shadow border border-red-100">
-          <h2 className="text-xl font-semibold text-red-700 mb-2">Unable to load job details</h2>
-          <p className="text-sm text-gray-600 mb-4">{error}</p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                if (jobIdParam) fetchJob(String(jobIdParam));
-              }}
-              className="px-4 py-2 bg-[#352f44] text-white rounded-md"
-            >
-              Retry
-            </button>
-            <button onClick={() => navigate(-1)} className="px-4 py-2 border rounded-md">Go Back</button>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50/50 px-4">
+        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg border border-red-100 text-center">
+          <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Briefcase className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Unable to load job details</h2>
+          <p className="text-sm text-gray-500 mb-6">{error}</p>
+          <div className="flex gap-3 justify-center">
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              Go Back
+            </Button>
+            <Button onClick={() => jobIdParam && fetchJob(String(jobIdParam))}>
+              Try Again
+            </Button>
           </div>
         </div>
       </div>
     );
   }
 
+  if (!job) return null;
+
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column - Job Details */}
-          <div className="p-8">
-          <div className="flex items-center space-x-6 mb-8">
-            <div className="w-20 h-20 bg-[#dbd8e3] rounded-xl overflow-hidden flex items-center justify-center">
-              <img
-                src='/images/company-logo.png'
-                alt={`${job?.company_name || 'Company'} logo`}
-                className="object-cover w-12 h-12"
-              />
+    <div className="min-h-screen bg-gray-50/50 pb-12">
+      {/* Hero Header */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-10 bg-white/80 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-4 text-gray-500 hover:text-gray-900 -ml-2"
+            onClick={() => navigate('/job-portal')}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Jobs
+          </Button>
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-start gap-5">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 flex items-center justify-center shadow-sm shrink-0">
+                <Building2 className="w-8 h-8 sm:w-10 sm:h-10 text-blue-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight mb-2">
+                  {job.job_title}
+                </h1>
+                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                  <span className="font-medium text-gray-900">{job.company_name}</span>
+                  <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5" />
+                    {job.location_type}
+                  </div>
+                  <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" />
+                    Posted {new Date(job.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-[#352f44] mb-2">{job?.job_title || 'Job Title'}</h1>
-              <p className="text-xl text-gray-600">{job?.company_name || 'Company'}</p>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <Button
+                size="lg"
+                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 px-8"
+                onClick={() => navigate(`/application/${job.id}`)}
+              >
+                Apply Now
+              </Button>
             </div>
           </div>
+        </div>
+      </div>
 
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-8">
+            <Card className="border-none shadow-sm bg-white overflow-hidden rounded-2xl">
+              <CardContent className="p-0">
+                <Tabs defaultValue="description" className="w-full">
+                  <div className="border-b border-gray-100 px-6">
+                    <TabsList className="h-14 w-full justify-start gap-8 bg-transparent p-0">
+                      <TabsTrigger
+                        value="description"
+                        className="h-full rounded-none border-b-2 border-transparent px-0 font-medium data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 data-[state=active]:shadow-none bg-transparent"
+                      >
+                        Description
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="requirements"
+                        className="h-full rounded-none border-b-2 border-transparent px-0 font-medium data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 data-[state=active]:shadow-none bg-transparent"
+                      >
+                        Requirements & Skills
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+
+                  <TabsContent value="description" className="p-6 sm:p-8 animate-in fade-in-50 duration-300">
+                    <div className="prose prose-slate max-w-none">
+                      <h3 className="text-xl font-bold text-gray-900 mb-4">About the Role</h3>
+                      <div className="text-gray-600 leading-relaxed whitespace-pre-line">
+                        {displayedDescription}
+                      </div>
+
+                      {job.description.length > 300 && (
+                        <Button
+                          variant="ghost"
+                          className="mt-4 text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-0 h-auto font-medium"
+                          onClick={() => setShowFullDescription(!showFullDescription)}
+                        >
+                          {showFullDescription ? (
+                            <span className="flex items-center">Show Less <ChevronUp className="ml-1 w-4 h-4" /></span>
+                          ) : (
+                            <span className="flex items-center">Read More <ChevronDown className="ml-1 w-4 h-4" /></span>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="requirements" className="p-6 sm:p-8 animate-in fade-in-50 duration-300">
+                    <div className="space-y-8">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                          <Briefcase className="w-5 h-5 text-blue-600" />
+                          Experience Required
+                        </h3>
+                        <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-100 inline-block">
+                          <p className="font-medium text-blue-900">
+                            {job.experience_level > 0
+                              ? `${job.experience_level}+ Years of Experience`
+                              : 'Entry Level / No Experience Required'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                          <Share2 className="w-5 h-5 text-blue-600" />
+                          Skills & Tech Stack
+                        </h3>
+                        {job.required_skills.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {job.required_skills.map((skill) => (
+                              <Badge
+                                key={skill.id}
+                                variant="secondary"
+                                className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg border-0"
+                              >
+                                {skill.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-gray-500 italic">No specific skills listed</p>
+                        )}
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
           <div className="space-y-6">
-            <div className="flex items-center text-gray-600">
-              <MapPin size={20} className="mr-3 text-[#352f44]" />
-              <span className="text-lg">{job?.location_type || 'Location'}</span>
-            </div>
-            <div className="flex items-center text-gray-600">
-              <DollarSign size={20} className="mr-3 text-[#352f44]" />
-              <span className="text-lg">{job ? `${job.currency} ${job.salary_from} - ${job.salary_to} / ${job.period}` : 'Salary'}</span>
-            </div>
-            <div className="flex items-center text-gray-600">
-              <Briefcase size={20} className="mr-3 text-[#352f44]" />
-              <span className="text-lg">{job?.job_type || 'Job Type'}</span>
-            </div>
-          </div>
+            <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden sticky top-24">
+              <CardContent className="p-6 space-y-6">
+                <h3 className="font-bold text-gray-900 text-lg">Job Overview</h3>
 
-          <div className="grid grid-cols-2 gap-6 mt-8">
-            <div className="bg-[#dbd8e3] p-5 rounded-xl">
-              <div className="flex items-center space-x-3">
-                <Clock size={24} className="text-[#352f44]" />
-                <div>
-                  <p className="text-sm text-gray-600">Posted</p>
-                  <p className="font-medium text-[#352f44]">{job ? new Date(job.created_at).toLocaleDateString() : '-'}</p>
+                <div className="space-y-5">
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 bg-green-50 text-green-600 rounded-xl shrink-0">
+                      <DollarSign className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 font-medium mb-0.5">Salary Range</p>
+                      <p className="text-gray-900 font-semibold">
+                        {job.currency} {Number(job.salary_from).toLocaleString()} - {Number(job.salary_to).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">Per {job.period}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl shrink-0">
+                      <MapPin className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 font-medium mb-0.5">Location</p>
+                      <p className="text-gray-900 font-semibold">{job.city || job.location_type}, {job.country}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{job.location_type}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 bg-orange-50 text-orange-600 rounded-xl shrink-0">
+                      <Briefcase className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 font-medium mb-0.5">Job Type</p>
+                      <p className="text-gray-900 font-semibold">{job.job_type}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 bg-pink-50 text-pink-600 rounded-xl shrink-0">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 font-medium mb-0.5">Deadline</p>
+                      <p className="text-gray-900 font-semibold">
+                        {new Date(job.job_deadline).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div className="bg-[#dbd8e3] p-5 rounded-xl">
-              <div className="flex items-center space-x-3">
-                <Calendar size={24} className="text-[#352f44]" />
-                <div>
-                  <p className="text-sm text-gray-600">Deadline</p>
-                  <p className="font-medium text-[#352f44]">{job ? new Date(job.job_deadline).toLocaleDateString() : '-'}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-            <div className="mt-8">
-            <button
-              onClick={() => {
-                // navigate to application page with job id in the route param
-                if (job) navigate(`/application/${job.id}`);
-              }}
-              className="w-full bg-[#352f44] hover:bg-[#2a2535] text-white font-medium py-3 px-8 rounded-xl transition-all duration-300"
-            >
-              Apply Now
-            </button>
-          </div>
-          </div>
-        
-          {/* Right Column - Description & Requirements */}
-          <div className="p-8">
-            <div className="flex border-b">
-            <button
-              className={`flex-1 py-5 px-6 text-center font-medium text-lg transition-all duration-300 ${
-                activeTab === "description"
-                  ? "text-[#352f44] border-b-2 border-[#352f44]"
-                  : "text-gray-500 hover:text-[#352f44]"
-              }`}
-              onClick={() => setActiveTab("description")}
-            >
-              Description
-            </button>
-            <button
-              className={`flex-1 py-5 px-6 text-center font-medium text-lg transition-all duration-300 ${
-                activeTab === "requirements"
-                  ? "text-[#352f44] border-b-2 border-[#352f44]"
-                  : "text-gray-500 hover:text-[#352f44]"
-              }`}
-              onClick={() => setActiveTab("requirements")}
-            >
-              Requirements
-            </button>
-          </div>
-          
-          <div className="p-8">
-            {activeTab === "description" && (
-              <div>
-                <h2 className="text-2xl font-bold text-[#352f44] mb-6">Job Description</h2>
-                <p className="text-gray-600 mb-6 leading-relaxed">{displayedDescription}</p>
-                {job?.description && job.description.length > 150 && (
-                  <button
-                    onClick={() => setShowFullDescription(!showFullDescription)}
-                    className="flex items-center text-[#352f44] font-medium mb-8 hover:opacity-80 transition-opacity"
-                  >
-                    {showFullDescription ? (
-                      <>
-                        Show Less <ChevronUp size={18} className="ml-1" />
-                      </>
-                    ) : (
-                      <>
-                        Read More <ChevronDown size={18} className="ml-1" />
-                      </>
-                    )}
-                  </button>
-                )}
-                
-                {job?.required_skills && job.required_skills.length > 0 && (
-                  <>
-                    <h3 className="text-xl font-semibold text-[#352f44] mb-4">Required Skills</h3>
-                    <ul className="flex flex-wrap gap-2 mb-6">
-                      {job.required_skills.map((s) => (
-                        <li key={s.id} className="px-3 py-1 bg-[#dbd8e3] rounded-full text-gray-700">{s.name}</li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
-            )}
-            
-            {activeTab === "requirements" && (
-              <div>
-                <h2 className="text-2xl font-bold text-[#352f44] mb-6">Requirements & Experience</h2>
-                <p className="text-gray-700 mb-4">Experience Level: {job?.experience_level ?? '-'}</p>
-                <p className="text-gray-700">{job?.description}</p>
-              </div>
-            )}
-            </div>
+
+                <Separator />
+
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 py-6 text-lg rounded-xl"
+                  onClick={() => navigate(`/application/${job.id}`)}
+                >
+                  Apply for this Job
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

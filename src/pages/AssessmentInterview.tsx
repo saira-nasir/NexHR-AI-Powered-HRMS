@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { googleAuthService } from '@/services/googleAuth';
 import { applicationService } from '@/services/jobPortalservice';
 import GoogleCalendarConnectButton from '@/components/auth/GoogleCalendarConnectButton';
-import { RefreshCw, AlertCircle, CalendarIcon, Clock, Users, Briefcase, BarChart3, Search, X, MapPin, Eye, ChevronRight, CheckCircle, Download, Filter, SlidersHorizontal, Calendar as CalendarFilter, Loader2 } from 'lucide-react';
+import { RefreshCw, AlertCircle, CalendarIcon, Clock, Briefcase, BarChart3, Search, X, MapPin, Eye, ChevronRight, CheckCircle, Download, Filter, SlidersHorizontal, Calendar as CalendarFilter, Loader2 } from 'lucide-react';
 import DashboardLayout from "@/layouts/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ interface Job {
   selected: number;
   assessmentCount?: number;
   screeningCount?: number;
+  threshold?: number | null;
 }
 
 const AssessmentAndInterview: React.FC = () => {
@@ -101,6 +102,27 @@ const AssessmentAndInterview: React.FC = () => {
       try {
         const response = await applicationService.getAssessmentJobs();
         if (response.success && response.data) {
+          const normalizeStatus = (rawStatus: any) => {
+            // Rule: If any status is 'closed' -> show 'closed'. Otherwise always show 'active'.
+            if (!rawStatus && rawStatus !== 0) return 'active';
+            const containsClosed = (val: string) => String(val).toLowerCase().trim() === 'closed';
+
+            if (Array.isArray(rawStatus)) {
+              const arr = rawStatus.map((s: any) => String(s).toLowerCase().trim());
+              return arr.includes('closed') ? 'closed' : 'active';
+            }
+
+            const s = String(rawStatus);
+            if (/[,|;]+/.test(s)) {
+              const parts = s.split(/[,|;]+/).map(p => p.trim().toLowerCase()).filter(Boolean);
+              return parts.includes('closed') ? 'closed' : 'active';
+            }
+
+            // Single status value
+            const lower = s.trim().toLowerCase();
+            return lower === 'closed' ? 'closed' : 'active';
+          };
+
           const transformedJobs: Job[] = response.data.map((job: any) => {
             const location = [job.city, job.state, job.country].filter(Boolean).join(', ') || job.location_type || 'Remote';
             return {
@@ -110,13 +132,14 @@ const AssessmentAndInterview: React.FC = () => {
               location,
               type: job.job_type || 'Full-time',
               postedDate: new Date(job.created_at),
-              status: job.status || 'active',
+              status: normalizeStatus(job.status),
               totalApplicants: job.application_count || 0,
               shortlisted: job.screening_count || 0,
               interviewed: 0,
               selected: 0,
               assessmentCount: job.assessment_count || 0,
               screeningCount: job.screening_count || 0,
+              threshold: job.last_threshold ?? null,
             };
           });
           setJobs(transformedJobs);
@@ -145,6 +168,21 @@ const AssessmentAndInterview: React.FC = () => {
       try {
         const response = await applicationService.getAssessmentJobs();
         if (response.success && response.data) {
+          const normalizeStatus = (rawStatus: any) => {
+            if (!rawStatus && rawStatus !== 0) return 'active';
+            if (Array.isArray(rawStatus)) {
+              const arr = rawStatus.map((s: any) => String(s).toLowerCase());
+              return arr.includes('active') ? 'active' : (arr[0] || 'draft');
+            }
+            const s = String(rawStatus);
+            if (/[,|;]+/.test(s)) {
+              const parts = s.split(/[,|;]+/).map(p => p.trim().toLowerCase()).filter(Boolean);
+              return parts.includes('active') ? 'active' : (parts[0] || 'draft');
+            }
+            const lower = s.trim().toLowerCase();
+            return ['active', 'closed', 'draft', 'screened'].includes(lower) ? (lower as any) : 'active';
+          };
+
           const transformedJobs: Job[] = response.data.map((job: any) => {
             const location = [job.city, job.state, job.country].filter(Boolean).join(', ') || job.location_type || 'Remote';
             return {
@@ -154,13 +192,14 @@ const AssessmentAndInterview: React.FC = () => {
               location,
               type: job.job_type || 'Full-time',
               postedDate: new Date(job.created_at),
-              status: job.status || 'active',
+              status: normalizeStatus(job.status),
               totalApplicants: job.application_count || 0,
               shortlisted: job.screening_count || 0,
               interviewed: 0,
               selected: 0,
               assessmentCount: job.assessment_count || 0,
               screeningCount: job.screening_count || 0,
+              threshold: job.last_threshold ?? null,
             };
           });
           setJobs(transformedJobs);
@@ -283,44 +322,23 @@ const AssessmentAndInterview: React.FC = () => {
                     <div>
                       <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-tight">Interview Management</h1>
                       <p className="text-indigo-100 mt-1 text-sm sm:text-base">Manage job postings and schedule candidate interviews</p>
+
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                <div className="mb-6">
+                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 max-w-md">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-indigo-100 text-xs sm:text-sm font-medium">Active Jobs</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.filter(j => j.status === 'active').length}</p>
+                        <p className="text-indigo-100 text-xs sm:text-sm font-medium">Jobs</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.length}</p>
                       </div>
-                      <Briefcase className="h-8 w-8 text-indigo-200" />
-                    </div>
-                  </div>
-                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                    <div className="flex items-center justify-between">
+                      <div className="border-l border-white/20 mx-4 h-10" />
                       <div>
                         <p className="text-indigo-100 text-xs sm:text-sm font-medium">Total Applicants</p>
                         <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.reduce((sum, j) => sum + j.totalApplicants, 0)}</p>
                       </div>
-                      <Users className="h-8 w-8 text-indigo-200" />
-                    </div>
-                  </div>
-                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-indigo-100 text-xs sm:text-sm font-medium">Shortlisted</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.reduce((sum, j) => sum + j.shortlisted, 0)}</p>
-                      </div>
-                      <CheckCircle className="h-8 w-8 text-indigo-200" />
-                    </div>
-                  </div>
-                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-indigo-100 text-xs sm:text-sm font-medium">Selected</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{jobs.reduce((sum, j) => sum + j.selected, 0)}</p>
-                      </div>
-                      <CheckCircle className="h-8 w-8 text-indigo-200" />
+                      {/* users icon removed as requested */}
                     </div>
                   </div>
                 </div>
@@ -342,8 +360,8 @@ const AssessmentAndInterview: React.FC = () => {
             </div>
           </div>
 
-          {/* Filters and Search */}
-          <div className="sticky top-0 z-20 bg-white border-b shadow-sm">
+          {/* Filters and Search - Temporarily hidden, uncomment to re-enable */}
+          {/* <div className="sticky top-0 z-20 bg-white border-b shadow-sm">
             <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -445,7 +463,7 @@ const AssessmentAndInterview: React.FC = () => {
                 )}
               </div>
             </div>
-          </div>
+          </div> */}
           {/* Content Area */}
           <div className="px-4 py-6 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto">
@@ -487,7 +505,8 @@ const AssessmentAndInterview: React.FC = () => {
                               <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider">Location</TableHead>
                               <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider">Posted</TableHead>
                               <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</TableHead>
-                              <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Pipeline</TableHead>
+                              <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Applicants</TableHead>
+                              <TableHead className="h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Threshold</TableHead>
                               <TableHead className="pr-6 h-12 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Action</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -524,26 +543,22 @@ const AssessmentAndInterview: React.FC = () => {
                                 <TableCell className="py-4">
                                   <div className="flex flex-col">
                                     <span className="text-sm font-medium text-slate-700">{format(job.postedDate, "MMM dd, yyyy")}</span>
-                                    <span className="text-xs text-slate-400">Published</span>
                                   </div>
                                 </TableCell>
                                 <TableCell className="py-4">
                                   {getStatusBadge(job.status)}
                                 </TableCell>
                                 <TableCell className="py-4">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <div className="flex flex-col items-center px-3 border-r border-slate-100 last:border-0">
-                                      <span className="text-xs font-bold text-slate-700">{job.shortlisted}</span>
-                                      <span className="text-[10px] text-slate-400 uppercase tracking-tight">Shortlist</span>
-                                    </div>
-                                    <div className="flex flex-col items-center px-3 border-r border-slate-100 last:border-0">
-                                      <span className="text-xs font-bold text-indigo-600">{job.interviewed}</span>
-                                      <span className="text-[10px] text-indigo-300 uppercase tracking-tight">Interview</span>
-                                    </div>
-                                    <div className="flex flex-col items-center px-3">
-                                      <span className="text-xs font-bold text-emerald-600">{job.selected}</span>
-                                      <span className="text-[10px] text-emerald-300 uppercase tracking-tight">Hired</span>
-                                    </div>
+                                  <div className="flex flex-col items-center">
+                                    <span className="text-sm font-bold text-slate-700">{job.totalApplicants}</span>
+                                    <span className="text-xs text-slate-400">Applicants</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-4 text-center">
+                                  <div className="flex items-center justify-center">
+                                    <span className="text-sm font-medium text-slate-700">
+                                      {typeof job.threshold === 'number' ? `${Math.round(job.threshold * 100)}%` : 'Not applied'}
+                                    </span>
                                   </div>
                                 </TableCell>
                                 <TableCell className="pr-6 py-4 text-right">
@@ -594,6 +609,23 @@ const AssessmentAndInterview: React.FC = () => {
           </div>
         </div>
       </Tabs>
+
+      {/* Bottom Action Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 ml-64">
+        <div className="max-w-7xl mx-auto flex justify-end px-4 sm:px-8">
+          <Button
+            size="lg"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 rounded-xl px-8"
+            onClick={() => navigate('/hiring/interview')}
+          >
+            Next Stage: Conduct & Score
+            <ChevronRight className="ml-2 w-5 h-5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Spacer for bottom bar */}
+      <div className="h-24" />
     </DashboardLayout>
   );
 };

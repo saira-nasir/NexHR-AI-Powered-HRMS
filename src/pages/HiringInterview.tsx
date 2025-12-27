@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { InterviewCard, type ScheduledInterview } from '@/components/hiring/InterviewCard';
@@ -6,8 +7,9 @@ import { ExpandableInterviewWorkspace } from '@/components/hiring/ExpandableInte
 import { applicationService } from '@/services/jobPortalservice';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, Users, Calendar, TrendingUp, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { Search, Users, Calendar, TrendingUp, CheckCircle2, Loader2, AlertCircle, ChevronRight } from 'lucide-react';
 
 // Transform API response to ScheduledInterview format
 const transformApiRound = (apiRound: any): ScheduledInterview | null => {
@@ -99,6 +101,7 @@ const transformApiRound = (apiRound: any): ScheduledInterview | null => {
 };
 
 const HiringInterview: React.FC = () => {
+  const navigate = useNavigate();
   const [interviews, setInterviews] = useState<ScheduledInterview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -320,6 +323,23 @@ const HiringInterview: React.FC = () => {
         isOpen={!!selectedInterview}
         onClose={handleClose}
       />
+
+      {/* Bottom Action Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 ml-64">
+        <div className="max-w-7xl mx-auto flex justify-end px-4 sm:px-8">
+          <Button
+            size="lg"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 rounded-xl px-8"
+            onClick={() => navigate('/onboarding')}
+          >
+            Next Stage: Onboarding Candidate
+            <ChevronRight className="ml-2 w-5 h-5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Spacer for bottom bar */}
+      <div className="h-24" />
     </DashboardLayout>
   );
 };

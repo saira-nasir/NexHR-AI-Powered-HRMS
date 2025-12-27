@@ -24,6 +24,7 @@ import JobScreening from "@/pages/JobScreening";
 import AssessmentAndInterview from "@/pages/AssessmentInterview";
 import JobCandidatesDetail from "@/pages/JobCandidatesDetail";
 import Onboarding from "@/pages/Onboarding";
+import OnboardCandidate from "@/pages/OnboardCandidate";
 import LinkedInAuth from "@/pages/LinkedInAuth";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import TestModal from "@/pages/TestModal";
@@ -38,6 +39,7 @@ import RegisterFace from "@/pages/RegisterFace";
 import Interview from "@/pages/Interview";
 import HiringInterview from "@/pages/HiringInterview";
 import CompanyPolicy from "@/pages/CompanyPolicy";
+import Settings from "@/pages/Settings";
 
 // Finance pages
 import Expenses from "@/pages/Expenses";
@@ -54,13 +56,8 @@ import CompanyRegistrationGuard from "@/components/CompanyRegistrationGuard";
 import RoleBasedRoute from "@/components/RoleBasedRoute";
 import RoleBasedDashboard from "@/components/RoleBasedDashboard";
 
-// Placeholders
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className="flex flex-col items-center justify-center min-h-[60vh]">
-    <h1 className="text-2xl font-bold mb-4">{title}</h1>
-    <p className="text-muted-foreground">This page is under construction</p>
-  </div>
-);
+import PlaceholderPage from "@/components/PlaceholderPage";
+
 
 // Routes
 export const routes: RouteObject[] = [
@@ -101,9 +98,17 @@ export const routes: RouteObject[] = [
     path: "/",
     element: <ProtectedRoute />,
     children: [
-      // 1. This route is ACCESSIBLE even if company is not registered
+      // 1. These routes are ACCESSIBLE even if company is not registered
       // This allows the Guard to redirect here safely
       { path: "company", element: <CompanyInfoForm /> },
+      {
+        path: "company-policy",
+        element: (
+          <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+            <CompanyPolicy />
+          </RoleBasedRoute>
+        ),
+      },
 
       // 2. These routes are GUARDED. 
       // You must have a company to enter here.
@@ -111,7 +116,7 @@ export const routes: RouteObject[] = [
         element: <CompanyRegistrationGuard />,
         children: [
           { path: "dashboard", element: <RoleBasedDashboard /> },
-          
+
           // HR & Admin Routes
           {
             path: "jobs/create",
@@ -178,18 +183,10 @@ export const routes: RouteObject[] = [
             ),
           },
           {
-            path: "hiring/assessment-interview",
+            path: "assessment-interview",
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <AssessmentAndInterview />
-              </RoleBasedRoute>
-            ),
-          },
-          {
-            path: "company-policy",
-            element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
-                <CompanyPolicy />
               </RoleBasedRoute>
             ),
           },
@@ -218,7 +215,15 @@ export const routes: RouteObject[] = [
             ),
           },
           {
-            path: "hr-attendance-management",
+            path: "onboard/:applicationId",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <OnboardCandidate />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "attendance-management",
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <HRAttendanceManagement />
@@ -339,8 +344,8 @@ export const routes: RouteObject[] = [
           },
 
           // Common routes
-          { path: "settings", element: <PlaceholderPage title="Settings" /> },
-          { path: "integrations", element: <PlaceholderPage title="Integrations" /> },
+          { path: "settings", element: <Settings /> },
+
           { path: "support", element: <PlaceholderPage title="Help & Support" /> },
           { path: "linkedin-auth/callback", element: <LinkedInAuth /> },
         ],

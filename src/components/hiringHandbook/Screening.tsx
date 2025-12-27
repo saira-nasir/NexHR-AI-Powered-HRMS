@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { 
-  Search, 
-  Settings, 
-  Play, 
-  TrendingUp, 
-  TrendingDown, 
+import {
+  Search,
+  Settings,
+  Play,
+  TrendingUp,
+  TrendingDown,
   Eye,
   CheckCircle,
   X,
@@ -164,13 +164,13 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
   const [lastActive, setLastActive] = useState<boolean>(false);
   const { toast } = useToast();
   // Use custom hook to manage job screening status
-  const { 
-    jobStatus: fetchedJobStatus, 
-    isLoading: statusLoading, 
+  const {
+    jobStatus: fetchedJobStatus,
+    isLoading: statusLoading,
     error: statusError,
-    refetch: refetchStatus 
+    refetch: refetchStatus
   } = useJobScreeningStatus(selectedJobId, isActive);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null);
   const [overrideModal, setOverrideModal] = useState<{
@@ -194,7 +194,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
           const maybeJson = backendCandidate.screening_summary.replace(/'/g, '"');
           parsedScreeningSummary = JSON.parse(maybeJson);
         }
-        
+
         // Create a compact summary for the notes field
         if (parsedScreeningSummary && typeof parsedScreeningSummary === 'object') {
           // Prefer the 'score_alignment' or 'strengths' fields for a short note
@@ -265,7 +265,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
   useEffect(() => {
     if (fetchedJobStatus) {
       setJobStatus(fetchedJobStatus);
-      
+
       // Auto-load candidates when status is 'screening' or 'screened' and we haven't loaded yet
       if ((fetchedJobStatus === 'screened' || fetchedJobStatus === 'screening') && isActive && !candidatesLoaded && selectedJobId) {
         console.log('Status changed to screening/screened - auto-loading candidates');
@@ -284,7 +284,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
       selectedJobId,
       candidatesLoaded
     });
-    
+
     if (isActive && !lastActive) {
       // Tab became active
       console.log('Tab became active, checking conditions...');
@@ -313,7 +313,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
   const fetchJobStatus = async () => {
     const rawJobId = selectedJobId ?? candidates[0]?.appliedFor;
     console.log('fetchJobStatus called with rawJobId:', rawJobId);
-    
+
     let jobId: string | null = null;
     if (rawJobId != null) {
       const asString = String(rawJobId);
@@ -352,7 +352,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
         console.error('Failed to fetch job status:', res.status);
         const errorText = await res.text();
         console.error('Error response:', errorText);
-        
+
         // If endpoint doesn't exist (404), keep default state
         if (res.status === 404) {
           console.warn('Candidates endpoint not found - using default state');
@@ -366,25 +366,25 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
 
       const data: JobScreeningResponse = await res.json();
       console.log('API Response data:', JSON.stringify(data, null, 2));
-      
+
       // Update state with response
       console.log('Setting jobStatus to:', data.status);
-      
+
       if (data.status) {
         setJobStatus(data.status);
       } else {
         console.warn('API response missing status field, keeping current status:', jobStatus);
       }
-      
+
       if (data.message) {
         setJobMessage(data.message);
       }
-      
+
       if (data.candidates) {
         // Transform backend candidates to frontend format
         setScreenedCandidates(data.candidates.map(transformCandidate));
       }
-      
+
       if (data.count !== undefined) {
         setJobCounts({
           count: data.count,
@@ -392,7 +392,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
           rejected: data.rejected || 0
         });
       }
-      
+
       if (data.threshold !== undefined) {
         setThreshold(data.threshold * 100); // Convert decimal to percentage
       }
@@ -415,7 +415,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
   // Apply threshold filter via POST endpoint or just GET for initial load
   const fetchCandidatesByThreshold = async (thresholdPercent: number, overrideExistingFlag: boolean = false, isInitialLoad: boolean = false, isRefresh: boolean = false) => {
     console.log('fetchCandidatesByThreshold called:', { thresholdPercent, overrideExistingFlag, isInitialLoad, isRefresh });
-    
+
     const rawJobId = selectedJobId ?? candidates[0]?.appliedFor;
     let jobId: string | null = null;
     if (rawJobId != null) {
@@ -444,7 +444,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
       } else {
         setThresholdLoading(true);
       }
-      
+
       // For initial load, use GET without payload. For applying threshold, use POST
       console.log('Request method:', isInitialLoad ? 'GET' : 'POST');
       const res = await fetch(url, isInitialLoad ? {
@@ -459,11 +459,11 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify(overrideExistingFlag ? { 
-          threshold: Number((thresholdPercent / 100).toFixed(2)), 
-          override_existing: true 
-        } : { 
-          threshold: Number((thresholdPercent / 100).toFixed(2)) 
+        body: JSON.stringify(overrideExistingFlag ? {
+          threshold: Number((thresholdPercent / 100).toFixed(2)),
+          override_existing: true
+        } : {
+          threshold: Number((thresholdPercent / 100).toFixed(2))
         })
       });
 
@@ -478,7 +478,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
 
       const data: JobScreeningResponse = await res.json();
       console.log('API response:', data);
-      
+
       // Update state with response
       if (data.status) setJobStatus(data.status);
       if (data.message) setJobMessage(data.message);
@@ -574,9 +574,9 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
       return;
     }
 
-  const token = localStorage.getItem('access_token');
-  const baseApi = import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '') : 'http://127.0.0.1:8000/api';
-  const url = `${baseApi}/jobs/${jobId}/screen/`;
+    const token = localStorage.getItem('access_token');
+    const baseApi = import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '') : 'http://127.0.0.1:8000/api';
+    const url = `${baseApi}/jobs/${jobId}/screen/`;
 
     try {
       setLoading(true);
@@ -606,7 +606,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
         // After queuing, backend likely sets job status to 'screening'
         setJobStatus('screening');
         toast({ title: 'Screening queued', description: data.message });
-        
+
         // Refetch status from backend to confirm the status change
         refetchStatus();
       } else {
@@ -695,7 +695,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
               <div>
                 <h4 className="font-semibold text-orange-900 mb-1">Job Description vs Resume Similarity</h4>
                 <p className="text-sm text-orange-800">
-                  The similarity weight between job description and resume is <span className="font-bold">fixed at 50%</span>. 
+                  The similarity weight between job description and resume is <span className="font-bold">fixed at 50%</span>.
                   You can tune the remaining <span className="font-bold">50%</span> between Skills and Experience below.
                 </p>
                 {(jobStatus === 'screened' || jobStatus === 'screening') && (
@@ -799,14 +799,14 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
 
             {/* Run Screening Button */}
             <div className="flex justify-center">
-              <Button 
-                onClick={handleRunScreening} 
+              <Button
+                onClick={handleRunScreening}
                 disabled={
-                  loading || 
+                  loading ||
                   statusLoading ||
                   thresholdLoading ||
                   refreshLoading ||
-                  jobStatus === 'screening' || 
+                  jobStatus === 'screening' ||
                   screeningsLeft === 0
                 }
                 size="lg"
@@ -839,7 +839,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                   </>
                 )}
               </Button>
-              
+
             </div>
           </div>
         </CardContent>
@@ -905,7 +905,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                   </div>
                 </div>
                 <div className="w-px h-32 bg-yellow-300"></div>
-                  <div className="space-y-3">
+                <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm">
                     <div className="w-4 h-4 rounded-full bg-green-500"></div>
                     <span className="text-gray-700 font-medium">≥ {threshold}: Auto-approve</span>
@@ -930,7 +930,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                   </div>
 
                   <div className="flex gap-2 w-full mt-2">
-                    <Button 
+                    <Button
                       onClick={() => fetchCandidatesByThreshold(threshold, overrideExisting, false, false)}
                       className="flex-1 bg-yellow-600 hover:bg-yellow-700"
                       disabled={thresholdLoading || loading || refreshLoading}
@@ -947,8 +947,8 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                         </>
                       )}
                     </Button>
-                    
-                    <Button 
+
+                    <Button
                       onClick={handleRefresh}
                       variant="outline"
                       className="border-2 border-yellow-600 text-yellow-700 hover:bg-yellow-50"
@@ -973,7 +973,7 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                     <Users className="w-5 h-5 text-green-600" />
                     <h3 className="text-lg font-semibold text-gray-900">Filtered Candidates</h3>
                     <Badge variant="outline" className="bg-blue-100 text-blue-700">
-                      {screenedCandidates.filter(c => 
+                      {screenedCandidates.filter(c =>
                         (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                         (c.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                         (c.phone || '').includes(searchQuery)
@@ -1023,9 +1023,6 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                           <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             Experience
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                            Skills
-                          </th>
                           <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
                             AI Score
                           </th>
@@ -1038,127 +1035,147 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {screenedCandidates
-                          .filter(c => 
-                            (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (c.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (c.phone || '').includes(searchQuery)
-                          )
-                          .map((candidate, index) => (
-                            <motion.tr
-                              key={candidate.id}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.05 }}
-                              className="hover:bg-gray-50 transition-colors"
-                            >
-                              {/* Candidate Name */}
+                        {(thresholdLoading || refreshLoading) ? (
+                          Array.from({ length: 5 }).map((_, index) => (
+                            <tr key={index} className="animate-pulse">
                               <td className="px-4 py-4">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-                                    {(candidate.name || 'U').split(' ').map(n => n[0] || '').join('').toUpperCase() || 'U'}
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-gray-900">{candidate.name}</p>
-                                    <p className="text-xs text-gray-500">Applied {new Date(candidate.appliedAt).toLocaleDateString()}</p>
+                                  <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                                  <div className="space-y-2">
+                                    <div className="h-4 bg-gray-200 rounded w-24"></div>
+                                    <div className="h-3 bg-gray-200 rounded w-16"></div>
                                   </div>
                                 </div>
                               </td>
-
-                              {/* Contact */}
                               <td className="px-4 py-4">
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                                    <Mail className="w-3.5 h-3.5 text-gray-400" />
-                                    {candidate.email}
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                                    <Phone className="w-3.5 h-3.5 text-gray-400" />
-                                    {candidate.phone}
-                                  </div>
+                                <div className="space-y-2">
+                                  <div className="h-3 bg-gray-200 rounded w-32"></div>
+                                  <div className="h-3 bg-gray-200 rounded w-24"></div>
                                 </div>
                               </td>
-
-                              {/* Experience */}
                               <td className="px-4 py-4">
-                                <div className="flex items-center gap-1.5">
-                                  <Briefcase className="w-4 h-4 text-gray-400" />
-                                  <span className="text-sm font-medium text-gray-700">{candidate.experience} years</span>
-                                </div>
+                                <div className="h-4 bg-gray-200 rounded w-16"></div>
                               </td>
-
-                              {/* Skills */}
-                              <td className="px-4 py-4">
-                                <div className="flex flex-wrap gap-1">
-                                  {(candidate.skills || []).slice(0, 3).map((skill, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                      {skill}
-                                    </Badge>
-                                  ))}
-                                  {(candidate.skills || []).length > 3 && (
-                                    <Badge variant="outline" className="text-xs bg-gray-100 text-gray-600">
-                                      +{candidate.skills.length - 3}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </td>
-
-                              {/* AI Score */}
                               <td className="px-4 py-4 text-center">
-                                <div className="inline-flex flex-col items-center">
-                                  <span className={`text-2xl font-bold ${
-                                    candidate.score >= threshold ? "text-green-600" :
-                                    candidate.score >= threshold - 20 ? "text-yellow-600" :
-                                    "text-red-600"
-                                  }`}>
-                                    {candidate.score}
-                                  </span>
-                                  <span className="text-xs text-gray-500">/ 100</span>
+                                <div className="flex flex-col items-center space-y-1">
+                                  <div className="h-6 bg-gray-200 rounded w-8"></div>
+                                  <div className="h-3 bg-gray-200 rounded w-6"></div>
                                 </div>
                               </td>
-
-                              {/* Status */}
                               <td className="px-4 py-4 text-center">
-                                <Badge 
-                                  variant={
-                                    candidate.status === "approved" ? "default" :
-                                    candidate.status === "needs_review" ? "secondary" :
-                                    "destructive"
-                                  }
-                                  className="text-xs font-medium"
-                                >
-                                  {candidate.status === "approved" ? <CheckCircle className="w-3 h-3 mr-1" /> :
-                                   candidate.status === "needs_review" ? <AlertCircle className="w-3 h-3 mr-1" /> :
-                                   <XCircle className="w-3 h-3 mr-1" />}
-                                  {candidate.status.replace('_', ' ')}
-                                </Badge>
+                                <div className="h-6 bg-gray-200 rounded w-20 mx-auto"></div>
                               </td>
-
-                              {/* Actions */}
                               <td className="px-4 py-4">
-                                <div className="flex items-center justify-center gap-2">
-                                  <Button 
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setSelectedCandidate(candidate)}
-                                    className="text-xs"
+                                <div className="flex justify-center gap-2">
+                                  <div className="h-8 bg-gray-200 rounded w-16"></div>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          screenedCandidates
+                            .filter(c =>
+                              (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              (c.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              (c.phone || '').includes(searchQuery)
+                            )
+                            .map((candidate, index) => (
+                              <motion.tr
+                                key={candidate.id}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.05 }}
+                                className="hover:bg-gray-50 transition-colors"
+                              >
+                                {/* Candidate Name */}
+                                <td className="px-4 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                                      {(candidate.name || 'U').split(' ').map(n => n[0] || '').join('').toUpperCase() || 'U'}
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-gray-900">{candidate.name}</p>
+                                      <p className="text-xs text-gray-500">Applied {new Date(candidate.appliedAt).toLocaleDateString()}</p>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* Contact */}
+                                <td className="px-4 py-4">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                      <Mail className="w-3.5 h-3.5 text-gray-400" />
+                                      {candidate.email}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                      <Phone className="w-3.5 h-3.5 text-gray-400" />
+                                      {candidate.phone}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* Experience */}
+                                <td className="px-4 py-4">
+                                  <div className="flex items-center gap-1.5">
+                                    <Briefcase className="w-4 h-4 text-gray-400" />
+                                    <span className="text-sm font-medium text-gray-700">{candidate.experience} years</span>
+                                  </div>
+                                </td>
+
+                                {/* AI Score */}
+                                <td className="px-4 py-4 text-center">
+                                  <div className="inline-flex flex-col items-center">
+                                    <span className={`text-2xl font-bold ${candidate.score >= threshold ? "text-green-600" :
+                                      candidate.score >= threshold - 20 ? "text-yellow-600" :
+                                        "text-red-600"
+                                      }`}>
+                                      {candidate.score}
+                                    </span>
+                                    <span className="text-xs text-gray-500">/ 100</span>
+                                  </div>
+                                </td>
+
+                                {/* Status */}
+                                <td className="px-4 py-4 text-center">
+                                  <Badge
+                                    className={`text-xs font-medium ${candidate.status === 'approved' || candidate.status === 'shortlisted' ? 'bg-green-100 text-green-700 border-green-300' :
+                                      candidate.status === 'needs_review' ? 'bg-yellow-100 text-yellow-700 border-yellow-300' :
+                                        'bg-red-100 text-red-700 border-red-300'
+                                      }`}
                                   >
-                                    <Eye className="w-3.5 h-3.5 mr-1" />
-                                    View
-                                  </Button>
-                                  {candidate.status === "approved" && (
-                                    <Button 
+                                    {(candidate.status === 'approved' || candidate.status === 'shortlisted') ? <CheckCircle className="w-3 h-3 mr-1" /> :
+                                      candidate.status === 'needs_review' ? <AlertCircle className="w-3 h-3 mr-1" /> :
+                                        <XCircle className="w-3 h-3 mr-1" />}
+                                    {candidate.status === 'approved' ? 'Approved' : candidate.status === 'shortlisted' ? 'Shortlisted' : candidate.status.replace('_', ' ')}
+                                  </Badge>
+                                </td>
+
+                                {/* Actions */}
+                                <td className="px-4 py-4">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Button
+                                      variant="outline"
                                       size="sm"
-                                      className="text-xs bg-green-600 hover:bg-green-700"
+                                      onClick={() => setSelectedCandidate(candidate)}
+                                      className="text-xs"
                                     >
-                                      <Send className="w-3.5 h-3.5 mr-1" />
-                                      Contact
+                                      <Eye className="w-3.5 h-3.5 mr-1" />
+                                      View
                                     </Button>
-                                  )}
-                                </div>
-                              </td>
-                            </motion.tr>
-                          ))}
+                                    {candidate.status === "approved" && (
+                                      <Button
+                                        size="sm"
+                                        className="text-xs bg-green-600 hover:bg-green-700"
+                                      >
+                                        <Send className="w-3.5 h-3.5 mr-1" />
+                                        Contact
+                                      </Button>
+                                    )}
+                                  </div>
+                                </td>
+                              </motion.tr>
+                            ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1220,8 +1237,8 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
 
       {/* Candidate Detail Modal */}
       {selectedCandidate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[99999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
@@ -1407,37 +1424,8 @@ const Screening: React.FC<ScreeningProps> = ({ selectedJobId = null, initialJobS
               </div>
             )}
 
-            {/* Top Skills */}
-            <div className="mb-6">
-              <h5 className="font-semibold text-gray-700 mb-2">Candidate Skills</h5>
-              <div className="flex flex-wrap gap-2">
-                {(selectedCandidate.skills || []).map((skill, index) => (
-                  <Badge key={index} variant="outline" className="bg-gray-50">
-                    {skill}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2 pt-4 border-t">
-              <Button
-                onClick={() => handleOverride(selectedCandidate, 'boost')}
-                variant="outline"
-                className="flex-1 text-green-600 border-green-600 hover:bg-green-50"
-              >
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Boost Candidate
-              </Button>
-              <Button
-                onClick={() => handleOverride(selectedCandidate, 'reject')}
-                variant="destructive"
-                className="flex-1"
-              >
-                <TrendingDown className="w-4 h-4 mr-2" />
-                Reject Candidate
-              </Button>
-            </div>
+            {/* Candidate Skills section removed per request */}
+            {/* Action buttons removed per request */}
           </div>
         </div>
       )}

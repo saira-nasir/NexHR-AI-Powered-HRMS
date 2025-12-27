@@ -34,10 +34,10 @@ const PayrollSummaryCard: React.FC<PayrollSummaryCardProps> = ({ payrollData, on
             <span className="text-sm text-muted-foreground">YTD Earnings</span>
             <span className="font-semibold">{payrollData.ytdEarnings}</span>
           </div>
-          <Button className="w-full mt-4 bg-transparent" variant="outline" onClick={onDownloadPayslip}>
+          {/* <Button className="w-full mt-4 bg-transparent" variant="outline" onClick={onDownloadPayslip}>
             <FileText className="w-4 h-4 mr-2" />
             Download Latest Payslip
-          </Button>
+          </Button> */}
         </div>
       </CardContent>
     </Card>

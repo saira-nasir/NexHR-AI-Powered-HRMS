@@ -312,7 +312,7 @@ const Payslips: React.FC = () => {
                       {/* Net Pay display intentionally removed as salary details are present within the payslip */}
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  {/* <CardContent>
                     {payslip.payslip_pdf_url ? (
                       <Button
                         asChild
@@ -329,7 +329,7 @@ const Payslips: React.FC = () => {
                         PDF not available yet
                       </div>
                     )}
-                  </CardContent>
+                  </CardContent> */}
                 </Card>
               );
               })}

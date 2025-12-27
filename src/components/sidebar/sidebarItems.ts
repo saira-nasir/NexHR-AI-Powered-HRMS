@@ -75,17 +75,10 @@ export const sidebarItems: SidebarMenuItem[] = [
     allowedRoles: ['HR', 'Admin'],
     submenu: [
       { title: 'Employees', path: '/employees', allowedRoles: ['HR', 'Admin'] },
-      { title: 'Attendance', path: '/attendance', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Attendance Management', path: '/attendance-management', allowedRoles: ['HR', 'Admin'] },
       // { title: 'Checklist', path: '/checklist', allowedRoles: ['HR', 'Admin'] },
       // { title: 'Time off', path: '/time-off', allowedRoles: ['HR', 'Admin'] },
     ],
-  },
-  {
-    title: 'HR Attendance Management',
-    path: '/hr-attendance-management',
-    icon: Clock,
-    // Visible to HR and Admin
-    allowedRoles: ['HR', 'Admin'],
   },
   {
     title: 'Company Policy',
@@ -102,7 +95,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     submenu: [
       { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'], step: 1 },
       { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR', 'Admin'], step: 2 },
-      { title: 'Scheduled interviews', path: '/hiring/assessment-interview', allowedRoles: ['HR', 'Admin'], step: 3 },
+      { title: 'Scheduled interviews', path: '/assessment-interview', allowedRoles: ['HR', 'Admin'], step: 3 },
       { title: 'Conduct & Score', path: '/hiring/interview', allowedRoles: ['HR', 'Admin'], step: 4 },
       { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'], step: 5 },
     ],
@@ -126,16 +119,5 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Settings',
     path: '/settings',
     icon: Settings,
-  },
-  {
-    title: 'Integrations',
-    path: '/integrations',
-    icon: PanelRight,
-    allowedRoles: ['Admin', 'Finance Manager'],
-  },
-  {
-    title: 'Help and support',
-    path: '/support',
-    icon: LifeBuoy,
   },
 ];

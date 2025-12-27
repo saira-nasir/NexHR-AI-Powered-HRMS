@@ -3,8 +3,7 @@ import DashboardLayout from '@/layouts/DashboardLayout';
 import StatsCard from '@/components/Dashboard/StatsCard';
 import TeamTracker from '@/components/Dashboard/TeamTracker';
 import EmployeeCard from '@/components/Dashboard/EmployeeCard';
-import RecruitmentCard from '@/components/Dashboard/RecruitmentCard';
-import SalaryCard from '@/components/Dashboard/SalaryCard';
+
 import AttendanceCard from '@/components/Dashboard/AttendanceCard';
 import WorkingHoursCard from '@/components/Dashboard/WorkingHoursCard';
 import GreetingHeader from '@/components/Dashboard/GreetingHeader';
@@ -50,26 +49,15 @@ const Dasboard = () => {
             </div>
           </div>
 
-          {/* Bottom section - SalaryCard and RecruitmentCard */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 md:gap-5">
-            {/* SalaryCard */}
-            <div className="md:col-span-4">
-              <SalaryCard />
-            </div>
 
-            {/* RecruitmentCard */}
-            <div className="md:col-span-8">
-              <RecruitmentCard />
-            </div>
-          </div>
 
           {/* New Recruitment Charts Section */}
-          <div className="mt-6">
+          {/* <div className="mt-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-slate-800">Recruitment Analytics</h2>
             </div>
             <RecruitmentCharts />
-          </div>
+          </div> */}
         </div>
       </div>
     </DashboardLayout>

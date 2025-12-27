@@ -6,15 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Slider } from '../ui/slider';
 import { Calendar } from '../ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { CalendarIcon, Search, Download, RotateCcw } from 'lucide-react';
+import { CalendarIcon, RotateCcw } from 'lucide-react';
 import { AttendanceStatus } from '../attendance/StatusBadge';
 import { format } from 'date-fns';
 
 export interface FilterOptions {
-  searchQuery: string;
-  department: string;
-  status: AttendanceStatus | 'all';
-  confidenceThreshold: number;
   dateFrom: Date | undefined;
   dateTo: Date | undefined;
 }
@@ -22,88 +18,18 @@ export interface FilterOptions {
 interface HRFiltersProps {
   filters: FilterOptions;
   onFilterChange: (filters: FilterOptions) => void;
-  onExport: (format: 'csv' | 'pdf') => void;
   onReset: () => void;
 }
 
-export function HRFilters({ filters, onFilterChange, onExport, onReset }: HRFiltersProps) {
-  const departments = ['All', 'Engineering', 'Marketing', 'HR', 'Sales', 'Finance', 'Operations'];
-  const statuses: (AttendanceStatus | 'all')[] = ['all', 'present', 'late', 'absent', 'unverified', 'flagged'];
+export function HRFilters({ filters, onFilterChange, onReset }: HRFiltersProps) {
 
   return (
     <Card>
       <CardContent className="pt-6">
         <div className="space-y-4">
-          {/* Search and Department */}
+          {/* Filters Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="search">Search Employee</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  id="search"
-                  placeholder="Name or Employee ID..."
-                  value={filters.searchQuery}
-                  onChange={(e) => onFilterChange({ ...filters, searchQuery: e.target.value })}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="department">Department</Label>
-              <Select 
-                value={filters.department} 
-                onValueChange={(value) => onFilterChange({ ...filters, department: value })}
-              >
-                <SelectTrigger id="department">
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map(dept => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Status and Confidence */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select 
-                value={filters.status} 
-                onValueChange={(value) => onFilterChange({ ...filters, status: value as AttendanceStatus | 'all' })}
-              >
-                <SelectTrigger id="status">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statuses.map(status => (
-                    <SelectItem key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Confidence Threshold: {filters.confidenceThreshold}%</Label>
-              <Slider 
-                value={[filters.confidenceThreshold]}
-                onValueChange={(value) => onFilterChange({ ...filters, confidenceThreshold: value[0] })}
-                min={0}
-                max={100}
-                step={5}
-                className="mt-2"
-              />
-            </div>
-          </div>
-
-          {/* Date Range */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Date Range - From */}
             <div className="space-y-2">
               <Label>From Date</Label>
               <Popover>
@@ -124,6 +50,7 @@ export function HRFilters({ filters, onFilterChange, onExport, onReset }: HRFilt
               </Popover>
             </div>
 
+            {/* Date Range - To */}
             <div className="space-y-2">
               <Label>To Date</Label>
               <Popover>
@@ -151,14 +78,7 @@ export function HRFilters({ filters, onFilterChange, onExport, onReset }: HRFilt
               <RotateCcw className="w-4 h-4 mr-2" />
               Reset Filters
             </Button>
-            <Button variant="outline" onClick={() => onExport('csv')}>
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </Button>
-            <Button variant="outline" onClick={() => onExport('pdf')}>
-              <Download className="w-4 h-4 mr-2" />
-              Export PDF
-            </Button>
+
           </div>
         </div>
       </CardContent>

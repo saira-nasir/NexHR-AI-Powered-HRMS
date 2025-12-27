@@ -1,13 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronDown, ChevronUp, Users, Trash } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ChevronDown, ChevronUp, Users, Trash, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import RoundDetailsModal from '@/components/onboarding/RoundDetailsModal';
 import RejectCandidateModal from '@/components/onboarding/RejectCandidateModal';
-import OnboardCandidateModal from '@/components/onboarding/OnboardCandidateModal';
 import { applicationService } from '@/services/jobPortalservice';
 
 // Types
@@ -24,6 +34,7 @@ export interface Round {
   roundScore: number;
   overallRoundScore?: number;
   interviewers: InterviewerScore[];
+  isRoundComplete: boolean;
 }
 
 export interface Candidate {
@@ -33,6 +44,7 @@ export interface Candidate {
   candidatePhone?: string;
   applicationId?: number;
   rounds: Round[];
+  readyForOnboarding: boolean;
 }
 
 export interface Job {
@@ -50,12 +62,15 @@ const Onboarding: React.FC = () => {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showRoundDetails, setShowRoundDetails] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [closingJobId, setClosingJobId] = useState<number | null>(null);
+  const [showCloseJobDialog, setShowCloseJobDialog] = useState(false);
+  const [jobToClose, setJobToClose] = useState<Job | null>(null);
 
   // Lottie animation (same pattern as EmployeeCard)
   const lottieContainer = useRef<HTMLDivElement | null>(null);
   const lottieAnimRef = useRef<any | null>(null);
+
+  const navigate = useNavigate();
 
   // Fetch interview feedback data on component mount
   useEffect(() => {
@@ -76,11 +91,13 @@ const Onboarding: React.FC = () => {
               candidateName: app.name,
               candidateEmail: app.email,
               candidatePhone: app.phone_number,
+              readyForOnboarding: app.ready_for_onboarding || false,
               rounds: app.rounds.map((round: any) => ({
                 roundId: round.round_id || 0,
                 roundName: round.round_name,
                 roundScore: round.overall_round_score,
                 overallRoundScore: round.overall_round_score,
+                isRoundComplete: round.is_round_complete || false,
                 interviewers: round.interviewer_details.map((interviewer: any) => ({
                   interviewerId: interviewer.interviewer_id || 0,
                   interviewerName: interviewer.name,
@@ -150,7 +167,8 @@ const Onboarding: React.FC = () => {
 
   const handleOnboardClick = (candidate: Candidate) => {
     setSelectedCandidate(candidate);
-    setShowOnboardModal(true);
+    const applicationId = candidate.applicationId ?? candidate.candidateId;
+    navigate(`/onboard/${applicationId}`, { state: { candidate } });
   };
 
   const handleRejectConfirm = (justification: string) => {
@@ -191,8 +209,7 @@ const Onboarding: React.FC = () => {
           candidatesCount: job.candidates.filter(c => c.candidateId !== selectedCandidate.candidateId).length
         })));
 
-        // Close modal and clear selection
-        setShowOnboardModal(false);
+        // Clear selection after onboarding
         setSelectedCandidate(null);
       } else {
         // show error in console for now — could use toast
@@ -203,13 +220,43 @@ const Onboarding: React.FC = () => {
     }
   };
 
-  const handleCloseJob = (jobId: number) => {
-    // show loader on the button, simulate API call and remove job
-    setClosingJobId(jobId);
-    setTimeout(() => {
-      setJobs(prev => prev.filter(j => j.jobId !== jobId));
+  const handleCloseJobClick = (job: Job) => {
+    setJobToClose(job);
+    setShowCloseJobDialog(true);
+  };
+
+  const handleCloseJobConfirm = async () => {
+    if (!jobToClose) return;
+    
+    setClosingJobId(jobToClose.jobId);
+    setShowCloseJobDialog(false);
+    
+    try {
+      const token = localStorage.getItem('access_token');
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+      
+      const response = await fetch(`${API_BASE}/jobs/${jobToClose.jobId}/status/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ status: 'closed' })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to close job: ${response.status}`);
+      }
+
+      // Successfully closed - remove job from list
+      setJobs(prev => prev.filter(j => j.jobId !== jobToClose.jobId));
+    } catch (error) {
+      console.error('Error closing job:', error);
+      // Optionally show error toast here
+    } finally {
       setClosingJobId(null);
-    }, 900);
+      setJobToClose(null);
+    }
   };
 
   return (
@@ -267,7 +314,7 @@ const Onboarding: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleCloseJob(job.jobId)}
+                          onClick={() => handleCloseJobClick(job)}
                           className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-red-300 text-red-700 bg-red-50 hover:bg-red-100"
                           disabled={closingJobId === job.jobId}
                         >
@@ -342,21 +389,29 @@ const Onboarding: React.FC = () => {
                                     >
                                       Round Details
                                     </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleRejectClick(candidate)}
-                                      className="border-red-200 text-red-700 hover:bg-red-50"
-                                    >
-                                      Reject
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleOnboardClick(candidate)}
-                                      className="bg-green-600 hover:bg-green-700 text-white"
-                                    >
-                                      Onboard
-                                    </Button>
+                                    {candidate.readyForOnboarding ? (
+                                      <>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleRejectClick(candidate)}
+                                          className="border-red-200 text-red-700 hover:bg-red-50"
+                                        >
+                                          Reject
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleOnboardClick(candidate)}
+                                          className="bg-green-600 hover:bg-green-700 text-white"
+                                        >
+                                          Onboard
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300 px-3 py-1">
+                                        Awaiting Round Completion
+                                      </Badge>
+                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -388,14 +443,49 @@ const Onboarding: React.FC = () => {
             candidate={selectedCandidate}
             onConfirm={handleRejectConfirm}
           />
-          <OnboardCandidateModal
-            isOpen={showOnboardModal}
-            onClose={() => setShowOnboardModal(false)}
-            candidate={selectedCandidate}
-            onConfirm={handleOnboardConfirm}
-          />
         </>
       )}
+
+      {/* Close Job Confirmation Dialog */}
+      <AlertDialog open={showCloseJobDialog} onOpenChange={setShowCloseJobDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              Close Job Position
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2">
+              <p className="text-base font-medium text-gray-900">
+                Are you sure you want to close this job?
+              </p>
+              {jobToClose && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="font-semibold text-blue-900">{jobToClose.jobTitle}</p>
+                  <p className="text-sm text-blue-700">{jobToClose.department}</p>
+                </div>
+              )}
+              <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded">
+                <p className="text-sm text-red-800">
+                  <strong>Warning:</strong> This job will be permanently closed and removed from the job portal. 
+                  All pending applications will no longer be accessible.
+                </p>
+              </div>
+              <p className="text-sm text-gray-600">
+                This action cannot be undone.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setJobToClose(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCloseJobConfirm}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Close Job
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };

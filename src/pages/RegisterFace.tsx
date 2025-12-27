@@ -27,7 +27,7 @@ const RegisterFace = () => {
     try {
       const formData = new FormData();
       formData.append('reference_image', file);
-      
+
       // ✅ IMPORTANT: This endpoint should ONLY register the face, NOT check in
       // If you're being automatically checked in, the backend /attendance/register-face/ endpoint
       // is creating a check-in record, which it should NOT do.
@@ -35,7 +35,7 @@ const RegisterFace = () => {
       // - Registration: /attendance/register-face/ (this endpoint)
       // - Check-in: /attendance/mark-attendance-face/ (separate endpoint)
       const response = await apiPostFormData('/attendance/register-face/', formData);
-      
+
       // Backend returns: { created, employee, reference_image_url, message }
       setIsRegistered(true);
       toast.success('Face Registered Successfully', {
@@ -44,18 +44,18 @@ const RegisterFace = () => {
     } catch (error: any) {
       // Handle different error formats from backend
       let errorMessage = 'Failed to register face. Please try again.';
-      
+
       if (error.response?.data) {
         // Backend error formats:
         // 400: { error: "No image uploaded." }
         // 401: { detail: "Authentication credentials were not provided." }
         // Other: { message: "..." } or { detail: "..." }
-        errorMessage = error.response.data.error || 
-                      error.response.data.detail || 
-                      error.response.data.message || 
-                      errorMessage;
+        errorMessage = error.response.data.error ||
+          error.response.data.detail ||
+          error.response.data.message ||
+          errorMessage;
       }
-      
+
       toast.error('Registration Failed', {
         description: errorMessage,
       });

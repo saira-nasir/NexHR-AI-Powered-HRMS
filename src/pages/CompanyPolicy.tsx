@@ -1,48 +1,48 @@
 import React, { useCallback, useState } from "react";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Upload, FileText, Trash2, Download } from "lucide-react";
+import { Upload, FileText, Trash2, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { apiPostFormData, apiGet } from "@/lib/api";
 
-type UploadedFile = {
-  id: string;
-  file: File;
-  url?: string;
-  uploadedAt?: string;
-};
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (as per API spec)
 const ALLOWED_TYPES = [
   "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
 ];
 
+interface DocumentStatus {
+  id: string;
+  title: string;
+  status: 'uploading' | 'processing' | 'ready' | 'failed';
+  error_message?: string;
+  file_url?: string;
+}
+
 const CompanyPolicy: React.FC = () => {
-  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<DocumentStatus | null>(null);
+  const [documentTitle, setDocumentTitle] = useState('');
 
   const handleFiles = useCallback((selected: FileList | null) => {
     if (!selected || selected.length === 0) return;
     const f = selected[0];
     if (!ALLOWED_TYPES.includes(f.type)) {
-      toast({ title: "Invalid file", description: "Only PDF/DOC/DOCX files are allowed.", variant: "destructive" });
+      toast({ title: "Invalid file", description: "Only PDF and DOCX files are allowed.", variant: "destructive" });
       return;
     }
     if (f.size > MAX_FILE_SIZE) {
-      toast({ title: "File too large", description: "Max allowed size is 10MB.", variant: "destructive" });
+      toast({ title: "File too large", description: "Max allowed size is 50MB.", variant: "destructive" });
       return;
     }
 
-    const newFile: UploadedFile = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      file: f,
-      url: URL.createObjectURL(f),
-      uploadedAt: new Date().toISOString(),
-    };
-    setFiles((s) => [newFile, ...s]);
+    setSelectedFile(f);
+    // Auto-fill document title from filename (without extension)
+    const fileNameWithoutExt = f.name.replace(/\.[^/.]+$/, "");
+    setDocumentTitle(fileNameWithoutExt);
+    // Reset status when new file is selected
+    setUploadStatus(null);
   }, []);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -54,29 +54,98 @@ const CompanyPolicy: React.FC = () => {
     document.getElementById("policy_file")?.click();
   };
 
-  const removeFile = (id: string) => {
-    setFiles((s) => s.filter((f) => f.id !== id));
+  // Poll for document processing status
+  const pollDocumentStatus = async (documentId: string): Promise<{ success: boolean; document?: DocumentStatus; error?: string }> => {
+    try {
+      const doc = await apiGet(`/chat/documents/${documentId}/`);
+      setUploadStatus(doc);
+      
+      if (doc.status === 'ready') {
+        return { success: true, document: doc };
+      }
+      
+      if (doc.status === 'failed') {
+        return { success: false, error: doc.error_message || 'Processing failed' };
+      }
+      
+      // Still processing, poll again after 3 seconds
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      return pollDocumentStatus(documentId);
+    } catch (error: any) {
+      console.error('Error polling document status:', error);
+      return { success: false, error: error.response?.data?.detail || 'Failed to check document status' };
+    }
   };
 
-  const uploadAll = async () => {
-    if (files.length === 0) {
-      toast({ title: "No files", description: "Please add a file to upload.", variant: "destructive" });
+  const handleSubmit = async () => {
+    if (!selectedFile) {
+      toast({ title: "No file selected", description: "Please select a file to upload.", variant: "destructive" });
       return;
     }
+
+    if (!documentTitle.trim()) {
+      toast({ title: "Title required", description: "Please enter a document title.", variant: "destructive" });
+      return;
+    }
+
     setIsUploading(true);
     try {
-      // Placeholder upload logic. If backend exists, replace with real endpoint.
-      // Example:
-      // const fd = new FormData();
-      // fd.append('file', files[0].file);
-      // await fetch(`${API_BASE}/hr/policies/`, { method: 'POST', body: fd, headers: { Authorization: `Bearer ${token}` } })
+      // Step 1: Upload the document
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('title', documentTitle.trim());
+      formData.append('doc_type', 'Company Policy');
 
-      await new Promise((r) => setTimeout(r, 900));
-      toast({ title: "Success", description: "Company policy uploaded successfully." });
-      setFiles((s) => s.map((f) => ({ ...f, uploadedAt: new Date().toISOString() })));
-    } catch (err) {
-      console.error(err);
-      toast({ title: "Upload failed", description: "Please try again.", variant: "destructive" });
+      const uploadedDoc = await apiPostFormData('/chat/documents/upload/', formData);
+      
+      setUploadStatus(uploadedDoc);
+      
+      toast({ 
+        title: "Upload started", 
+        description: `Document "${selectedFile.name}" is being uploaded and processed...`,
+      });
+
+      // Step 2: Poll for processing status
+      const result = await pollDocumentStatus(uploadedDoc.id);
+      
+      if (result.success) {
+        toast({ 
+          title: "Success!", 
+          description: `Document "${documentTitle}" has been processed and is ready for use.`,
+        });
+        
+        // Clear form after successful processing
+        setTimeout(() => {
+          setSelectedFile(null);
+          setDocumentTitle('');
+          setUploadStatus(null);
+        }, 3000);
+      } else {
+        toast({ 
+          title: "Processing failed", 
+          description: result.error || "Please try again.", 
+          variant: "destructive" 
+        });
+      }
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      const errorMessage = err.response?.data?.file?.[0] || 
+                          err.response?.data?.detail || 
+                          err.message || 
+                          'Upload failed. Please try again.';
+      
+      toast({ 
+        title: "Upload failed", 
+        description: errorMessage, 
+        variant: "destructive" 
+      });
+      
+      setUploadStatus({ 
+        id: '', 
+        title: documentTitle, 
+        status: 'failed', 
+        error_message: errorMessage 
+      });
     } finally {
       setIsUploading(false);
     }
@@ -84,111 +153,120 @@ const CompanyPolicy: React.FC = () => {
 
   return (
     <DashboardLayout>
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold">Company Policy</h1>
-            <p className="text-sm text-muted-foreground mt-1">Upload and manage your company's policy documents here. Keep them accessible to HR and team members.</p>
-          </div>
-          <div className="text-right">
-            <Button variant="outline" size="sm" onClick={() => toast({ title: 'Info', description: 'You can upload PDF/DOC/DOCX files up to 10MB.' })}>
-              Need help?
-            </Button>
-          </div>
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">Company Policy</h1>
+          <p className="text-sm text-muted-foreground mt-1">Upload and manage your company's policy documents</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-2">Upload Policy Document</h2>
-            <p className="text-sm text-gray-600 mb-4">Drag & drop a file here or click to choose a document. We'll keep a history of uploaded policies.</p>
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">Upload Policy Document</h2>
 
-            <div
-              onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-              className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer"
-            >
-              <div className="flex items-center justify-center flex-col">
-                <Upload className="h-12 w-12 text-gray-400 mb-3" />
-                <p className="text-lg font-medium">Drop file here</p>
-                <p className="text-sm text-gray-500 mt-2">PDF, DOC, DOCX · Max 10MB</p>
-                <input id="policy_file" type="file" accept=".pdf,.doc,.docx" onChange={(e) => handleFiles(e.target.files)} className="hidden" />
-                <div className="mt-4">
-                  <Button onClick={handleChoose} variant="default">Choose file</Button>
-                </div>
-              </div>
-            </div>
+          {/* Document Title Input */}
+          <div className="mb-4">
+            <label htmlFor="doc_title" className="block text-sm font-medium mb-2">
+              Document Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="doc_title"
+              type="text"
+              value={documentTitle}
+              onChange={(e) => setDocumentTitle(e.target.value)}
+              placeholder="e.g., Employee Code of Conduct, Remote Work Policy"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isUploading}
+            />
+          </div>
 
-            <div className="mt-6">
-              <h3 className="text-lg font-medium mb-3">Files to upload</h3>
-              {files.length === 0 ? (
-                <div className="text-sm text-gray-500">No files added yet.</div>
-              ) : (
-                <div className="space-y-3">
-                  {files.map((f) => (
-                    <div key={f.id} className="flex items-center justify-between border rounded p-3">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-6 w-6 text-primary" />
-                        <div>
-                          <div className="font-medium">{f.file.name}</div>
-                          <div className="text-xs text-muted-foreground">{(f.file.size / 1024 / 1024).toFixed(2)} MB • {f.uploadedAt ? 'Ready' : 'Not uploaded'}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {f.url && (
-                          <a className="text-sm text-primary hover:underline flex items-center gap-2" href={f.url} target="_blank" rel="noreferrer">
-                            <Download className="h-4 w-4" /> Preview
-                          </a>
-                        )}
-                        <Button variant="outline" size="sm" onClick={() => removeFile(f.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-6 flex items-center gap-3">
-              <Button onClick={uploadAll} disabled={isUploading}>
-                {isUploading ? 'Uploading...' : 'Upload Policy'}
-              </Button>
-              <Button variant="outline" onClick={() => setFiles([])} disabled={isUploading}>
-                Clear
-              </Button>
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            className="border-2 border-dashed rounded-lg p-12 text-center hover:border-primary transition-colors cursor-pointer mb-6"
+            onClick={handleChoose}
+          >
+            <div className="flex items-center justify-center flex-col">
+              <Upload className="h-16 w-16 text-gray-400 mb-4" />
+              <p className="text-lg font-medium mb-2">Drag & drop your document here</p>
+              <p className="text-sm text-gray-500 mb-4">or click to browse</p>
+              <p className="text-xs text-gray-400">PDF, DOCX · Max 50MB</p>
+              <input 
+                id="policy_file" 
+                type="file" 
+                accept=".pdf,.docx" 
+                onChange={(e) => handleFiles(e.target.files)} 
+                className="hidden" 
+              />
             </div>
           </div>
 
-          {/* <aside className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-3">Policy Library</h3>
-            <p className="text-sm text-gray-600 mb-4">Previously uploaded policies will appear here so team members can download or view them quickly.</p>
-
-            <div className="space-y-3">
-              <div className="flex items-start justify-between border rounded p-3">
-                <div>
-                  <div className="font-medium">Employee Handbook 2024.pdf</div>
-                  <div className="text-xs text-muted-foreground">Uploaded Apr 12, 2024</div>
+          {selectedFile && (
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex items-center gap-3">
+                <FileText className="h-8 w-8 text-primary" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">{selectedFile.name}</div>
+                  <div className="text-sm text-gray-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <a className="text-sm text-primary hover:underline flex items-center gap-2" href="#" onClick={(e)=>e.preventDefault()}>
-                    <Download className="h-4 w-4" />
-                  </a>
-                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    setSelectedFile(null);
+                    setDocumentTitle('');
+                    setUploadStatus(null);
+                  }}
+                  disabled={isUploading}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
+            </div>
+          )}
 
-              <div className="flex items-start justify-between border rounded p-3">
-                <div>
-                  <div className="font-medium">Code of Conduct.pdf</div>
-                  <div className="text-xs text-muted-foreground">Uploaded Jan 03, 2024</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <a className="text-sm text-primary hover:underline flex items-center gap-2" href="#" onClick={(e)=>e.preventDefault()}>
-                    <Download className="h-4 w-4" />
-                  </a>
+          {/* Upload Status Display */}
+          {uploadStatus && (
+            <div className={`mb-6 p-4 rounded-lg border ${
+              uploadStatus.status === 'ready' ? 'bg-green-50 border-green-200' :
+              uploadStatus.status === 'failed' ? 'bg-red-50 border-red-200' :
+              'bg-blue-50 border-blue-200'
+            }`}>
+              <div className="flex items-center gap-3">
+                {uploadStatus.status === 'ready' && <CheckCircle2 className="h-6 w-6 text-green-600" />}
+                {uploadStatus.status === 'failed' && <XCircle className="h-6 w-6 text-red-600" />}
+                {(uploadStatus.status === 'uploading' || uploadStatus.status === 'processing') && (
+                  <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+                )}
+                <div className="flex-1">
+                  <div className="font-medium">
+                    {uploadStatus.status === 'uploading' && 'Uploading file...'}
+                    {uploadStatus.status === 'processing' && 'Processing document... (this may take 30-60 seconds)'}
+                    {uploadStatus.status === 'ready' && '✓ Document ready for use'}
+                    {uploadStatus.status === 'failed' && '✗ Processing failed'}
+                  </div>
+                  {uploadStatus.error_message && (
+                    <div className="text-sm text-red-600 mt-1">{uploadStatus.error_message}</div>
+                  )}
                 </div>
               </div>
             </div>
-          </aside> */}
+          )}
+
+          <div className="flex gap-3">
+            <Button 
+              onClick={handleSubmit} 
+              disabled={!selectedFile || !documentTitle.trim() || isUploading}
+              className="flex-1"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Submit Document'
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </DashboardLayout>

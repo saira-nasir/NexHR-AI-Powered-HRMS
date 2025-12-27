@@ -5,13 +5,13 @@ import { HRFilters, FilterOptions } from '@/components/hr-attendance/HRFilters';
 import { HRAttendanceTable, EmployeeAttendanceRow } from '@/components/hr-attendance/HRAttendanceTable';
 import { HRAttendanceDetailPanel, EmployeeAttendanceDetail } from '@/components/hr-attendance/HRAttendanceDetailPanel';
 import { Button } from '@/components/ui/button';
-import { Users, CheckCircle, AlertTriangle, TrendingUp, Calendar, Loader2, RefreshCw } from 'lucide-react';
+import { Users, CheckCircle, AlertTriangle, TrendingUp, Calendar, Loader2, RefreshCw, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AttendanceStatus } from '@/components/attendance/StatusBadge';
 import { apiGet } from '@/lib/api';
-import payrollService, { EmployeeAttendance } from '@/services/payrollService';
+import payrollService, { EmployeeAttendance, PaginatedResponse } from '@/services/payrollService';
 import { employeeService, Employee } from '@/services/employeeService';
 
 // Custom event name for attendance updates
@@ -35,20 +35,20 @@ const getUserId = (): number | null => {
 // Format time from ISO string or HH:mm:ss to readable format
 const formatTime = (timeString: string | null | undefined): string | undefined => {
   if (!timeString) return undefined;
-  
+
   try {
     // Handle ISO datetime strings
     if (timeString.includes('T') || timeString.includes(' ')) {
       const date = new Date(timeString);
       if (!isNaN(date.getTime())) {
-        return date.toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
+        return date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
           minute: '2-digit',
-          hour12: true 
+          hour12: true
         });
       }
     }
-    
+
     // Handle HH:mm:ss format
     const timeParts = timeString.split(':');
     if (timeParts.length >= 2) {
@@ -58,7 +58,7 @@ const formatTime = (timeString: string | null | undefined): string | undefined =
       const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
       return `${displayHours}:${String(minutes).padStart(2, '0')} ${ampm}`;
     }
-    
+
     return undefined;
   } catch {
     return undefined;
@@ -84,14 +84,14 @@ const calculateStatus = (
     // Parse check-in time - backend sends HH:mm:ss format, need to combine with date
     let checkInTime: Date | null = null;
     const cleanTime = String(checkIn).split('.')[0]; // Remove milliseconds if present
-    
+
     // Check if it's HH:mm:ss format (just time, not full datetime)
     if (/^\d{2}:\d{2}:\d{2}/.test(cleanTime)) {
       // Combine date with time
       const dateStr = date || new Date().toISOString().split('T')[0];
       const combined = `${dateStr}T${cleanTime}`;
       checkInTime = new Date(combined);
-      
+
       // Handle timezone issues - if time seems way off, try UTC
       if (checkInTime && !isNaN(checkInTime.getTime())) {
         const now = new Date();
@@ -109,36 +109,36 @@ const calculateStatus = (
       // Try parsing as full datetime string
       checkInTime = new Date(checkIn);
     }
-    
+
     if (!checkInTime || isNaN(checkInTime.getTime())) {
       return 'unverified';
     }
-    
+
     // Expected check-in time: 9:00 AM
     const expectedCheckIn = new Date(checkInTime);
     expectedCheckIn.setHours(9, 0, 0, 0);
-    
+
     // If checked in after 9:05 AM, consider late
     const fiveMinutesLate = new Date(expectedCheckIn);
     fiveMinutesLate.setMinutes(5);
-    
+
     if (checkInTime > fiveMinutesLate) {
       return 'late';
     }
-    
+
     // If checked in but no check-out, and it's past working hours, might need review
     if (!checkOut) {
       const now = new Date();
       const workingHoursEnd = new Date(checkInTime);
       workingHoursEnd.setHours(17, 0, 0, 0);
-      
+
       // If it's today and past working hours, flag it
       const today = new Date().toISOString().split('T')[0];
       if (date === today && now > workingHoursEnd) {
         return 'flagged'; // Checked in but not checked out
       }
     }
-    
+
     return 'present';
   } catch {
     return 'unverified';
@@ -157,25 +157,25 @@ const needsReview = (
   if (confidence !== undefined && confidence < 85) {
     return true;
   }
-  
+
   // Flagged or unverified status needs review
   if (status === 'flagged' || status === 'unverified') {
     return true;
   }
-  
+
   // Checked in but not checked out on past dates needs review
   if (checkIn && !checkOut && date) {
     const recordDate = new Date(date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     recordDate.setHours(0, 0, 0, 0);
-    
+
     // If it's a past date and no check-out, needs review
     if (recordDate < today) {
       return true;
     }
   }
-  
+
   return false;
 };
 
@@ -186,36 +186,36 @@ const transformAttendanceData = (
 ): EmployeeAttendanceRow[] => {
   return attendanceRecords.map((record) => {
     const employee = employees.get(record.employee);
-    const employeeName = employee 
+    const employeeName = employee
       ? `${employee.fname || employee.first_name || ''} ${employee.lname || employee.last_name || ''}`.trim() || employee.name || 'Unknown Employee'
       : `Employee ${record.employee}`;
-    
+
     const employeeId = `EMP${String(record.employee).padStart(4, '0')}`;
     // ✅ Department is fetched from backend employee data
     // If showing "Engineering" for all, backend is returning that value
     const department = employee?.department || 'Unknown';
-    
+
     // Debug log to see what department is being used
     if (!employee) {
       console.warn(`⚠️ No employee data found for employee ID ${record.employee}, using 'Unknown' for department`);
     } else if (!employee.department) {
       console.warn(`⚠️ Employee ${employee.id} (${employee.name || employee.email}) has no department field, using 'Unknown'`);
     }
-    
+
     // Format times
     const checkIn = formatTime(record.check_in);
     const checkOut = formatTime(record.check_out);
-    
+
     // Calculate status
     const status = calculateStatus(record.check_in, record.check_out, record.date);
-    
+
     // Get confidence from backend if available (might need to be added to API response)
     // For now, default to a reasonable value if photo exists
     const confidence = record.photo ? 90 : undefined;
-    
+
     // Determine if needs review
     const reviewNeeded = needsReview(status, confidence, record.check_in, record.check_out, record.date);
-    
+
     return {
       id: `att-${record.id}-${record.employee}-${record.date}`,
       date: record.date,
@@ -243,45 +243,61 @@ export function HRAttendanceManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [employees, setEmployees] = useState<Map<number, Employee>>(new Map());
-  
-  const [filters, setFilters] = useState<FilterOptions>({
-    searchQuery: '',
-    department: 'All',
-    status: 'all',
-    confidenceThreshold: 0,
-    dateFrom: undefined,
-    dateTo: undefined,
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5); // Reduced to 5 as requested
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // Initialize with Today
+  const [filters, setFilters] = useState<FilterOptions>(() => {
+    const today = new Date();
+    // Format as YYYY-MM-DD
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+    return {
+
+      dateFrom: new Date(formatDate(today)), // Default to Today
+      dateTo: new Date(formatDate(today)),
+    };
   });
 
   // Fetch employees data (runs once, cached)
   const fetchEmployees = useCallback(async () => {
-    try {
-      console.log('🔄 Fetching employees for HR attendance...');
-      const employeeList = await employeeService.getEmployees();
-      const employeeMap = new Map<number, Employee>();
-      employeeList.forEach((emp) => {
-        employeeMap.set(emp.id, emp);
-        // ✅ Log department data to debug
-        console.log(`👤 Employee ${emp.id} (${emp.name || emp.email}):`, {
-          department: emp.department,
-          hasDepartment: !!emp.department,
-          rawData: emp
-        });
-      });
-      setEmployees(employeeMap);
-      console.log(`✅ Loaded ${employeeMap.size} employees`);
-      console.log('📊 Department breakdown:', 
-        Array.from(employeeMap.values()).map(e => ({ id: e.id, name: e.name, dept: e.department }))
-      );
-      return employeeMap;
-    } catch (err: any) {
-      console.error('❌ Error fetching employees:', err);
-      toast.error('Failed to load employee data', {
-        description: err?.message || 'Please refresh the page',
-      });
-      return new Map<number, Employee>();
-    }
+    // REMOVED: We no longer fetch ALL employees upfront.
+    // This function is kept for compatibility but will log a warning if called directly.
+    console.warn('⚠️ fetchEmployees called but we are using lazy loading now.');
+    return new Map<number, Employee>();
   }, []);
+
+  // Helper to fetch missing employees for the current page
+  const fetchMissingEmployees = useCallback(async (records: EmployeeAttendance[]) => {
+    const missingIds = new Set<number>();
+    records.forEach(r => {
+      if (!employees.has(r.employee)) {
+        missingIds.add(r.employee);
+      }
+    });
+
+    if (missingIds.size === 0) return;
+
+    console.log(`🔍 Lazy loading ${missingIds.size} missing employees...`);
+
+    // Fetch in parallel
+    const newEmployees = new Map(employees);
+    await Promise.all(Array.from(missingIds).map(async (id) => {
+      try {
+        const emp = await employeeService.getEmployee(id);
+        if (emp) {
+          newEmployees.set(id, emp);
+        }
+      } catch (err) {
+        console.error(`❌ Failed to fetch employee ${id}:`, err);
+      }
+    }));
+
+    setEmployees(newEmployees);
+  }, [employees]);
 
   // Fetch attendance data from API
   const fetchAttendanceData = useCallback(async (showLoading = true) => {
@@ -291,40 +307,85 @@ export function HRAttendanceManagement() {
       }
       setError(null);
 
-      console.log('📡 Fetching attendance records for HR...');
-      
-      // Fetch all attendance records (HR should have access to all)
-      const attendanceRecords = await payrollService.listAttendance();
-      
-      console.log(`✅ Fetched ${Array.isArray(attendanceRecords) ? attendanceRecords.length : 0} attendance records`);
-      
-      // If we don't have employees yet, fetch them
-      let employeeMap = employees;
-      if (employeeMap.size === 0) {
-        employeeMap = await fetchEmployees();
+      console.log('📡 Fetching attendance records for HR...', { page: currentPage, filters });
+
+      // Prepare filters for API
+      const apiFilters: any = {
+        page: currentPage,
+        page_size: pageSize,
+      };
+
+      if (filters.dateFrom) {
+        apiFilters.date_from = filters.dateFrom.toISOString().split('T')[0];
       }
-      
-      // Transform and set data
+      if (filters.dateTo) {
+        apiFilters.date_to = filters.dateTo.toISOString().split('T')[0];
+      }
+
+      // Fetch attendance records
+      const response = await payrollService.listAttendance(apiFilters);
+
+      let attendanceRecords: EmployeeAttendance[] = [];
+
+      if (Array.isArray(response)) {
+        attendanceRecords = response;
+        setTotalRecords(response.length);
+        setTotalPages(1);
+      } else {
+        attendanceRecords = response.results;
+        setTotalRecords(response.count);
+        setTotalPages(Math.ceil(response.count / pageSize));
+      }
+
+      console.log(`✅ Fetched ${attendanceRecords.length} attendance records (Total: ${Array.isArray(response) ? response.length : response.count})`);
+
+      // Lazy load missing employees
+      // This part replaces the old upfront fetch logic
+      const missingIds = new Set<number>();
+      attendanceRecords.forEach(r => {
+        if (!employees.has(r.employee)) {
+          missingIds.add(r.employee);
+        }
+      });
+
+      let currentEmployeeMap = new Map(employees); // Start with existing employees
+
+      if (missingIds.size > 0) {
+        console.log(`🔍 Lazy loading ${missingIds.size} missing employees...`);
+        await Promise.all(Array.from(missingIds).map(async (id) => {
+          try {
+            const emp = await employeeService.getEmployee(id);
+            if (emp) {
+              currentEmployeeMap.set(id, emp);
+            }
+          } catch (err) {
+            console.error(`❌ Failed to fetch employee ${id}:`, err);
+          }
+        }));
+        setEmployees(currentEmployeeMap); // Update the global employees state
+      }
+
+      // Transform and set data using the potentially updated map
       const transformed = transformAttendanceData(
-        Array.isArray(attendanceRecords) ? attendanceRecords : [],
-        employeeMap
+        attendanceRecords,
+        currentEmployeeMap // Use the map that includes newly fetched employees
       );
-      
+
       // Sort by date (newest first)
       transformed.sort((a, b) => {
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
         return dateB - dateA;
       });
-      
+
       setAttendanceData(transformed);
-      
+
       console.log(`✅ Transformed ${transformed.length} attendance records`);
     } catch (err: any) {
       console.error('❌ Error fetching attendance data:', err);
       const errorMessage = err?.response?.data?.detail || err?.message || 'Failed to load attendance data';
       setError(errorMessage);
-      
+
       if (showLoading) {
         toast.error('Failed to load attendance data', {
           description: errorMessage,
@@ -335,17 +396,18 @@ export function HRAttendanceManagement() {
         setLoading(false);
       }
     }
-  }, [employees, fetchEmployees]);
+  }, [employees, currentPage, pageSize, filters.dateFrom, filters.dateTo]);
 
-  // Initial data load
+
+  // Fetch data when filters or page changes
   useEffect(() => {
-    const initializeData = async () => {
-      await fetchEmployees();
-      await fetchAttendanceData(true);
-    };
-    
-    initializeData();
-  }, []); // Run once on mount
+    // We exclude fetchAttendanceData from dependencies to avoid loops when employees state changes.
+    // fetchAttendanceData handles fetching employees internally if they are missing.
+    fetchAttendanceData(true);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize, filters.dateFrom, filters.dateTo]);
+
 
   // Listen for attendance update events (when employee marks attendance)
   useEffect(() => {
@@ -391,29 +453,7 @@ export function HRAttendanceManagement() {
   // Filter data based on filters
   const filteredData = useMemo(() => {
     return attendanceData.filter(record => {
-      // Search filter
-      if (filters.searchQuery) {
-        const query = filters.searchQuery.toLowerCase();
-        if (!record.employeeName.toLowerCase().includes(query) && 
-            !record.employeeId.toLowerCase().includes(query)) {
-          return false;
-        }
-      }
 
-      // Department filter
-      if (filters.department !== 'All' && record.department !== filters.department) {
-        return false;
-      }
-
-      // Status filter
-      if (filters.status !== 'all' && record.status !== filters.status) {
-        return false;
-      }
-
-      // Confidence filter
-      if (record.confidence !== undefined && record.confidence < filters.confidenceThreshold) {
-        return false;
-      }
 
       // Date range filter
       const recordDate = new Date(record.date);
@@ -469,7 +509,7 @@ export function HRAttendanceManagement() {
     const employee = Array.from(employees.values()).find(
       emp => `EMP${String(emp.id).padStart(4, '0')}` === row.employeeId
     );
-    
+
     setSelectedRecord({
       ...row,
       employeePhotoUrl: row.employeeAvatar,
@@ -489,12 +529,12 @@ export function HRAttendanceManagement() {
 
   const handleMarkReviewed = async (id: string) => {
     // Optimistically update UI
-    setAttendanceData(prev => 
-      prev.map(record => 
+    setAttendanceData(prev =>
+      prev.map(record =>
         record.id === id ? { ...record, needsReview: false } : record
       )
     );
-    
+
     // TODO: If backend supports updating review status, call API here
     // For now, just update local state
     toast.success('Record marked as reviewed');
@@ -505,9 +545,9 @@ export function HRAttendanceManagement() {
       toast.error('No records selected');
       return;
     }
-    
-    setAttendanceData(prev => 
-      prev.map(record => 
+
+    setAttendanceData(prev =>
+      prev.map(record =>
         selectedRows.has(record.id) ? { ...record, needsReview: false, status: 'present' as AttendanceStatus } : record
       )
     );
@@ -517,16 +557,16 @@ export function HRAttendanceManagement() {
 
   const handleSaveDetail = async (updatedData: Partial<EmployeeAttendanceDetail>, hrNote: string) => {
     if (!selectedRecord) return;
-    
+
     // Optimistically update UI
-    setAttendanceData(prev => 
-      prev.map(record => 
-        record.id === selectedRecord.id 
+    setAttendanceData(prev =>
+      prev.map(record =>
+        record.id === selectedRecord.id
           ? { ...record, ...updatedData, needsReview: false }
           : record
       )
     );
-    
+
     // TODO: If backend supports HR notes/updates, call API here
     // For now, just update local state
     toast.success('Record updated successfully', {
@@ -534,21 +574,23 @@ export function HRAttendanceManagement() {
     });
   };
 
-  const handleExport = (format: 'csv' | 'pdf') => {
-    toast.success(`Exporting to ${format.toUpperCase()}`, {
-      description: `${filteredData.length} records will be exported.`,
-    });
-  };
+
 
   const handleResetFilters = () => {
+    const today = new Date();
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
     setFilters({
-      searchQuery: '',
-      department: 'All',
-      status: 'all',
-      confidenceThreshold: 0,
-      dateFrom: undefined,
-      dateTo: undefined,
+      dateFrom: new Date(formatDate(today)),
+      dateTo: new Date(formatDate(today)),
     });
+    setCurrentPage(1);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
   };
 
   return (
@@ -556,33 +598,25 @@ export function HRAttendanceManagement() {
       <div className="space-y-6 animate-fade-in bg-gradient-to-br from-background via-muted/5 to-background min-h-screen">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex justify-between items-center mb-6">
             <div>
-              <h1 className="text-3xl mb-2">HR Attendance Management</h1>
-              <p className="text-muted-foreground">Monitor and audit employee attendance with face recognition</p>
+              <h1 className="text-3xl font-bold tracking-tight">Attendance Management</h1>
+              <p className="text-muted-foreground mt-2">
+                Monitor and manage employee attendance records.
+              </p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="w-4 h-4" />
-                <span>{new Date().toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  month: 'long', 
-                  day: 'numeric',
-                  year: 'numeric'
-                })}</span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleManualRefresh}
-                disabled={loading}
-                className="gap-2"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => fetchAttendanceData(true)} disabled={loading}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
+
             </div>
           </div>
+
+          {/* Filters Removed as requested */}
+
+          {/* Bulk Approve Button Removed as requested */}
 
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
@@ -676,77 +710,98 @@ export function HRAttendanceManagement() {
         )}
 
         {/* Filters */}
-        {!loading && attendanceData.length > 0 && (
-          <div className="mb-6">
-            <HRFilters 
-              filters={filters}
-              onFilterChange={setFilters}
-              onExport={handleExport}
-              onReset={handleResetFilters}
-            />
-          </div>
-        )}
+        <div className="mb-6">
+          <HRFilters
+            filters={filters}
+            onFilterChange={setFilters}
+            onReset={handleResetFilters}
+          />
+        </div>
 
         {/* Tabs */}
         {!loading && (
           <Tabs defaultValue="all" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <TabsList>
-              <TabsTrigger value="all">
-                All Records ({filteredData.length})
-              </TabsTrigger>
-              <TabsTrigger value="review">
-                Review Queue ({reviewQueue.length})
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex items-center justify-between">
+              <TabsList>
+                <TabsTrigger value="all">
+                  All Records ({totalRecords})
+                </TabsTrigger>
+                <TabsTrigger value="review">
+                  Review Queue ({reviewQueue.length})
+                </TabsTrigger>
+              </TabsList>
 
-            {selectedRows.size > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {selectedRows.size} selected
-                </span>
-                <Button onClick={handleBulkApprove}>
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Bulk Approve
-                </Button>
-              </div>
-            )}
-          </div>
+              {selectedRows.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {selectedRows.size} selected
+                  </span>
+                  {/* Bulk Approve Removed */}
+                </div>
+              )}
+            </div>
 
-          <TabsContent value="all">
-            <Card>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[600px]">
-                  <HRAttendanceTable 
-                    data={filteredData}
-                    selectedRows={selectedRows}
-                    onRowSelect={handleRowSelect}
-                    onSelectAll={handleSelectAll}
-                    onViewDetail={handleViewDetail}
-                    onMarkReviewed={handleMarkReviewed}
-                  />
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
+            <TabsContent value="all">
+              <Card>
+                <CardContent className="p-0">
+                  <ScrollArea className="h-[600px]">
+                    <HRAttendanceTable
+                      data={filteredData}
+                      selectedRows={selectedRows}
+                      onRowSelect={handleRowSelect}
+                      onSelectAll={handleSelectAll}
+                      onViewDetail={handleViewDetail}
+                      onMarkReviewed={handleMarkReviewed}
+                    />
+                  </ScrollArea>
+                  {/* Pagination Controls */}
+                  <div className="flex items-center justify-between px-4 py-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} records
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <div className="text-sm font-medium">
+                        Page {currentPage} of {totalPages}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          <TabsContent value="review">
-            <Card>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[600px]">
-                  <HRAttendanceTable 
-                    data={reviewQueue}
-                    selectedRows={selectedRows}
-                    onRowSelect={handleRowSelect}
-                    onSelectAll={handleSelectAll}
-                    onViewDetail={handleViewDetail}
-                    onMarkReviewed={handleMarkReviewed}
-                  />
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="review">
+              <Card>
+                <CardContent className="p-0">
+                  <ScrollArea className="h-[600px]">
+                    <HRAttendanceTable
+                      data={reviewQueue}
+                      selectedRows={selectedRows}
+                      onRowSelect={handleRowSelect}
+                      onSelectAll={handleSelectAll}
+                      onViewDetail={handleViewDetail}
+                      onMarkReviewed={handleMarkReviewed}
+                    />
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         )}
 
         {/* Empty State */}
@@ -766,7 +821,7 @@ export function HRAttendanceManagement() {
         )}
 
         {/* Detail Panel */}
-        <HRAttendanceDetailPanel 
+        <HRAttendanceDetailPanel
           isOpen={detailPanelOpen}
           onClose={() => setDetailPanelOpen(false)}
           data={selectedRecord}

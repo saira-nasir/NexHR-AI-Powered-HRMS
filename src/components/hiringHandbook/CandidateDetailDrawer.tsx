@@ -2,14 +2,14 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  X, 
-  ChevronRight, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  GraduationCap, 
-  FileText, 
+import {
+  X,
+  ChevronRight,
+  Mail,
+  Phone,
+  MapPin,
+  GraduationCap,
+  FileText,
   Calendar,
   Clock,
   CheckCircle,
@@ -37,6 +37,8 @@ import {
 } from 'lucide-react';
 import { Candidate } from '@/data/hiringHandbookData';
 
+import { useNavigate } from 'react-router-dom';
+
 interface CandidateDetailDrawerProps {
   candidate: Candidate;
   open: boolean;
@@ -50,6 +52,8 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
   onClose,
   onAdvanceStage
 }) => {
+  const navigate = useNavigate();
+
   if (!open) return null;
 
   const getStageBadge = (stage: string) => {
@@ -108,8 +112,8 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
   const canAdvance = candidate.stage !== 'hired' && candidate.stage !== 'rejected';
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white rounded-xl shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[99999] p-4">
+      <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-xl">
           <div className="flex items-center justify-between">
@@ -141,7 +145,7 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Main Information Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Contact Information */}
@@ -352,9 +356,15 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
               <MessageSquare className="w-4 h-4 mr-2" />
               Send Message
             </Button>
-            <Button variant="outline" className="flex-1">
+            <Button
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {
+                onClose();
+                navigate('/assessment-interview');
+              }}
+            >
               <Calendar className="w-4 h-4 mr-2" />
-              Schedule Interview
+              Schedule Interviews
             </Button>
           </div>
         </div>

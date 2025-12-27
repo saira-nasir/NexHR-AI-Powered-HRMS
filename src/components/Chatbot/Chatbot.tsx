@@ -321,8 +321,8 @@ export const Chatbot: React.FC = () => {
               className="fixed inset-4 md:inset-8 lg:inset-16 z-[101] flex overflow-hidden rounded-2xl shadow-2xl bg-white/95 backdrop-blur-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Left Sidebar - Quick feature list (no chat sessions) */}
-              <div className="w-72 border-r border-gray-200/80 bg-gray-50/50 backdrop-blur-xl flex flex-col">
+              {/* Left Sidebar - Quick feature list (no chat sessions) - COMMENTED OUT FOR NOW */}
+              {/* <div className="w-72 border-r border-gray-200/80 bg-gray-50/50 backdrop-blur-xl flex flex-col">
                 <div className="p-4 border-b border-gray-200/80">
                   <h3 className="text-sm font-semibold text-gray-800">Try NexHR AI</h3>
                   <p className="text-xs text-gray-500 mt-1">Quick examples to get started</p>
@@ -372,7 +372,7 @@ export const Chatbot: React.FC = () => {
                   
                   <div className="text-xs text-gray-400 mt-4 px-2">💡 Tool actions execute synchronously and show results</div>
                 </div>
-              </div>
+              </div> */}
 
               {/* Right Side - Current Chat */}
               <div className="flex-1 flex flex-col bg-white">
