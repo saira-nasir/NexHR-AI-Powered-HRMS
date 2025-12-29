@@ -14,7 +14,8 @@ import {
   FileText,
   Clock,
   UserCircle,
-  MessageSquare
+  MessageSquare,
+  Shield
 } from 'lucide-react';
 import { SidebarMenuItem } from '../../types/sidebar/types';
 
@@ -71,8 +72,8 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Teams',
     path: '/teams',
     icon: Users,
-    // Visible to HR and Admin
-    allowedRoles: ['HR', 'Admin'],
+    // HR-only in main sidebar; Admin sees these under "HR Management"
+    allowedRoles: ['HR'],
     submenu: [
       { title: 'Employees', path: '/employees', allowedRoles: ['HR', 'Admin'] },
       { title: 'Attendance Management', path: '/attendance-management', allowedRoles: ['HR', 'Admin'] },
@@ -84,36 +85,78 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Company Policy',
     path: '/company-policy',
     icon: FileText,
-    allowedRoles: ['HR', 'Admin'],
+    // HR-only in main sidebar; Admin sees this under "HR Management"
+    allowedRoles: ['HR'],
   },
   {
     title: 'Hiring',
     path: '/hiring',
     icon: Briefcase,
-    // Visible to HR and Admin
-    allowedRoles: ['HR', 'Admin'],
+    // HR-only in main sidebar; Admin sees these under "HR Management"
+    allowedRoles: ['HR'],
     submenu: [
-      { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'], step: 1 },
-      { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR', 'Admin'], step: 2 },
-      { title: 'Scheduled interviews', path: '/assessment-interview', allowedRoles: ['HR', 'Admin'], step: 3 },
-      { title: 'Conduct & Score', path: '/hiring/interview', allowedRoles: ['HR', 'Admin'], step: 4 },
-      { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'], step: 5 },
+      { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR'], step: 1 },
+      { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR'], step: 2 },
+      { title: 'Scheduled interviews', path: '/assessment-interview', allowedRoles: ['HR'], step: 3 },
+      { title: 'Conduct & Score', path: '/hiring/interview', allowedRoles: ['HR'], step: 4 },
+      { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR'], step: 5 },
+    ],
+  },
+  // Admin-only consolidated HR section (HR Management)
+  {
+    title: 'HR Management',
+    path: '/hr-management',
+    icon: Briefcase,
+    allowedRoles: ['Admin'],
+    submenu: [
+      // Teams-related
+      { title: 'Employees', path: '/employees', allowedRoles: ['Admin'] },
+      { title: 'Attendance Management', path: '/attendance-management', allowedRoles: ['Admin'] },
+      // Hiring-related
+      { title: 'Post job', path: '/jobs/create', allowedRoles: ['Admin'], step: 1 },
+      { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['Admin'], step: 2 },
+      { title: 'Scheduled interviews', path: '/assessment-interview', allowedRoles: ['Admin'], step: 3 },
+      { title: 'Conduct & Score', path: '/hiring/interview', allowedRoles: ['Admin'], step: 4 },
+      { title: 'Onboarding', path: '/onboarding', allowedRoles: ['Admin'], step: 5 },
+      // Other HR tools
+      { title: 'Company Policy', path: '/company-policy', allowedRoles: ['Admin'] },
     ],
   },
   {
     title: 'Finance',
     path: '/finance',
     icon: DollarSign,
-    // Visible to Finance Manager and Admin
-    allowedRoles: ['Finance Manager', 'Admin'],
+    // Visible to Finance Manager only; Admin sees these under "Accounts"
+    allowedRoles: ['Finance Manager'],
     submenu: [
-      { title: 'Payroll', path: '/payroll', allowedRoles: ['Finance Manager', 'Admin'] },
-      { title: 'Expenses', path: '/expenses', allowedRoles: ['Finance Manager', 'Admin'] },
-      { title: 'Salary Structures', path: '/salary-structures', allowedRoles: ['Finance Manager', 'Admin'] },
-      { title: 'Tax Management', path: '/tax-management', allowedRoles: ['Finance Manager', 'Admin'] },
-      { title: 'Loans', path: '/loans', allowedRoles: ['Finance Manager', 'Admin'] },
-      { title: 'Bulk Payments', path: '/bulk-payments', allowedRoles: ['Finance Manager', 'Admin'] },
+      { title: 'Payroll', path: '/payroll', allowedRoles: ['Finance Manager'] },
+      { title: 'Expenses', path: '/expenses', allowedRoles: ['Finance Manager'] },
+      { title: 'Salary Structures', path: '/salary-structures', allowedRoles: ['Finance Manager'] },
+      { title: 'Tax Management', path: '/tax-management', allowedRoles: ['Finance Manager'] },
+      { title: 'Loans', path: '/loans', allowedRoles: ['Finance Manager'] },
+      { title: 'Bulk Payments', path: '/bulk-payments', allowedRoles: ['Finance Manager'] },
     ],
+  },
+  // Admin-only consolidated Finance section (Accounts)
+  {
+    title: 'Accounts',
+    path: '/accounts',
+    icon: DollarSign,
+    allowedRoles: ['Admin'],
+    submenu: [
+      { title: 'Payroll', path: '/payroll', allowedRoles: ['Admin'] },
+      { title: 'Expenses', path: '/expenses', allowedRoles: ['Admin'] },
+      { title: 'Salary Structures', path: '/salary-structures', allowedRoles: ['Admin'] },
+      { title: 'Tax Management', path: '/tax-management', allowedRoles: ['Admin'] },
+      { title: 'Loans', path: '/loans', allowedRoles: ['Admin'] },
+      { title: 'Bulk Payments', path: '/bulk-payments', allowedRoles: ['Admin'] },
+    ],
+  },
+  {
+    title: 'Roles & Permissions',
+    path: '/admin/roles-permissions',
+    icon: Shield,
+    allowedRoles: ['Admin'],
   },
   {
     title: 'Settings',
