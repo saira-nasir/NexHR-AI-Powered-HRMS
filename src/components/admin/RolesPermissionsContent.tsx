@@ -65,16 +65,21 @@ const RolesPermissionsContent: React.FC = () => {
 
   return (
     <>
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Shield className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Roles & Permissions</h2>
-          <p className="text-muted-foreground mt-1">
-            Create roles and manage permissions to control access across the platform
-          </p>
+      {/* Header with Gradient Background */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#6C63FF] via-[#7B73FF] to-[#8B82FF] p-6 shadow-lg">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full blur-3xl -ml-24 -mb-24"></div>
+        <div className="relative flex items-center gap-4">
+          <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl shadow-lg border border-white/30">
+            <Shield className="h-7 w-7 text-white" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-3xl font-bold tracking-tight text-white">Roles & Permissions</h2>
+            <p className="text-white/90 mt-1.5 text-base">
+              Create roles and manage permissions to control access across the platform
+            </p>
+          </div>
         </div>
       </div>
 
