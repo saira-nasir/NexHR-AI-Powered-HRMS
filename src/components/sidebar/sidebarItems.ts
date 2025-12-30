@@ -100,6 +100,7 @@ export const sidebarItems: SidebarMenuItem[] = [
       { title: 'Scheduled interviews', path: '/assessment-interview', allowedRoles: ['HR', 'Admin'], step: 3 },
       { title: 'Conduct & Score', path: '/hiring/interview', allowedRoles: ['HR', 'Admin'], step: 4 },
       { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'], step: 5 },
+      { title: 'Review Offer Letters', path: '/hiring/review-offers', allowedRoles: ['HR', 'Admin'], step: 6 },
     ],
   },
   {

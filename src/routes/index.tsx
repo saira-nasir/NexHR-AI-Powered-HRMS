@@ -41,6 +41,7 @@ import HiringInterview from "@/pages/HiringInterview";
 import CompanyPolicy from "@/pages/CompanyPolicy";
 import Settings from "@/pages/Settings";
 import ResourceAllocation from "@/pages/ResourceAllocation";
+import ReviewOfferLetters from "@/pages/ReviewOfferLetters";
 
 // Finance pages
 import Expenses from "@/pages/Expenses";
@@ -196,6 +197,14 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <HiringInterview />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "hiring/review-offers",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <ReviewOfferLetters />
               </RoleBasedRoute>
             ),
           },
