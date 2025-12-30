@@ -14,7 +14,8 @@ import {
   FileText,
   Clock,
   UserCircle,
-  MessageSquare
+  MessageSquare,
+  Layers
 } from 'lucide-react';
 import { SidebarMenuItem } from '../../types/sidebar/types';
 
@@ -76,6 +77,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     submenu: [
       { title: 'Employees', path: '/employees', allowedRoles: ['HR', 'Admin'] },
       { title: 'Attendance Management', path: '/attendance-management', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Resource Allocation', path: '/resource-allocation', allowedRoles: ['HR', 'Admin'] },
       // { title: 'Checklist', path: '/checklist', allowedRoles: ['HR', 'Admin'] },
       // { title: 'Time off', path: '/time-off', allowedRoles: ['HR', 'Admin'] },
     ],

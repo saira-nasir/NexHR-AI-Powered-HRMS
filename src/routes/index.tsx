@@ -40,6 +40,7 @@ import Interview from "@/pages/Interview";
 import HiringInterview from "@/pages/HiringInterview";
 import CompanyPolicy from "@/pages/CompanyPolicy";
 import Settings from "@/pages/Settings";
+import ResourceAllocation from "@/pages/ResourceAllocation";
 
 // Finance pages
 import Expenses from "@/pages/Expenses";
@@ -227,6 +228,14 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <HRAttendanceManagement />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "resource-allocation",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <ResourceAllocation />
               </RoleBasedRoute>
             ),
           },
