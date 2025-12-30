@@ -456,6 +456,28 @@ const AttendanceLeave: React.FC = () => {
       const userId = getUserId();
       if (!userId) throw new Error("User not identified");
 
+      // Get user's current geolocation
+      let userLatitude: number | null = null;
+      let userLongitude: number | null = null;
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          });
+        });
+        userLatitude = position.coords.latitude;
+        userLongitude = position.coords.longitude;
+        console.log('User location captured:', { userLatitude, userLongitude });
+      } catch (geoError) {
+        console.warn('Geolocation error:', geoError);
+        toast.warning('Location access denied', {
+          description: 'Continuing without location data'
+        });
+      }
+
       // Prepare File
       let fileToSend: File;
       if (file instanceof File) {
@@ -467,6 +489,12 @@ const AttendanceLeave: React.FC = () => {
       const formData = new FormData();
       formData.append('captured_image', fileToSend);
       formData.append('photo', fileToSend);
+
+      // Include geolocation if available
+      if (userLatitude !== null && userLongitude !== null) {
+        formData.append('latitude', userLatitude.toString());
+        formData.append('longitude', userLongitude.toString());
+      }
 
       const response = await apiPostFormData('/attendance/mark-attendance-face/', formData) as AttendanceMarkResponse;
       setAttendanceResult(response);
@@ -521,7 +549,37 @@ const AttendanceLeave: React.FC = () => {
       const userId = getUserId();
       if (!userId) throw new Error("User not identified");
 
-      const response = await apiPost('/attendance/manual-attendance/', { "checkin": true }) as CheckInResponse;
+      // Get user's current geolocation
+      let userLatitude: number | null = null;
+      let userLongitude: number | null = null;
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          });
+        });
+        userLatitude = position.coords.latitude;
+        userLongitude = position.coords.longitude;
+        console.log('User location captured:', { userLatitude, userLongitude });
+      } catch (geoError) {
+        console.warn('Geolocation error:', geoError);
+        toast.warning('Location access denied', {
+          description: 'Continuing without location data'
+        });
+      }
+
+      const payload: any = { "checkin": true };
+
+      // Include geolocation if available
+      if (userLatitude !== null && userLongitude !== null) {
+        payload.latitude = userLatitude;
+        payload.longitude = userLongitude;
+      }
+
+      const response = await apiPost('/attendance/manual-attendance/', payload) as CheckInResponse;
 
       if (response.message && response.message.toLowerCase().includes('success')) {
         const now = response.checkin_time ? new Date(response.checkin_time) : new Date();
@@ -564,7 +622,37 @@ const AttendanceLeave: React.FC = () => {
         return;
       }
 
-      const response = await apiPost('/attendance/manual-attendance/', { "checkout": true }) as CheckoutResponse;
+      // Get user's current geolocation
+      let userLatitude: number | null = null;
+      let userLongitude: number | null = null;
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          });
+        });
+        userLatitude = position.coords.latitude;
+        userLongitude = position.coords.longitude;
+        console.log('User location captured:', { userLatitude, userLongitude });
+      } catch (geoError) {
+        console.warn('Geolocation error:', geoError);
+        toast.warning('Location access denied', {
+          description: 'Continuing without location data'
+        });
+      }
+
+      const payload: any = { "checkout": true };
+
+      // Include geolocation if available
+      if (userLatitude !== null && userLongitude !== null) {
+        payload.latitude = userLatitude;
+        payload.longitude = userLongitude;
+      }
+
+      const response = await apiPost('/attendance/manual-attendance/', payload) as CheckoutResponse;
 
       if (response.message && (response.message.includes('success') || response.message.includes('checked out'))) {
         const checkoutTime = response.checkout_time ? new Date(response.checkout_time) : new Date();
@@ -929,24 +1017,23 @@ const AttendanceLeave: React.FC = () => {
                         <div>
                           <CardTitle>{leave.leave_type} Leave</CardTitle>
                           <CardDescription>
-                            {new Date(leave.from_date).toLocaleDateString('en-US', { 
-                              year: 'numeric', 
-                              month: 'short', 
-                              day: 'numeric' 
-                            })} - {new Date(leave.to_date).toLocaleDateString('en-US', { 
-                              year: 'numeric', 
-                              month: 'short', 
-                              day: 'numeric' 
+                            {new Date(leave.from_date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })} - {new Date(leave.to_date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
                             })}
                           </CardDescription>
                         </div>
-                        <Badge 
-                          variant="outline" 
-                          className={`capitalize ${
-                            leave.status === 'APPROVED' ? 'bg-green-100 text-green-700 border-green-300' :
-                            leave.status === 'REJECTED' ? 'bg-red-100 text-red-700 border-red-300' :
-                            'bg-yellow-100 text-yellow-700 border-yellow-300'
-                          }`}
+                        <Badge
+                          variant="outline"
+                          className={`capitalize ${leave.status === 'APPROVED' ? 'bg-green-100 text-green-700 border-green-300' :
+                              leave.status === 'REJECTED' ? 'bg-red-100 text-red-700 border-red-300' :
+                                'bg-yellow-100 text-yellow-700 border-yellow-300'
+                            }`}
                         >
                           {leave.status.toLowerCase()}
                         </Badge>
