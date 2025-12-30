@@ -40,6 +40,8 @@ import Interview from "@/pages/Interview";
 import HiringInterview from "@/pages/HiringInterview";
 import CompanyPolicy from "@/pages/CompanyPolicy";
 import Settings from "@/pages/Settings";
+import ResourceAllocation from "@/pages/ResourceAllocation";
+import ReviewOfferLetters from "@/pages/ReviewOfferLetters";
 
 // Finance pages
 import Expenses from "@/pages/Expenses";
@@ -200,6 +202,14 @@ export const routes: RouteObject[] = [
             ),
           },
           {
+            path: "hiring/review-offers",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <ReviewOfferLetters />
+              </RoleBasedRoute>
+            ),
+          },
+          {
             path: "job-candidates/:jobId",
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
@@ -228,6 +238,14 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
                 <HRAttendanceManagement />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "resource-allocation",
+            element: (
+              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+                <ResourceAllocation />
               </RoleBasedRoute>
             ),
           },

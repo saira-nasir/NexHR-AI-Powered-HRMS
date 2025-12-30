@@ -15,6 +15,7 @@ import {
   Clock,
   UserCircle,
   MessageSquare,
+  Layers,
   Shield
 } from 'lucide-react';
 import { SidebarMenuItem } from '../../types/sidebar/types';
@@ -77,8 +78,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     submenu: [
       { title: 'Employees', path: '/employees', allowedRoles: ['HR', 'Admin'] },
       { title: 'Attendance Management', path: '/attendance-management', allowedRoles: ['HR', 'Admin'] },
-      // { title: 'Checklist', path: '/checklist', allowedRoles: ['HR', 'Admin'] },
-      // { title: 'Time off', path: '/time-off', allowedRoles: ['HR', 'Admin'] },
+      { title: 'Resource Allocation', path: '/resource-allocation', allowedRoles: ['HR', 'Admin'] },
     ],
   },
   {
@@ -95,11 +95,12 @@ export const sidebarItems: SidebarMenuItem[] = [
     // HR-only in main sidebar; Admin sees these under "HR Management"
     allowedRoles: ['HR'],
     submenu: [
-      { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR'], step: 1 },
-      { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR'], step: 2 },
-      { title: 'Scheduled interviews', path: '/assessment-interview', allowedRoles: ['HR'], step: 3 },
-      { title: 'Conduct & Score', path: '/hiring/interview', allowedRoles: ['HR'], step: 4 },
-      { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR'], step: 5 },
+      { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'], step: 1 },
+      { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR', 'Admin'], step: 2 },
+      { title: 'Scheduled interviews', path: '/assessment-interview', allowedRoles: ['HR', 'Admin'], step: 3 },
+      { title: 'Conduct & Score', path: '/hiring/interview', allowedRoles: ['HR', 'Admin'], step: 4 },
+      { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'], step: 5 },
+      { title: 'Review Offer Letters', path: '/hiring/review-offers', allowedRoles: ['HR', 'Admin'], step: 6 },
     ],
   },
   // Admin-only consolidated HR section (HR Management)

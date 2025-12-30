@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Check, ChevronRight, DollarSign, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, DollarSign, Calendar as CalendarIcon, Loader2, Info } from 'lucide-react';
 import { applicationService } from '@/services/jobPortalservice';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
@@ -74,6 +74,9 @@ const OnboardCandidatePage: React.FC = () => {
       contactInfo: '[Contact Information]',
     }
   });
+
+  const wordCount = offerContent.body.content.trim().split(/\s+/).filter(Boolean).length;
+  const isOfferValid = wordCount > 0 && wordCount <= 255;
 
   // --- Effects ---
   useEffect(() => {
@@ -179,29 +182,28 @@ const OnboardCandidatePage: React.FC = () => {
     setIsSubmitting(true);
     const appId = applicationId ?? (candidate?.applicationId ?? candidate?.candidateId);
 
-    // Construct payload as expected by backend
-    // Note: The backend might not support storing the full JSON offer letter yet, 
-    // so we stick to the core fields for the API call 
-    // BUT we could potentially save the JSON in a metadata field if the API supported it.
-    // For now, we send the required functional fields.
-    const payload = {
+    // Construct the nested payload as required
+    const salaryDetails = {
       base_salary: Number(salaryData.baseSalary),
       allowances: salaryData.allowances ? Number(salaryData.allowances) : 0,
       effective_from: salaryData.startDate ? format(salaryData.startDate, 'yyyy-MM-dd') : '',
       hiring_justification: salaryData.justification,
     };
 
-    // Console log the complete onboarding object as requested
-    console.log({
+    const finalPayload = {
       onboarding: {
-        salaryDetails: payload,
+        salaryDetails: salaryDetails,
         offerLetter: offerContent
       }
-    });
+    };
+
+    // Console log the complete onboarding object as requested
+    console.log(finalPayload);
 
     try {
       if (!appId) throw new Error('Missing application id');
-      const resp = await applicationService.onboardApplication(Number(appId), payload);
+      // Pass the final nested payload to the service
+      const resp = await applicationService.onboardApplication(Number(appId), finalPayload);
       if (resp.success) {
         navigate('/onboarding');
       } else {
@@ -317,6 +319,18 @@ const OnboardCandidatePage: React.FC = () => {
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-right-8 duration-500">
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r shadow-sm">
+                <div className="flex items-start">
+                  <Info className="h-5 w-5 text-blue-500 mt-0.5 mr-3" />
+                  <div>
+                    <h4 className="text-sm font-bold text-blue-800">Review & Edit Offer</h4>
+                    <p className="text-sm text-blue-700 mt-1">
+                      Please review the offer letter below. You can edit the text as needed, but please ensure the body content does not exceed 255 words.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <Card className="max-w-[210mm] mx-auto bg-white shadow-2xl p-16 min-h-[297mm] ring-1 ring-gray-900/5 relative">
 
                 {/* Header Section (Editable) */}
@@ -335,12 +349,23 @@ const OnboardCandidatePage: React.FC = () => {
                 </div>
 
                 {/* Body Section (Editable) */}
-                <div className="mb-12">
+                {/* Body Section (Editable) with Word Count */}
+                <div className="mb-12 relative group">
                   <Textarea
                     value={offerContent.body.content}
-                    onChange={(e) => updateOfferContent('body', 'content', e.target.value)}
-                    className="w-full min-h-[400px] border-none shadow-none focus-visible:ring-0 resize-none text-lg leading-relaxed font-serif bg-transparent p-0 placeholder:text-gray-300"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const words = val.trim().split(/\s+/).filter(Boolean).length;
+                      if (words <= 255) {
+                        updateOfferContent('body', 'content', val);
+                      }
+                    }}
+                    className="w-full min-h-[400px] border-none shadow-none focus-visible:ring-0 resize-none text-lg leading-relaxed font-serif bg-transparent p-0 placeholder:text-gray-300 text-justify"
                   />
+                  <div className={`absolute bottom-0 right-0 text-xs font-medium px-2 py-1 rounded transition-colors ${offerContent.body.content.trim().split(/\s+/).filter(Boolean).length >= 250 ? 'text-amber-600 bg-amber-50' : 'text-gray-400 bg-gray-50'
+                    }`}>
+                    {offerContent.body.content.trim().split(/\s+/).filter(Boolean).length} / 255 Words
+                  </div>
                 </div>
 
                 {/* Footer Section (Editable) */}
@@ -409,7 +434,7 @@ const OnboardCandidatePage: React.FC = () => {
                   <Check className="h-4 w-4 text-green-500" />
                   <span>Letter is ready to send</span>
                 </div>
-                <Button onClick={handleSubmit} disabled={isSubmitting} className="h-12 px-8 bg-black hover:bg-gray-800 text-white shadow-xl">
+                <Button onClick={handleSubmit} disabled={isSubmitting || !isOfferValid} className="h-12 px-8 bg-black hover:bg-gray-800 text-white shadow-xl">
                   {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Confirm & Send Offer'}
                 </Button>
               </div>

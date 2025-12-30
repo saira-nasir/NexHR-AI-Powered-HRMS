@@ -396,6 +396,58 @@ class ApplicationService {
       return { success: false, message: error.response?.data?.message || 'Failed to onboard application' };
     }
   }
+
+  /**
+   * Get list of signed offer letters to review
+   * GET /api/recruitment/signed-offers/
+   */
+  async getSignedOffers(): Promise<{ success: boolean; data?: any[]; count?: number; message?: string }> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/recruitment/signed-offers/`, {
+        headers: this.getAuthHeader(),
+      });
+
+      if (response.status === 200) {
+        return {
+          success: true,
+          data: response.data.signed_offers || [],
+          count: response.data.count || 0
+        };
+      }
+
+      return { success: false, message: 'Failed to fetch signed offers' };
+    } catch (error: any) {
+      console.error('Error fetching signed offers:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to fetch signed offers' };
+    }
+  }
+
+  /**
+   * Review a signed offer letter (Approve/Reject)
+   * POST /api/recruitment/review-signed-offer/<int:application_id>/
+   */
+  async reviewSignedOffer(applicationId: number | string, payload: {
+    action: 'accept' | 'reject';
+    reason?: string;
+    joining_date?: string;
+  }): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/recruitment/review-signed-offer/${applicationId}/`,
+        payload,
+        { headers: this.getAuthHeader() }
+      );
+
+      if (response.status === 200 || response.status === 201) {
+        return { success: true, data: response.data };
+      }
+
+      return { success: false, message: 'Failed to review signed offer' };
+    } catch (error: any) {
+      console.error('Error reviewing signed offer:', error.response?.data || error.message);
+      return { success: false, message: error.response?.data?.message || 'Failed to review signed offer' };
+    }
+  }
 }
 
 export const applicationService = new ApplicationService();
@@ -405,22 +457,22 @@ export const applicationService = new ApplicationService();
 // ==============================
 export interface ApiJobResponse {
   id: number;
-    job_title: string;
-    Department: string;
-    experience_level: string;
-    salary_from: string;
-    salary_to: string;
-    currency: string;
-    created_at: string;
-    period: string;
-    city: string;
-    state: string;
-    country: string;
-    job_deadline: string;
-    company_name: string;
-    status?: string;
+  job_title: string;
+  Department: string;
+  experience_level: string;
+  salary_from: string;
+  salary_to: string;
+  currency: string;
+  created_at: string;
+  period: string;
+  city: string;
+  state: string;
+  country: string;
+  job_deadline: string;
+  company_name: string;
+  status?: string;
   linkedin_post_url?: string | null;
-    
+
 }
 
 export interface PaginatedJobsResponse {
@@ -475,78 +527,78 @@ export const transformApiJob = (apiJob: ApiJobResponse): JobListing => {
 
 // Function to fetch jobs with pagination
 export const fetchJobs = async (page: number = 1, pageSize: number = 6): Promise<{
-    jobs: JobListing[];
-    totalCount: number;
+  jobs: JobListing[];
+  totalCount: number;
 }> => {
-    try {
-        // Use configured API base URL (falls back to local dev server)
-        const response = await fetch(`${API_BASE_URL}/jobs/list/?page=${page}&page_size=${pageSize}`);
+  try {
+    // Use configured API base URL (falls back to local dev server)
+    const response = await fetch(`${API_BASE_URL}/jobs/list/?page=${page}&page_size=${pageSize}`);
 
-        if (!response.ok) {
-            throw new Error(`Error fetching jobs: ${response.status}`);
-        }
-
-        const data: PaginatedJobsResponse = await response.json();
-        const jobs = data.results.map(transformApiJob);
-
-        return {
-            jobs,
-            totalCount: data.count,
-        };
-    } catch (error) {
-        console.error("Failed to fetch jobs:", error);
-        return {
-            jobs: [],
-            totalCount: 0,
-        };
+    if (!response.ok) {
+      throw new Error(`Error fetching jobs: ${response.status}`);
     }
+
+    const data: PaginatedJobsResponse = await response.json();
+    const jobs = data.results.map(transformApiJob);
+
+    return {
+      jobs,
+      totalCount: data.count,
+    };
+  } catch (error) {
+    console.error("Failed to fetch jobs:", error);
+    return {
+      jobs: [],
+      totalCount: 0,
+    };
+  }
 };
 
 // Fetch jobs for company endpoint with pagination
 export const fetchCompanyJobs = async (page: number = 1, pageSize: number = 6): Promise<{
-    jobs: JobListing[];
-    totalCount: number;
-    next: string | null;
-    previous: string | null;
+  jobs: JobListing[];
+  totalCount: number;
+  next: string | null;
+  previous: string | null;
 }> => {
-    try {
-        const url = `${API_BASE_URL}/jobs/company/?page=${page}&page_size=${pageSize}`;
-        const token = localStorage.getItem('access_token');
+  try {
+    const url = `${API_BASE_URL}/jobs/company/?page=${page}&page_size=${pageSize}`;
+    const token = localStorage.getItem('access_token');
 
-        const headers: Record<string, string> = {
-            'Accept': 'application/json',
-        };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        console.debug('[fetchCompanyJobs] Requesting', url, { headers });
+    console.debug('[fetchCompanyJobs] Requesting', url, { headers });
 
-        const response = await fetch(url, { headers });
+    const response = await fetch(url, { headers });
 
-        // Log non-OK responses for easier debugging
-        if (!response.ok) {
-            const text = await response.text().catch(() => '');
-            console.error('[fetchCompanyJobs] non-OK response', response.status, text);
-            throw new Error(`Error fetching company jobs: ${response.status}`);
-        }
-
-        const data: PaginatedJobsResponse = await response.json();
-        console.debug('[fetchCompanyJobs] Response data:', data);
-
-        const jobs = data.results.map(transformApiJob);
-
-        return {
-            jobs,
-            totalCount: data.count,
-            next: data.next,
-            previous: data.previous
-        };
-    } catch (error) {
-        console.error("Failed to fetch company jobs:", error);
-        return {
-            jobs: [],
-            totalCount: 0,
-            next: null,
-            previous: null
-        };
+    // Log non-OK responses for easier debugging
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      console.error('[fetchCompanyJobs] non-OK response', response.status, text);
+      throw new Error(`Error fetching company jobs: ${response.status}`);
     }
+
+    const data: PaginatedJobsResponse = await response.json();
+    console.debug('[fetchCompanyJobs] Response data:', data);
+
+    const jobs = data.results.map(transformApiJob);
+
+    return {
+      jobs,
+      totalCount: data.count,
+      next: data.next,
+      previous: data.previous
+    };
+  } catch (error) {
+    console.error("Failed to fetch company jobs:", error);
+    return {
+      jobs: [],
+      totalCount: 0,
+      next: null,
+      previous: null
+    };
+  }
 };

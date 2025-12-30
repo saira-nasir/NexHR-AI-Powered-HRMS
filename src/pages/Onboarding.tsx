@@ -173,16 +173,16 @@ const Onboarding: React.FC = () => {
 
   const handleRejectConfirm = (justification: string) => {
     if (!selectedCandidate) return;
-    
+
     // Remove candidate from the job's candidate list
-    setJobs(prevJobs => 
+    setJobs(prevJobs =>
       prevJobs.map(job => ({
         ...job,
         candidates: job.candidates.filter(c => c.candidateId !== selectedCandidate.candidateId),
         candidatesCount: job.candidates.filter(c => c.candidateId !== selectedCandidate.candidateId).length
       }))
     );
-    
+
     setShowRejectModal(false);
     setSelectedCandidate(null);
   };
@@ -199,7 +199,7 @@ const Onboarding: React.FC = () => {
 
     // Call service to onboard application - candidate.candidateId holds application id
     try {
-  const applicationId = selectedCandidate.applicationId ?? selectedCandidate.candidateId;
+      const applicationId = selectedCandidate.applicationId ?? selectedCandidate.candidateId;
       const resp = await applicationService.onboardApplication(applicationId, payload);
       if (resp.success) {
         // Remove the candidate from the job list (simple UI update)
@@ -227,14 +227,14 @@ const Onboarding: React.FC = () => {
 
   const handleCloseJobConfirm = async () => {
     if (!jobToClose) return;
-    
+
     setClosingJobId(jobToClose.jobId);
     setShowCloseJobDialog(false);
-    
+
     try {
       const token = localStorage.getItem('access_token');
       const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
-      
+
       const response = await fetch(`${API_BASE}/jobs/${jobToClose.jobId}/status/`, {
         method: 'POST',
         headers: {
@@ -262,21 +262,37 @@ const Onboarding: React.FC = () => {
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        {/* Lottie Animation Hero — text aligned with animation (responsive) */}
-        <div className="w-full bg-gradient-to-r from-indigo-700 via-purple-700 to-blue-700" style={{ height: '25vh' }}>
-          <div className="max-w-7xl mx-auto w-full h-full px-4 flex flex-col-reverse md:flex-row items-center justify-between gap-6">
-            {/* Text block — left on md+, centered on small screens. Added subtle dark panel behind text for contrast. */}
-            <div className="md:w-1/2 w-full text-center md:text-left">
-                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold leading-tight text-white">Candidate Onboarding</h1>
-                <p className="mt-2 text-sm md:text-base lg:text-lg text-indigo-100/90">Review and manage selected candidates for each job position</p>
+        {/* Premium Banner Section */}
+        <div className="relative w-full overflow-hidden bg-gradient-to-r from-blue-700 via-indigo-800 to-purple-900 shadow-xl">
+          {/* Abstract Background Shapes */}
+          <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20 pointer-events-none">
+            <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-blue-500 blur-3xl"></div>
+            <div className="absolute top-1/2 left-1/2 w-64 h-64 rounded-full bg-purple-500 blur-3xl transform -translate-x-1/2 -translate-y-1/2"></div>
+            <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-indigo-500 blur-3xl"></div>
+          </div>
+
+          <div className="relative max-w-7xl mx-auto px-6 py-8 md:py-10 flex flex-col-reverse md:flex-row items-center justify-between gap-8">
+            {/* Text Content */}
+            <div className="md:w-3/5 text-center md:text-left z-10 space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white/90 text-sm font-medium mb-1">
+                <Users className="h-4 w-4" />
+                <span>Talent Acquisition</span>
+              </div>
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight text-white drop-shadow-sm">
+                Candidate <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-indigo-100">Onboarding</span>
+              </h1>
+              <p className="text-base md:text-lg text-blue-100/90 leading-relaxed max-w-2xl mx-auto md:mx-0 font-light">
+                Streamline your hiring process. Review applications, conduct interviews, and manage selected candidates seamlessly.
+              </p>
             </div>
 
-            {/* Lottie container — right on md+, centered on small screens */}
-            <div
-              ref={lottieContainer}
-              className="md:w-1/2 w-full h-full flex items-center justify-center"
-              style={{ maxWidth: '500px' }}
-            />
+            {/* Lottie Container */}
+            <div className="md:w-2/5 w-full flex justify-center md:justify-end z-10">
+              <div
+                ref={lottieContainer}
+                className="w-full max-w-sm h-40 md:h-56 drop-shadow-2xl"
+              />
+            </div>
           </div>
         </div>
 
@@ -296,133 +312,133 @@ const Onboarding: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {jobs.map((job) => (
-                <Card key={job.jobId} className="border-2 border-gray-200 hover:border-indigo-300 transition-colors">
-                  <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-xl text-gray-900">{job.jobTitle}</CardTitle>
-                        <div className="flex items-center gap-4 mt-2">
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                            {job.department}
-                          </Badge>
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
-                            <Users className="h-4 w-4" />
-                            <span>{job.candidatesCount} candidate{job.candidatesCount !== 1 ? 's' : ''}</span>
+                  <Card key={job.jobId} className="border-2 border-gray-200 hover:border-indigo-300 transition-colors">
+                    <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-xl text-gray-900">{job.jobTitle}</CardTitle>
+                          <div className="flex items-center gap-4 mt-2">
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                              {job.department}
+                            </Badge>
+                            <div className="flex items-center gap-1 text-sm text-gray-600">
+                              <Users className="h-4 w-4" />
+                              <span>{job.candidatesCount} candidate{job.candidatesCount !== 1 ? 's' : ''}</span>
+                            </div>
                           </div>
                         </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleCloseJobClick(job)}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-red-300 text-red-700 bg-red-50 hover:bg-red-100"
+                            disabled={closingJobId === job.jobId}
+                          >
+                            {closingJobId === job.jobId ? (
+                              <div className="w-4 h-4 border-2 border-red-700 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Trash className="h-4 w-4" />
+                            )}
+                            <span className="text-sm">Close Job</span>
+                          </button>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => toggleJobExpansion(job.jobId)}
+                            className="flex items-center gap-2"
+                          >
+                            {expandedJobId === job.jobId ? (
+                              <>
+                                Hide Candidates
+                                <ChevronUp className="h-4 w-4" />
+                              </>
+                            ) : (
+                              <>
+                                View Candidates
+                                <ChevronDown className="h-4 w-4" />
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleCloseJobClick(job)}
-                          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-red-300 text-red-700 bg-red-50 hover:bg-red-100"
-                          disabled={closingJobId === job.jobId}
+                    </CardHeader>
+
+                    {/* Expandable Candidate List */}
+                    <AnimatePresence>
+                      {expandedJobId === job.jobId && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="overflow-hidden"
                         >
-                          {closingJobId === job.jobId ? (
-                            <div className="w-4 h-4 border-2 border-red-700 border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Trash className="h-4 w-4" />
-                          )}
-                          <span className="text-sm">Close Job</span>
-                        </button>
+                          <CardContent className="pt-6">
+                            {job.candidates.length === 0 ? (
+                              <div className="text-center py-8 text-gray-500">
+                                <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                                <p>No candidates available</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                {job.candidates.map((candidate) => (
+                                  <div
+                                    key={candidate.candidateId}
+                                    className="flex items-center justify-between p-4 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow"
+                                  >
+                                    <div className="flex-1">
+                                      <h3 className="text-lg font-semibold text-gray-900">
+                                        {candidate.candidateName}
+                                      </h3>
+                                      <p className="text-sm text-gray-600">{candidate.candidateEmail}</p>
+                                      {candidate.candidatePhone && (
+                                        <p className="text-sm text-gray-500">{candidate.candidatePhone}</p>
+                                      )}
+                                    </div>
 
-                        <Button
-                          variant="outline"
-                          onClick={() => toggleJobExpansion(job.jobId)}
-                          className="flex items-center gap-2"
-                        >
-                          {expandedJobId === job.jobId ? (
-                            <>
-                              Hide Candidates
-                              <ChevronUp className="h-4 w-4" />
-                            </>
-                          ) : (
-                            <>
-                              View Candidates
-                              <ChevronDown className="h-4 w-4" />
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-
-                  {/* Expandable Candidate List */}
-                  <AnimatePresence>
-                    {expandedJobId === job.jobId && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="overflow-hidden"
-                      >
-                        <CardContent className="pt-6">
-                          {job.candidates.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
-                              <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                              <p>No candidates available</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-4">
-                              {job.candidates.map((candidate) => (
-                                <div
-                                  key={candidate.candidateId}
-                                  className="flex items-center justify-between p-4 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow"
-                                >
-                                  <div className="flex-1">
-                                    <h3 className="text-lg font-semibold text-gray-900">
-                                      {candidate.candidateName}
-                                    </h3>
-                                    <p className="text-sm text-gray-600">{candidate.candidateEmail}</p>
-                                    {candidate.candidatePhone && (
-                                      <p className="text-sm text-gray-500">{candidate.candidatePhone}</p>
-                                    )}
+                                    <div className="flex items-center gap-3">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRoundDetailsClick(candidate)}
+                                        className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                                      >
+                                        Round Details
+                                      </Button>
+                                      {candidate.readyForOnboarding ? (
+                                        <>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleRejectClick(candidate)}
+                                            className="border-red-200 text-red-700 hover:bg-red-50"
+                                          >
+                                            Reject
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            onClick={() => handleOnboardClick(candidate)}
+                                            className="bg-green-600 hover:bg-green-700 text-white"
+                                          >
+                                            Onboard
+                                          </Button>
+                                        </>
+                                      ) : (
+                                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300 px-3 py-1">
+                                          Awaiting Round Completion
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </div>
-
-                                  <div className="flex items-center gap-3">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleRoundDetailsClick(candidate)}
-                                      className="border-blue-200 text-blue-700 hover:bg-blue-50"
-                                    >
-                                      Round Details
-                                    </Button>
-                                    {candidate.readyForOnboarding ? (
-                                      <>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => handleRejectClick(candidate)}
-                                          className="border-red-200 text-red-700 hover:bg-red-50"
-                                        >
-                                          Reject
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          onClick={() => handleOnboardClick(candidate)}
-                                          className="bg-green-600 hover:bg-green-700 text-white"
-                                        >
-                                          Onboard
-                                        </Button>
-                                      </>
-                                    ) : (
-                                      <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300 px-3 py-1">
-                                        Awaiting Round Completion
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </CardContent>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </Card>
-              ))}
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </Card>
+                ))}
               </div>
             )}
           </div>
@@ -466,7 +482,7 @@ const Onboarding: React.FC = () => {
               )}
               <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded">
                 <p className="text-sm text-red-800">
-                  <strong>Warning:</strong> This job will be permanently closed and removed from the job portal. 
+                  <strong>Warning:</strong> This job will be permanently closed and removed from the job portal.
                   All pending applications will no longer be accessible.
                 </p>
               </div>
