@@ -7,6 +7,7 @@ import { getUserRole, ROLES } from '@/utils/roleUtils';
 import Dashboard from '@/pages/Dasboard';
 import FinanceDashboard from '@/pages/FinanceDashboard';
 import EmployeeDashboard from '@/pages/EmployeeDashboard';
+import AdminDashboard from '@/pages/AdminDashboard';
 
 const RoleBasedDashboard: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -46,8 +47,9 @@ const RoleBasedDashboard: React.FC = () => {
   
   // Render different dashboard components based on role
   switch (userRole) {
-    case ROLES.FINANCE_MANAGER:
     case ROLES.ADMIN:
+      return <AdminDashboard />;
+    case ROLES.FINANCE_MANAGER:
       return <FinanceDashboard />;
     case ROLES.HR:
       return <Dashboard />;
