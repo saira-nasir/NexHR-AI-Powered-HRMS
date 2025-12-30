@@ -48,6 +48,7 @@ import BulkPayments from "@/pages/BulkPayments";
 import SalaryStructures from "@/pages/SalaryStructures";
 import TaxManagement from "@/pages/TaxManagement";
 import LoanExpense from "@/pages/LoanExpense";
+import RolesAndPermissions from "@/pages/RolesAndPermissions";
 
 // Route Guards
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -231,13 +232,23 @@ export const routes: RouteObject[] = [
             ),
           },
 
-          // Finance Manager Routes
+          // Admin Routes
+          {
+            path: "admin/roles-permissions",
+            element: (
+              <RoleBasedRoute allowedRoles={["Admin"]}>
+                <RolesAndPermissions />
+              </RoleBasedRoute>
+            ),
+          },
+
+          // Finance Manager & Admin Routes
           { path: "finance", element: <Navigate to="/dashboard" replace /> },
           { path: "success", element: <PaymentSuccess /> },
           {
             path: "payroll",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
                 <PayrollPage />
               </RoleBasedRoute>
             ),
@@ -245,7 +256,7 @@ export const routes: RouteObject[] = [
           {
             path: "expenses",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
                 <Expenses />
               </RoleBasedRoute>
             ),
@@ -254,7 +265,7 @@ export const routes: RouteObject[] = [
           {
             path: "loans",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
                 <Loans />
               </RoleBasedRoute>
             ),
@@ -262,7 +273,7 @@ export const routes: RouteObject[] = [
           {
             path: "bulk-payments",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
                 <BulkPayments />
               </RoleBasedRoute>
             ),
@@ -270,7 +281,7 @@ export const routes: RouteObject[] = [
           {
             path: "salary-structures",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
                 <SalaryStructures />
               </RoleBasedRoute>
             ),
@@ -278,7 +289,7 @@ export const routes: RouteObject[] = [
           {
             path: "tax-management",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager"]}>
+              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
                 <TaxManagement />
               </RoleBasedRoute>
             ),
@@ -305,7 +316,7 @@ export const routes: RouteObject[] = [
           {
             path: "loan-expense",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "Finance Manager"]}>
+              <RoleBasedRoute allowedRoles={["Employee", "Finance Manager", "Admin"]}>
                 <LoanExpense />
               </RoleBasedRoute>
             ),
