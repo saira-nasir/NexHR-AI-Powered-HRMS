@@ -57,12 +57,24 @@ const Employees = () => {
                 setIsImporting(true);
                 const result = await employeeService.importEmployees(file);
                 if (result.success) {
+                    const { detail, message, total_rows } = result.data || {};
                     toast({
-                        title: "Success",
-                        description: result.message,
+                        title: "Import Task Scheduled",
+                        description: (
+                            <div className="flex flex-col gap-1 mt-1">
+                                <p className="font-medium">{detail || result.message}</p>
+                                {message && <p className="text-sm text-gray-500">{message}</p>}
+                                {total_rows && (
+                                    <Badge variant="outline" className="w-fit mt-1">
+                                        Processing {total_rows} rows
+                                    </Badge>
+                                )}
+                            </div>
+                        ),
+                        duration: 6000,
                     });
-                    // Refresh the employee list
-                    fetchEmployees();
+                    // Refresh the employee list (might not show immediately due to async processing)
+                    setTimeout(() => fetchEmployees(), 2000);
                 } else {
                     toast({
                         title: "Import Failed",
@@ -159,7 +171,7 @@ const Employees = () => {
                             <p className="text-gray-600">Manage your workforce efficiently</p>
                         </div>
                     </div>
-                    
+
                     <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                         <input
                             type="file"
@@ -168,7 +180,7 @@ const Employees = () => {
                             onChange={handleFileChange}
                             className="hidden"
                         />
-                        
+
                         {/* <Button
                             variant="outline"
                             className="flex items-center gap-2 border-[#5C5470] text-[#5C5470] hover:bg-[#5C5470] hover:text-white transition-all duration-300"
@@ -182,7 +194,7 @@ const Employees = () => {
                             )}
                             {isExporting ? 'Exporting...' : 'Export'}
                         </Button> */}
-                        
+
                         <Button
                             className="flex items-center gap-2 bg-gradient-to-r from-[#5C5470] to-[#352F44] hover:from-[#352F44] hover:to-[#5C5470] text-white shadow-lg hover:shadow-xl transition-all duration-300"
                             onClick={handleImport}
@@ -195,7 +207,7 @@ const Employees = () => {
                             )}
                             {isImporting ? 'Importing...' : 'Import Employees'}
                         </Button>
-                        
+
                         {/* COMMENTED OUT FOR NOW - Add Employee Button */}
                         {/* <Button className="flex items-center gap-2 bg-[#5C5470] hover:bg-[#352F44] text-white shadow-lg hover:shadow-xl transition-all duration-300">
                             <Plus className="w-4 h-4" />
@@ -219,7 +231,7 @@ const Employees = () => {
                             </div>
                         </CardContent>
                     </Card>
-                    
+
                     <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-green-50 to-green-100">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
@@ -233,7 +245,7 @@ const Employees = () => {
                             </div>
                         </CardContent>
                     </Card>
-                    
+
                     <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
@@ -247,7 +259,7 @@ const Employees = () => {
                             </div>
                         </CardContent>
                     </Card>
-                    
+
                     <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
@@ -276,7 +288,7 @@ const Employees = () => {
                                     Manage and view all employee information
                                 </CardDescription>
                             </div>
-                            
+
                             <div className="flex flex-col sm:flex-row gap-4 items-center w-full lg:w-auto">
                                 <div className="relative w-full sm:w-80">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-5 h-5" />
@@ -288,7 +300,7 @@ const Employees = () => {
                                         className="pl-10 w-full bg-white/10 border-white/20 text-white placeholder-white/60 focus:bg-white/20 focus:border-white/40 focus:ring-white/20 transition-all duration-300"
                                     />
                                 </div>
-                                
+
                                 <div className="flex items-center gap-2 text-sm text-white/80">
                                     <span>Found {filteredEmployees.length} employees</span>
                                     {searchQuery && (
@@ -334,8 +346,8 @@ const Employees = () => {
                                             </TableRow>
                                         ) : (
                                             filteredEmployees.map((employee, index) => (
-                                                <TableRow 
-                                                    key={employee.id} 
+                                                <TableRow
+                                                    key={employee.id}
                                                     className="hover:bg-gray-50 transition-colors duration-200 border-b border-gray-100"
                                                 >
                                                     <TableCell className="px-6 py-4">

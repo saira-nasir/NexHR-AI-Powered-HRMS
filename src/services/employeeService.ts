@@ -206,7 +206,7 @@ export const employeeService = {
         return null;
     },
 
-    async importEmployees(file: File): Promise<{ success: boolean; message?: string }> {
+    async importEmployees(file: File): Promise<{ success: boolean; message?: string; data?: any }> {
         try {
             const formData = new FormData();
             formData.append('file', file);
@@ -219,13 +219,15 @@ export const employeeService = {
             console.log("Import response:", response);
             return {
                 success: true,
-                message: response.data?.detail || 'Employees imported successfully'
+                message: response.data?.detail || 'Employees imported successfully',
+                data: response.data
             };
         } catch (error: any) {
             console.error('Error importing employees:', error);
             return {
                 success: false,
-                message: error.response?.data?.detail || 'Failed to import employees'
+                message: error.response?.data?.detail || 'Failed to import employees',
+                data: error.response?.data
             };
         }
     },
