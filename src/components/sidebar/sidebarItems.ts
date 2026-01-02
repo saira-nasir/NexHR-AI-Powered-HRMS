@@ -16,7 +16,8 @@ import {
   UserCircle,
   MessageSquare,
   Layers,
-  Shield
+  Shield,
+  CheckCircle2
 } from 'lucide-react';
 import { SidebarMenuItem } from '../../types/sidebar/types';
 
@@ -26,6 +27,12 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/dashboard',
     icon: Home,
     codename: 'view_dashboard',
+  },
+  {
+    title: 'My Tasks',
+    path: '/my-tasks',
+    icon: CheckCircle2,
+    allowedRoles: ['Employee', 'HR', 'Admin', 'Finance Manager'],
   },
   {
     title: 'Attendance & Leave',

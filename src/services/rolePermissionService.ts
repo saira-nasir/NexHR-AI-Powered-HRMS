@@ -5,11 +5,12 @@ import api from '@/lib/api';
  * Permission Interface
  * Permissions are predefined and grouped by categories
  */
-id: number;
-name: string;
-codename: string; // Unique identifier (e.g., 'schedule_meeting', 'view_all_meetings')
-category: string; // Category name (e.g., 'Meeting', 'Finance', 'HR')
-description ?: string;
+export interface Permission {
+  id: number;
+  name: string;
+  codename: string; // Unique identifier (e.g., 'schedule_meeting', 'view_all_meetings')
+  category: string; // Category name (e.g., 'Meeting', 'Finance', 'HR')
+  description?: string;
 }
 
 /**

@@ -36,9 +36,8 @@ export interface Allocation {
     user_name: string;
     task: number;
     task_name: string;
-    role: string;
+    task_status?: 'todo' | 'inprogress' | 'done';
     assigned_task?: string | null;
-    allocation_percentage: number;
     start_date: string;
     end_date: string;
     status: 'active' | 'released';
@@ -99,8 +98,6 @@ export const resourceAllocationService = {
     async assignUsersToTask(data: {
         task_id: number;
         user_ids: number[];
-        role: string;
-        allocation_percentage: number;
         start_date: string;
         end_date: string;
     }): Promise<any> {

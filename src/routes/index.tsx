@@ -42,6 +42,7 @@ import CompanyPolicy from "@/pages/CompanyPolicy";
 import Settings from "@/pages/Settings";
 import ResourceAllocation from "@/pages/ResourceAllocation";
 import ReviewOfferLetters from "@/pages/ReviewOfferLetters";
+import MyTasksDashboard from "@/pages/MyTasksDashboard";
 
 // Finance pages
 import Expenses from "@/pages/Expenses";
@@ -313,7 +314,16 @@ export const routes: RouteObject[] = [
             ),
           },
 
+
           // Employee Routes
+          {
+            path: "my-tasks",
+            element: (
+              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
+                <MyTasksDashboard />
+              </RoleBasedRoute>
+            ),
+          },
           { path: "employee-dashboard", element: <Navigate to="/dashboard" replace /> },
           {
             path: "attendance-leave",

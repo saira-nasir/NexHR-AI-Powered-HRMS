@@ -12,7 +12,17 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { resourceAllocationService, Project, Allocation } from '@/services/resourceAllocationService';
 import { employeeService, Employee } from '@/services/employeeService';
@@ -31,6 +41,46 @@ const ResourceAllocation = () => {
     // Modals
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; type: 'project' | 'allocation'; id: number | null }>({
+        isOpen: false,
+        type: 'project',
+        id: null
+    });
+
+    // ... existing fetch functions ...
+
+    const handleDeleteClick = (type: 'project' | 'allocation', id: number) => {
+        setDeleteConfirmation({ isOpen: true, type, id });
+    };
+
+    const executeDelete = async () => {
+        if (!deleteConfirmation.id) return;
+
+        try {
+            if (deleteConfirmation.type === 'project') {
+                await resourceAllocationService.deleteProject(deleteConfirmation.id);
+                setProjects(projects.filter(p => p.id !== deleteConfirmation.id));
+                if (selectedProject?.id === deleteConfirmation.id) {
+                    setSelectedProject(null);
+                }
+                toast.success('Project deleted successfully');
+            } else {
+                await resourceAllocationService.deleteAllocation(deleteConfirmation.id);
+                if (selectedProject) {
+                    setSelectedProject({
+                        ...selectedProject,
+                        allocations: selectedProject.allocations?.filter(a => a.id !== deleteConfirmation.id)
+                    });
+                    toast.success('Allocation removed successfully');
+                }
+            }
+        } catch (error) {
+            console.error(`Failed to delete ${deleteConfirmation.type}:`, error);
+            toast.error(`Failed to delete ${deleteConfirmation.type}`);
+        } finally {
+            setDeleteConfirmation({ ...deleteConfirmation, isOpen: false });
+        }
+    };
     const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
 
     // Form State for Project (Create & Edit)
@@ -53,8 +103,6 @@ const ResourceAllocation = () => {
     const [newAssignment, setNewAssignment] = useState({
         employeeId: '',
         taskName: '',
-        role: '',
-        allocationPercentage: 100,
         startDate: undefined as Date | undefined,
         endDate: undefined as Date | undefined,
     });
@@ -179,22 +227,6 @@ const ResourceAllocation = () => {
         }
     };
 
-    const handleDeleteProject = async (projectId: number) => {
-        if (!confirm('Are you sure you want to delete this project? This will remove all associated tasks and allocations.')) return;
-
-        try {
-            await resourceAllocationService.deleteProject(projectId);
-            setProjects(projects.filter(p => p.id !== projectId));
-            if (selectedProject?.id === projectId) {
-                setSelectedProject(null);
-            }
-            toast.success('Project deleted successfully');
-        } catch (error) {
-            console.error('Failed to delete project:', error);
-            toast.error('Failed to delete project');
-        }
-    };
-
     const resetProjectForm = () => {
         setCurrentProjectForm({
             name: '',
@@ -219,7 +251,7 @@ const ResourceAllocation = () => {
             const taskPayload = {
                 project: selectedProject.id,
                 name: newAssignment.taskName,
-                description: `Task for ${newAssignment.role}`,
+                description: `Task for ${newAssignment.taskName}`,
                 status: 'pending' as const
             };
             const createdTask = await resourceAllocationService.createTask(taskPayload);
@@ -228,8 +260,6 @@ const ResourceAllocation = () => {
             const assignmentPayload = {
                 task_id: createdTask.id,
                 user_ids: [parseInt(newAssignment.employeeId)],
-                role: newAssignment.role,
-                allocation_percentage: newAssignment.allocationPercentage,
                 start_date: format(newAssignment.startDate, 'yyyy-MM-dd'),
                 end_date: format(newAssignment.endDate, 'yyyy-MM-dd')
             };
@@ -245,8 +275,6 @@ const ResourceAllocation = () => {
             setNewAssignment({
                 employeeId: '',
                 taskName: '',
-                role: '',
-                allocationPercentage: 100,
                 startDate: undefined,
                 endDate: undefined
             });
@@ -256,25 +284,6 @@ const ResourceAllocation = () => {
             toast.error('Failed to create assignment');
         } finally {
             setIsSubmitting(false);
-        }
-    };
-
-    const handleDeleteAllocation = async (allocationId: number) => {
-        if (!confirm('Are you sure you want to remove this team member from the task?')) return;
-
-        try {
-            await resourceAllocationService.deleteAllocation(allocationId);
-            if (selectedProject) {
-                // Optimistic UI update or re-fetch
-                setSelectedProject({
-                    ...selectedProject,
-                    allocations: selectedProject.allocations?.filter(a => a.id !== allocationId)
-                });
-                toast.success('Allocation removed successfully');
-            }
-        } catch (error) {
-            console.error('Failed to delete allocation:', error);
-            toast.error('Failed to remove allocation');
         }
     };
 
@@ -396,8 +405,8 @@ const ResourceAllocation = () => {
                                                 <DropdownMenuItem onClick={() => handleEditProjectClick(selectedProject)}>
                                                     <Pencil className="mr-2 h-4 w-4" /> Edit Project
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => handleDeleteProject(selectedProject.id)} className="text-red-600 focus:text-red-600">
-                                                    <Trash2 className="mr-2 h-4 w-4" /> Delete Project
+                                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteClick('project', selectedProject.id); }} className="text-red-600 focus:text-red-600">
+                                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
@@ -439,20 +448,24 @@ const ResourceAllocation = () => {
                                                         </Avatar>
                                                         <div>
                                                             <p className="font-semibold text-gray-900">{alloc.user_name}</p>
-                                                            <p className="text-xs text-gray-500 font-medium">{alloc.role}</p>
-                                                            <div className="mt-3 bg-gray-50 px-2 py-1.5 rounded border border-gray-100">
+                                                            <div className="mt-1 flex items-center gap-2">
+                                                                <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize",
+                                                                    alloc.task_status === 'done' ? "bg-green-100 text-green-700" :
+                                                                        alloc.task_status === 'inprogress' ? "bg-blue-100 text-blue-700" :
+                                                                            "bg-gray-100 text-gray-700"
+                                                                )}>
+                                                                    {alloc.task_status === 'inprogress' ? 'In Progress' : (alloc.task_status || 'To Do')}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-2 bg-gray-50 px-2 py-1.5 rounded border border-gray-100">
                                                                 <p className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">Task</p>
                                                                 <p className="text-sm font-medium text-gray-800">{alloc.task_name}</p>
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    {/* Actions & Allocation Circle */}
+                                                    {/* Actions */}
                                                     <div className="flex flex-col items-end gap-2">
-                                                        <div className="relative h-10 w-10 flex items-center justify-center rounded-full border-2 border-indigo-100 bg-indigo-50/50" title={`${alloc.allocation_percentage}% allocation`}>
-                                                            <span className="text-[10px] font-bold text-indigo-700">{alloc.allocation_percentage}%</span>
-                                                        </div>
-
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
                                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -460,7 +473,7 @@ const ResourceAllocation = () => {
                                                                 </Button>
                                                             </DropdownMenuTrigger>
                                                             <DropdownMenuContent align="end">
-                                                                <DropdownMenuItem onClick={() => handleDeleteAllocation(alloc.id)} className="text-red-600 focus:text-red-600">
+                                                                <DropdownMenuItem onClick={() => handleDeleteClick('allocation', alloc.id)} className="text-red-600 focus:text-red-600">
                                                                     <Trash2 className="mr-2 h-4 w-4" /> Remove
                                                                 </DropdownMenuItem>
                                                             </DropdownMenuContent>
@@ -609,14 +622,6 @@ const ResourceAllocation = () => {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="space-y-2">
-                                <Label>Role</Label>
-                                <Input
-                                    value={newAssignment.role}
-                                    onChange={(e) => setNewAssignment({ ...newAssignment, role: e.target.value })}
-                                    placeholder="e.g. Backend Developer"
-                                />
-                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Start Date</Label>
@@ -647,16 +652,6 @@ const ResourceAllocation = () => {
                                     </Popover>
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <Label>Allocation %</Label>
-                                <Input
-                                    type="number"
-                                    min="1"
-                                    max="100"
-                                    value={newAssignment.allocationPercentage}
-                                    onChange={(e) => setNewAssignment({ ...newAssignment, allocationPercentage: parseInt(e.target.value) })}
-                                />
-                            </div>
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setIsAssignModalOpen(false)}>Cancel</Button>
@@ -666,6 +661,24 @@ const ResourceAllocation = () => {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+
+                {/* Delete Confirmation Modal */}
+                <AlertDialog open={deleteConfirmation.isOpen} onOpenChange={(open) => !open && setDeleteConfirmation({ ...deleteConfirmation, isOpen: false })}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {deleteConfirmation.type === 'project'
+                                    ? "This action cannot be undone. This will permanently delete the project and all associated tasks and allocations."
+                                    : "Are you sure you want to remove this team member from the task?"}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={executeDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
 
             </div>
         </DashboardLayout>
