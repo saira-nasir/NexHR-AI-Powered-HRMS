@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 // Use mock service for frontend testing (switch to real service when backend is ready)
-import rolePermissionService from '@/services/rolePermissionService.mock';
+import rolePermissionService from '@/services/rolePermissionService';
 
 interface AddRoleModalProps {
   open: boolean;
@@ -52,7 +52,7 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       toast({
         title: 'Validation Error',
@@ -84,7 +84,7 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({
         error?.response?.data?.message ||
         error?.message ||
         'Failed to create role. Please try again.';
-      
+
       toast({
         title: 'Error',
         description: errorMessage,
@@ -153,8 +153,8 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={loading}
               className="bg-gradient-to-r from-[#6C63FF] to-[#7B73FF] hover:from-[#5B52FF] hover:to-[#6C63FF] shadow-md hover:shadow-lg transition-all duration-200"
             >

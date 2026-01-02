@@ -5,12 +5,11 @@ import api from '@/lib/api';
  * Permission Interface
  * Permissions are predefined and grouped by categories
  */
-export interface Permission {
-  id: number;
-  name: string;
-  code: string; // Unique identifier (e.g., 'schedule_meeting', 'view_all_meetings')
-  category: string; // Category name (e.g., 'Meeting', 'Finance', 'HR')
-  description?: string;
+id: number;
+name: string;
+codename: string; // Unique identifier (e.g., 'schedule_meeting', 'view_all_meetings')
+category: string; // Category name (e.g., 'Meeting', 'Finance', 'HR')
+description ?: string;
 }
 
 /**
@@ -57,7 +56,7 @@ const BASE = '/roles';
  */
 const rolePermissionService = {
   /* ---------------- Permissions ---------------- */
-  
+
   /**
    * List all available permissions (predefined)
    * Permissions are fetched from the backend and grouped by categories

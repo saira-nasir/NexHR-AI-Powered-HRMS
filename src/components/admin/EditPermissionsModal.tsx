@@ -19,9 +19,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Save, X, Shield } from 'lucide-react';
-// Use mock service for frontend testing (switch to real service when backend is ready)
-import rolePermissionService from '@/services/rolePermissionService.mock';
-import type { Role, Permission } from '@/services/rolePermissionService';
+import rolePermissionService, { Role, Permission } from '@/services/rolePermissionService';
 
 interface EditPermissionsModalProps {
   open: boolean;

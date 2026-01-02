@@ -16,21 +16,33 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const user = useSelector((state: RootState) => state.auth.user);
+  const permissions = useSelector((state: RootState) => state.auth.permissions);
 
-  // Filter sidebar items according to user role. If no user, default to showing only items without allowedRoles
+  // Filter sidebar items according to user role and real-time permissions
   const getVisibleItems = () => {
     const role = getUserRole(user);
+
     return sidebarItems
       .map(item => {
-        // If item has allowedRoles and user role not included -> skip
+        // 1. Permission Check: If item has a codename, user must have that permission
+        if (item.codename && !permissions.includes(item.codename)) {
+          // Special exemption: If permissions are not loaded yet (empty) but user has role? 
+          // No, we strictly follow the requirement: "tab must vanish immediately".
+          return null;
+        }
+
+        // 2. Role Check: Legacy fallback, ensure user has allowed role if defined
         if (item.allowedRoles && (!role || !item.allowedRoles.includes(role))) return null;
 
-        // Filter submenu if present
+        // 3. Filter submenu
         let submenu = item.submenu;
         if (submenu && submenu.length > 0) {
           const filteredSub = submenu.filter(sub => {
-            if (!sub.allowedRoles) return true;
-            return role && sub.allowedRoles.includes(role);
+            // Check submenu permission
+            if (sub.codename && !permissions.includes(sub.codename)) return false;
+            // Check submenu role
+            if (sub.allowedRoles && (!role || !sub.allowedRoles.includes(role))) return false;
+            return true;
           });
           submenu = filteredSub;
         }
@@ -41,16 +53,16 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   };
 
   const visibleItems = getVisibleItems();
-  
+
   // Initialize open menus based on current route
   useEffect(() => {
     const currentPath = location.pathname;
     const initialOpenMenus: Record<string, boolean> = {};
-    
+
     sidebarItems.forEach(item => {
       if (item.submenu) {
-        const isSubmenuActive = item.submenu.some(subItem => 
-          currentPath === subItem.path || 
+        const isSubmenuActive = item.submenu.some(subItem =>
+          currentPath === subItem.path ||
           currentPath.startsWith(subItem.path + '/')
         );
         if (isSubmenuActive) {
@@ -58,7 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
         }
       }
     });
-    
+
     setOpenMenus(initialOpenMenus);
   }, [location.pathname]);
 
@@ -70,11 +82,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   };
 
   const isActive = (path: string) => {
-      // Treat onboarding submenu (/onboarding) as active also when on /onboard/:applicationId
-      if (path === '/onboarding' && location.pathname.startsWith('/onboard')) return true;
-      return location.pathname === path || 
-        location.pathname.startsWith(path + '/') ||
-        (path !== '/' && location.pathname.startsWith(path));
+    // Treat onboarding submenu (/onboarding) as active also when on /onboard/:applicationId
+    if (path === '/onboarding' && location.pathname.startsWith('/onboard')) return true;
+    return location.pathname === path ||
+      location.pathname.startsWith(path + '/') ||
+      (path !== '/' && location.pathname.startsWith(path));
   };
 
   return (
@@ -84,7 +96,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
     )}>
       <SidebarHeader collapsed={collapsed} />
       {/* <SidebarSearch collapsed={collapsed} /> */}
-      
+
       <nav className={cn(
         "flex-1 px-2 py-2 space-y-1",
         collapsed && "px-1"

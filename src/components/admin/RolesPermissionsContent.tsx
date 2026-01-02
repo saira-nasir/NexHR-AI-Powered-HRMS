@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import RoleList from '@/components/admin/RoleList';
 import AddRoleModal from '@/components/admin/AddRoleModal';
 import EditPermissionsModal from '@/components/admin/EditPermissionsModal';
-// Use mock service for frontend testing (switch to real service when backend is ready)
-import rolePermissionService from '@/services/rolePermissionService.mock';
-import type { Role } from '@/services/rolePermissionService';
+import rolePermissionService, { Role } from '@/services/rolePermissionService';
 import { useToast } from '@/hooks/use-toast';
 import { Shield } from 'lucide-react';
 
@@ -36,7 +34,7 @@ const RolesPermissionsContent: React.FC = () => {
         error?.response?.data?.message ||
         error?.message ||
         'Failed to load roles. Please try again.';
-      
+
       toast({
         title: 'Error Loading Roles',
         description: errorMessage,

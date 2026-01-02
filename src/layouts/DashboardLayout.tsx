@@ -8,7 +8,8 @@ import NotificationsDropdown from '@/components/notifications/NotificationsDropd
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { setPermissions } from '@/store/authSlice';
 import { RootState } from '@/store';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Chatbot } from '@/components/Chatbot/Chatbot'; // ✅ integrated Chatbot
@@ -22,13 +23,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
     storedSidebarState ? JSON.parse(storedSidebarState) : false
   );
-  
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const location = useLocation();
   const isMobile = useIsMobile();
   const { logout } = useAuth();
   const [profileOpen, setProfileOpen] = React.useState(false);
   const user = useSelector((state: RootState) => state.auth.user);
+  const dispatch = useDispatch();
 
   const getInitials = () => {
     const fname = user?.firstName || '';
@@ -40,7 +42,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     // fallback to email first char
     return (user?.email?.[0] || '?').toUpperCase();
   };
-  
+
   useEffect(() => {
     if (isMobile) {
       setSidebarCollapsed(true);
@@ -51,6 +53,58 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
+  // WebSocket Listener for Real-time Permissions
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+
+    // Use environment variable for WS URL if available, fallback to localhost
+    const wsBase = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws';
+    const wsUrl = `${wsBase}/permissions/?token=${token}`;
+
+    console.log('Connecting to Permissions WS:', wsUrl);
+
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('✅ Permissions WS Connected');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('📩 WS Message:', data);
+
+          // Expecting data format: { type: 'permissions_update', permissions: ['code1', 'code2'] }
+          if (data.type === 'permissions_update' && Array.isArray(data.permissions)) {
+            console.log('🔄 Updating permissions from WS');
+            dispatch(setPermissions(data.permissions));
+          }
+        } catch (e) {
+          console.error('❌ WS Error parsing message:', e);
+        }
+      };
+
+      ws.onerror = (e) => {
+        console.error('❌ WS Error:', e);
+      };
+
+      ws.onclose = () => {
+        console.log('aborted Permissions WS Closed');
+      };
+    } catch (e) {
+      console.error('Failed to create WebSocket:', e);
+    }
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [dispatch]);
+
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
   };
@@ -58,12 +112,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {mobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
-      
+
       {/* Sidebar */}
       <div className={cn(
         "fixed z-50 h-full transition-transform duration-300 lg:relative",
@@ -81,14 +135,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         {/* Topbar */}
         <header className="bg-white border-b border-gray-100 sticky top-0 z-20">
           <div className="flex h-14 sm:h-16 items-center px-3 sm:px-4 md:px-6">
-            <button 
+            <button
               onClick={toggleMobileMenu}
               className="mr-3 rounded-full p-1.5 text-gray-500 hover:bg-lavender hover:text-english-violet transition-colors lg:hidden"
             >
               <Menu size={20} />
             </button>
-            
-            <button 
+
+            <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               className="hidden lg:flex mr-4 rounded-full p-2 text-gray-500 hover:bg-lavender hover:text-english-violet transition-colors"
             >
@@ -111,7 +165,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
               <NotificationsDropdown />
 
-              <button 
+              <button
                 onClick={logout}
                 className="rounded-full p-1.5 sm:p-2 text-gray-500 hover:bg-lavender hover:text-english-violet transition-colors"
                 title="Logout"

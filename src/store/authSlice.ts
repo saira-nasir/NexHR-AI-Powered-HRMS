@@ -15,17 +15,20 @@ interface Role {
 }
 
 interface User {
+  id?: number; // Added optional id
   email: string;
   firstName?: string;
   lastName?: string;
   company: Company | null;
   roles?: Role[];
   role?: string; // Fallback for single role
+  avatarUrl?: string; // Added for avatar support
 }
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
+  permissions: string[];
 }
 
 // Load initial state from localStorage if available
@@ -35,14 +38,21 @@ const loadState = (): AuthState => {
     if (serializedState === null) {
       return {
         user: null,
-        isAuthenticated: false
+        isAuthenticated: false,
+        permissions: []
       };
     }
-    return JSON.parse(serializedState);
+    const state = JSON.parse(serializedState);
+    // Ensure permissions exists if loading old state
+    if (!state.permissions) {
+      state.permissions = [];
+    }
+    return state;
   } catch (err) {
     return {
       user: null,
-      isAuthenticated: false
+      isAuthenticated: false,
+      permissions: []
     };
   }
 };
@@ -59,6 +69,11 @@ const authSlice = createSlice({
       // Save to localStorage
       localStorage.setItem('authState', JSON.stringify(state));
     },
+    setPermissions(state, action: PayloadAction<string[]>) {
+      state.permissions = action.payload;
+      // Save to localStorage
+      localStorage.setItem('authState', JSON.stringify(state));
+    },
     updateCompany(state, action: PayloadAction<Company>) {
       if (state.user) {
         state.user.company = action.payload;
@@ -69,11 +84,12 @@ const authSlice = createSlice({
     clearUser(state) {
       state.user = null;
       state.isAuthenticated = false;
+      state.permissions = [];
       // Clear from localStorage
       localStorage.removeItem('authState');
     }
   }
 });
 
-export const { setUser, updateCompany, clearUser } = authSlice.actions;
+export const { setUser, setPermissions, updateCompany, clearUser } = authSlice.actions;
 export default authSlice.reducer;

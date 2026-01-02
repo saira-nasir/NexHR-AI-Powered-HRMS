@@ -6,6 +6,7 @@ export type SidebarSubmenu = {
   path: string;
   allowedRoles?: string[];
   step?: number;
+  codename?: string;
 };
 
 export type SidebarMenuItem = {
@@ -14,6 +15,7 @@ export type SidebarMenuItem = {
   icon: ElementType;
   submenu?: SidebarSubmenu[];
   allowedRoles?: string[];
+  codename?: string;
 };
 
 export interface SidebarProps {

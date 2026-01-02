@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { toast } from "@/components/ui/use-toast";
 import { useDispatch, useSelector } from 'react-redux';
-import { setUser, clearUser } from '../store/authSlice';
+import { setUser, setPermissions, clearUser } from '../store/authSlice';
 import { RootState } from '../store';
 
 interface User {
@@ -70,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (response.status === 200) {
         dispatch(setUser(response.data));
-        console.log("response data in /profile",response.data)
+        console.log("response data in /profile", response.data)
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -119,13 +119,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: true };
       }
       return {
-        success: false, 
+        success: false,
         message: "Invalid credentials"
       };
     } catch (error: any) {
       console.error('Login error:', error);
       return {
-        success: false, 
+        success: false,
         message: error.response?.data?.detail || "An error occurred during login"
       };
     }
