@@ -14,12 +14,16 @@ import { RootState } from '@/store';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Chatbot } from '@/components/Chatbot/Chatbot'; // ✅ integrated Chatbot
 
+import { usePermissionSync } from '@/hooks/usePermissionSync';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
+  // Sync permissions on mount/login
+  usePermissionSync();
+
   const storedSidebarState = localStorage.getItem('sidebarCollapsed');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
     storedSidebarState ? JSON.parse(storedSidebarState) : false
