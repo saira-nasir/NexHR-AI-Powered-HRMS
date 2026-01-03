@@ -59,12 +59,12 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
       console.log('✅ [PayrollCreateModal] Employees loaded from API:', employeesData);
       console.log('✅ [PayrollCreateModal] Number of employees:', employeesData?.length || 0);
       console.log('✅ [PayrollCreateModal] Employee IDs:', employeesData?.map((e: Employee) => e.id) || []);
-      
+
       // Ensure we have an array
       const employeesArray = Array.isArray(employeesData) ? employeesData : [];
       console.log('✅ [PayrollCreateModal] Setting employees state with:', employeesArray.length, 'employees');
       setEmployees(employeesArray);
-      
+
       // Return employees for use in other functions
       return employeesArray;
     } catch (error: any) {
@@ -171,7 +171,7 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
     }
 
     console.log('🚀 [PayrollCreateModal] Modal opened, starting to load data...');
-    
+
     // Load data sequentially to avoid race conditions
     const loadAllData = async () => {
       try {
@@ -179,13 +179,13 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
         console.log('📥 Step 1: Loading employees...');
         const loadedEmployees = await loadEmployees();
         console.log('✅ Step 1 complete: Loaded', loadedEmployees?.length || 0, 'employees');
-        
+
         // Step 2: Load salary structures (can be parallel)
         console.log('📥 Step 2: Loading salary structures...');
         loadSalaryStructures().catch(err => {
           console.error('❌ Failed to load salary structures:', err);
         });
-        
+
         // Step 3: Load bank info AFTER employees are loaded (needs employee data)
         if (loadedEmployees && loadedEmployees.length > 0) {
           console.log('📥 Step 3: Loading bank info for', loadedEmployees.length, 'employees...');
@@ -205,7 +205,7 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
     const timer = setTimeout(() => {
       loadAllData();
     }, 50);
-    
+
     return () => clearTimeout(timer);
   }, [isOpen]); // Removed loadBankInfo from dependencies to avoid infinite loops
 
@@ -278,6 +278,26 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate Date Range
+    if (formData.period_end < formData.period_start) {
+      toast({
+        title: "Validation Error",
+        description: "Period End Date cannot be before Start Date.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate Numeric Fields (Prevent Negatives)
+    if (parseFloat(formData.gross_salary) < 0 || parseFloat(formData.total_deductions) < 0 || parseFloat(formData.tax_amount) < 0) {
+      toast({
+        title: "Validation Error",
+        description: "Salary and deduction amounts cannot be negative.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validate that selected employee has bank info
     if (formData.employee && formData.employee !== 'none') {
       const selectedEmployeeId = parseInt(formData.employee);
@@ -285,7 +305,7 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
         toast({
           title: "Warning",
           description: `Bank details missing for selected employee. Payroll will be created but payment may fail.`,
-          variant: "default", // Changed from destructive to default/warning
+          variant: "default",
         });
         // We allow proceeding now
       }
@@ -511,36 +531,36 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
                   if (value && value !== 'none') {
                     const empId = parseInt(value);
                     const empStructure = salaryStructures.find(s => s.employee === empId);
-                    
+
                     if (empStructure) {
-                        console.log('✅ [PayrollCreateModal] Found salary structure for employee:', empStructure);
-                        handleInputChange('salary_structure', empStructure.id.toString());
-                        
-                        // Populate fields from structure
-                        const basicPay = parseFloat(empStructure.basic_pay) || 0;
-                        const allowances = parseFloat(empStructure.allowances) || 0;
-                        const deductions = parseFloat(empStructure.deductions) || 0;
-                        const tax = parseFloat(empStructure.tax) || 0;
-                        
-                        const gross = basicPay + allowances;
-                        const totalDeductions = deductions + tax; // Assuming total deductions includes tax
-                        
-                        setFormData(prev => ({
-                            ...prev,
-                            employee: value,
-                            salary_structure: empStructure.id.toString(),
-                            gross_salary: gross.toFixed(2),
-                            total_deductions: totalDeductions.toFixed(2),
-                            tax_amount: tax.toFixed(2),
-                            statutory_deductions: '0.00' // Default or calculate if needed
-                        }));
-                        
-                        toast({
-                            title: "Info",
-                            description: "Salary structure and fields autofilled.",
-                        });
+                      console.log('✅ [PayrollCreateModal] Found salary structure for employee:', empStructure);
+                      handleInputChange('salary_structure', empStructure.id.toString());
+
+                      // Populate fields from structure
+                      const basicPay = parseFloat(empStructure.basic_pay) || 0;
+                      const allowances = parseFloat(empStructure.allowances) || 0;
+                      const deductions = parseFloat(empStructure.deductions) || 0;
+                      const tax = parseFloat(empStructure.tax) || 0;
+
+                      const gross = basicPay + allowances;
+                      const totalDeductions = deductions + tax; // Assuming total deductions includes tax
+
+                      setFormData(prev => ({
+                        ...prev,
+                        employee: value,
+                        salary_structure: empStructure.id.toString(),
+                        gross_salary: gross.toFixed(2),
+                        total_deductions: totalDeductions.toFixed(2),
+                        tax_amount: tax.toFixed(2),
+                        statutory_deductions: '0.00' // Default or calculate if needed
+                      }));
+
+                      toast({
+                        title: "Info",
+                        description: "Salary structure and fields autofilled.",
+                      });
                     } else {
-                        console.log('⚠️ [PayrollCreateModal] No salary structure found for employee:', empId);
+                      console.log('⚠️ [PayrollCreateModal] No salary structure found for employee:', empId);
                     }
 
                     // Check bank info asynchronously without blocking the UI
@@ -634,28 +654,28 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
               <Select
                 value={formData.salary_structure}
                 onValueChange={(value) => {
-                    handleInputChange('salary_structure', value);
-                    
-                    if (value && value !== 'none') {
-                        const structure = salaryStructures.find(s => s.id.toString() === value);
-                        if (structure) {
-                            const basicPay = parseFloat(structure.basic_pay) || 0;
-                            const allowances = parseFloat(structure.allowances) || 0;
-                            const deductions = parseFloat(structure.deductions) || 0;
-                            const tax = parseFloat(structure.tax) || 0;
-                            
-                            const gross = basicPay + allowances;
-                            const totalDeductions = deductions + tax;
-                            
-                            setFormData(prev => ({
-                                ...prev,
-                                salary_structure: value,
-                                gross_salary: gross.toFixed(2),
-                                total_deductions: totalDeductions.toFixed(2),
-                                tax_amount: tax.toFixed(2)
-                            }));
-                        }
+                  handleInputChange('salary_structure', value);
+
+                  if (value && value !== 'none') {
+                    const structure = salaryStructures.find(s => s.id.toString() === value);
+                    if (structure) {
+                      const basicPay = parseFloat(structure.basic_pay) || 0;
+                      const allowances = parseFloat(structure.allowances) || 0;
+                      const deductions = parseFloat(structure.deductions) || 0;
+                      const tax = parseFloat(structure.tax) || 0;
+
+                      const gross = basicPay + allowances;
+                      const totalDeductions = deductions + tax;
+
+                      setFormData(prev => ({
+                        ...prev,
+                        salary_structure: value,
+                        gross_salary: gross.toFixed(2),
+                        total_deductions: totalDeductions.toFixed(2),
+                        tax_amount: tax.toFixed(2)
+                      }));
                     }
+                  }
                 }}
                 disabled={salaryStructuresLoading}
               >

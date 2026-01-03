@@ -5,14 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  DollarSign, 
-  Users, 
-  FileText, 
-  Download, 
-  Eye, 
-  CheckCircle, 
-  Clock, 
+import {
+  DollarSign,
+  Users,
+  FileText,
+  Download,
+  Eye,
+  CheckCircle,
+  Clock,
   AlertCircle,
   Calculator,
   Banknote,
@@ -35,7 +35,19 @@ import PayrollEditModal from '@/components/financeDashboard/PayrollEditModal';
 type EmployeeMap = Record<number, { name: string; email?: string; department?: string }>;
 
 const PayrollPage: React.FC = () => {
-  const [selectedMonth, setSelectedMonth] = useState('December 2024');
+  // Generate last 12 months dynamically
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const today = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+      options.push(label);
+    }
+    return options;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]);
   const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
@@ -54,12 +66,17 @@ const PayrollPage: React.FC = () => {
   const [status, setStatus] = useState<'ALL' | 'PENDING' | 'PAID' | 'FAILED'>('ALL');
   const [month, setMonth] = useState<string>(''); // yyyy-MM
 
+
+
   const pendingPayrolls = useMemo(() => payrolls.filter(p => p.payment_status === 'PENDING'), [payrolls]);
   const paidPayrolls = useMemo(() => payrolls.filter(p => p.payment_status === 'PAID'), [payrolls]);
   const totalEmployees = useMemo(() => new Set(payrolls.map(p => p.employee)).size, [payrolls]);
   const pendingEmployees = pendingPayrolls.length;
   const approvedEmployees = paidPayrolls.length;
   const totalPayroll = payrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0);
+
+
+
 
   const handleSelectAll = () => {
     if (selectedEmployees.length === totalEmployees) {
@@ -70,8 +87,8 @@ const PayrollPage: React.FC = () => {
   };
 
   const handleEmployeeSelect = (employeeId: number) => {
-    setSelectedEmployees(prev => 
-      prev.includes(employeeId) 
+    setSelectedEmployees(prev =>
+      prev.includes(employeeId)
         ? prev.filter(id => id !== employeeId)
         : [...prev, employeeId]
     );
@@ -85,10 +102,10 @@ const PayrollPage: React.FC = () => {
     } catch (e: any) {
       const errorMessage = e?.response?.data?.detail || e?.message || 'Please try again.';
       if (errorMessage.includes('No SalaryStructure linked')) {
-        toast({ 
-          title: 'Calculation failed', 
-          description: 'This employee needs a salary structure before calculation. Please create one first.', 
-          variant: 'destructive' 
+        toast({
+          title: 'Calculation failed',
+          description: 'This employee needs a salary structure before calculation. Please create one first.',
+          variant: 'destructive'
         });
       } else {
         toast({ title: 'Calculation failed', description: errorMessage, variant: 'destructive' });
@@ -99,7 +116,7 @@ const PayrollPage: React.FC = () => {
   const handlePayPayroll = async (payrollId: number) => {
     try {
       const session = await payrollService.createCheckoutSession(payrollId);
-      
+
       if (session.url) {
         // Persist payroll id locally before redirecting to Stripe
         try {
@@ -143,9 +160,9 @@ const PayrollPage: React.FC = () => {
       if (pendingPayrolls.length === 0) return;
       const first = pendingPayrolls[0];
       const session = await payrollService.createCheckoutSession(first.id);
-      
+
       if (session.url) {
-        try { localStorage.setItem('nexhr.pending_payroll', first.id.toString()); } catch {};
+        try { localStorage.setItem('nexhr.pending_payroll', first.id.toString()); } catch { };
         window.location.href = session.url;
       } else {
         throw new Error('No checkout URL received from server');
@@ -160,137 +177,137 @@ const PayrollPage: React.FC = () => {
   };
 
   const handleGeneratePayslips = async () => {
-  try {
-    const selected = payrolls.filter(p => selectedEmployees.includes(p.employee));
-    if (selected.length === 0) {
-      toast({ title: 'Select employees first', description: 'Choose one or more employees to generate payslips for.' });
-      return;
-    }
+    try {
+      const selected = payrolls.filter(p => selectedEmployees.includes(p.employee));
+      if (selected.length === 0) {
+        toast({ title: 'Select employees first', description: 'Choose one or more employees to generate payslips for.' });
+        return;
+      }
 
-    const paidTargets = selected.filter(p => p.payment_status === 'PAID');
-    const skipped = selected.filter(p => p.payment_status !== 'PAID');
+      const paidTargets = selected.filter(p => p.payment_status === 'PAID');
+      const skipped = selected.filter(p => p.payment_status !== 'PAID');
 
-    if (paidTargets.length === 0) {
-      toast({ title: 'No paid payrolls selected', description: 'Payslips can only be generated for payrolls with status Paid.' });
-      return;
-    }
+      if (paidTargets.length === 0) {
+        toast({ title: 'No paid payrolls selected', description: 'Payslips can only be generated for payrolls with status Paid.' });
+        return;
+      }
 
-    if (skipped.length > 0) {
-      toast({ title: 'Some payrolls were skipped', description: `${skipped.length} selected payroll(s) are not paid and were skipped.` });
-    }
+      if (skipped.length > 0) {
+        toast({ title: 'Some payrolls were skipped', description: `${skipped.length} selected payroll(s) are not paid and were skipped.` });
+      }
 
-    // Generate payslips for all paid selected employees
-    for (const p of paidTargets) {
-      try {
-        const payslip = await payrollService.generatePayslip(
-          p.id,                         // payrollId
-          p.employee,                   // employeeId
-          p.period_start.slice(0, 7),   // month → "YYYY-MM"
-          Number(p.net_salary)          // netSalary
-        );
+      // Generate payslips for all paid selected employees
+      for (const p of paidTargets) {
+        try {
+          const payslip = await payrollService.generatePayslip(
+            p.id,                         // payrollId
+            p.employee,                   // employeeId
+            p.period_start.slice(0, 7),   // month → "YYYY-MM"
+            Number(p.net_salary)          // netSalary
+          );
 
-        let blob: Blob;
-        if (payslip?.payslip_pdf_url) {
-          blob = await fetch(payslip.payslip_pdf_url as string).then(res => res.blob());
-        } else {
-          blob = await payrollService.downloadPayslip(p.id);
+          let blob: Blob;
+          if (payslip?.payslip_pdf_url) {
+            blob = await fetch(payslip.payslip_pdf_url as string).then(res => res.blob());
+          } else {
+            blob = await payrollService.downloadPayslip(p.id);
+          }
+
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `payslip_${p.id}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+
+        } catch (error) {
+          console.error(`Failed to generate payslip for payroll ${p.id}:`, error);
         }
-
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `payslip_${p.id}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-
-      } catch (error) {
-        console.error(`Failed to generate payslip for payroll ${p.id}:`, error);
       }
+      toast({ title: 'Payslips generated', description: `${paidTargets.length} file(s) downloaded.` });
+      await loadData();
+    } catch (e: any) {
+      toast({ title: 'Generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
     }
-    toast({ title: 'Payslips generated', description: `${paidTargets.length} file(s) downloaded.` });
-    await loadData();
-  } catch (e: any) {
-    toast({ title: 'Generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
-  }
-};
+  };
 
 
-const handleDownloadAllPayslips = async () => {
-  try {
-    const paidPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
-    if (paidPayrolls.length === 0) {
-      toast({ title: 'No paid payrolls', description: 'No paid payrolls available for download.' });
-      return;
-    }
-    
-    for (const p of paidPayrolls) {
-      try {
-        const payslip = await payrollService.generatePayslip(
-          p.id,
-          p.employee,
-          p.period_start.slice(0, 7),
-          Number(p.net_salary)
-        );
+  const handleDownloadAllPayslips = async () => {
+    try {
+      const paidPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
+      if (paidPayrolls.length === 0) {
+        toast({ title: 'No paid payrolls', description: 'No paid payrolls available for download.' });
+        return;
+      }
 
-        let blob: Blob;
-        if (payslip?.payslip_pdf_url) {
-          blob = await fetch(payslip.payslip_pdf_url as string).then(res => res.blob());
-        } else {
-          blob = await payrollService.downloadPayslip(p.id);
+      for (const p of paidPayrolls) {
+        try {
+          const payslip = await payrollService.generatePayslip(
+            p.id,
+            p.employee,
+            p.period_start.slice(0, 7),
+            Number(p.net_salary)
+          );
+
+          let blob: Blob;
+          if (payslip?.payslip_pdf_url) {
+            blob = await fetch(payslip.payslip_pdf_url as string).then(res => res.blob());
+          } else {
+            blob = await payrollService.downloadPayslip(p.id);
+          }
+
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `payslip_${p.id}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+
+        } catch (error) {
+          console.error(`Failed to download payslip for payroll ${p.id}:`, error);
         }
-
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `payslip_${p.id}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-
-      } catch (error) {
-        console.error(`Failed to download payslip for payroll ${p.id}:`, error);
       }
+      toast({ title: 'All payslips downloaded', description: `${paidPayrolls.length} file(s) downloaded.` });
+      await loadData();
+    } catch (e: any) {
+      toast({ title: 'Download failed', description: e?.message || 'Please try again.', variant: 'destructive' });
     }
-    toast({ title: 'All payslips downloaded', description: `${paidPayrolls.length} file(s) downloaded.` });
-    await loadData();
-  } catch (e: any) {
-    toast({ title: 'Download failed', description: e?.message || 'Please try again.', variant: 'destructive' });
-  }
-};
+  };
 
 
-const handleBulkGeneratePayslips = async () => {
-  try {
-    const allPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
-    if (allPayrolls.length === 0) {
-      toast({ title: 'No paid payrolls', description: 'No paid payrolls available for bulk generation.' });
-      return;
-    }
-    
-    toast({ title: 'Bulk generation started', description: `Generating payslips for ${allPayrolls.length} employees...` });
-    
-    for (const p of allPayrolls) {
-      try {
-        await payrollService.generatePayslip(
-          p.id,
-          p.employee,
-          p.period_start.slice(0, 7),
-          Number(p.net_salary)
-        );
-      } catch (error) {
-        console.error(`Failed to generate payslip for payroll ${p.id}:`, error);
+  const handleBulkGeneratePayslips = async () => {
+    try {
+      const allPayrolls = payrolls.filter(p => p.payment_status === 'PAID');
+      if (allPayrolls.length === 0) {
+        toast({ title: 'No paid payrolls', description: 'No paid payrolls available for bulk generation.' });
+        return;
       }
+
+      toast({ title: 'Bulk generation started', description: `Generating payslips for ${allPayrolls.length} employees...` });
+
+      for (const p of allPayrolls) {
+        try {
+          await payrollService.generatePayslip(
+            p.id,
+            p.employee,
+            p.period_start.slice(0, 7),
+            Number(p.net_salary)
+          );
+        } catch (error) {
+          console.error(`Failed to generate payslip for payroll ${p.id}:`, error);
+        }
+      }
+
+      toast({ title: 'Bulk generation completed', description: `Payslips generated for ${allPayrolls.length} employees.` });
+      await loadData();
+    } catch (e: any) {
+      toast({ title: 'Bulk generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
     }
-    
-    toast({ title: 'Bulk generation completed', description: `Payslips generated for ${allPayrolls.length} employees.` });
-    await loadData();
-  } catch (e: any) {
-    toast({ title: 'Bulk generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
-  }
-};
+  };
 
   const handlePreviewPayrollRun = async () => {
     try {
@@ -299,7 +316,7 @@ const handleBulkGeneratePayslips = async () => {
         toast({ title: 'No pending payrolls', description: 'No pending payrolls to preview.' });
         return;
       }
-      
+
       // Show preview modal for the first pending payroll
       setPreviewPayrollId(pendingPayrolls[0].id);
       setPreviewOpen(true);
@@ -333,7 +350,7 @@ const handleBulkGeneratePayslips = async () => {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      
+
       toast({ title: 'Report generated', description: 'Payroll report downloaded successfully.' });
     } catch (e: any) {
       toast({ title: 'Report generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
@@ -342,18 +359,18 @@ const handleBulkGeneratePayslips = async () => {
 
   const handleViewDiscrepancies = async () => {
     try {
-      const discrepancies = payrolls.filter(p => 
-        p.payment_status === 'FAILED' || 
+      const discrepancies = payrolls.filter(p =>
+        p.payment_status === 'FAILED' ||
         (p.payment_status === 'PENDING' && Number(p.net_salary || 0) <= 0)
       );
-      
+
       if (discrepancies.length === 0) {
         toast({ title: 'No discrepancies found', description: 'All payroll records appear to be in order.' });
         return;
       }
-      
-      toast({ 
-        title: 'Discrepancies found', 
+
+      toast({
+        title: 'Discrepancies found',
         description: `${discrepancies.length} payroll record(s) require attention. Check the payroll table for details.`,
         variant: 'destructive'
       });
@@ -389,7 +406,7 @@ const handleBulkGeneratePayslips = async () => {
         employeeService.getEmployees().catch(() => [] as Employee[]),
         payrollService.listSalaryStructures().catch(() => [] as SalaryStructure[]),
       ]);
-      
+
       console.log('Payroll data:', pr);
       console.log('Employee data:', emps);
       console.log('Payroll data structure:', pr.map(p => ({ id: p.id, employee: p.employee, period: `${p.period_start} to ${p.period_end}` })));
@@ -397,21 +414,21 @@ const handleBulkGeneratePayslips = async () => {
       console.log('Employee data length:', emps.length);
       console.log('Payroll data length:', pr.length);
       console.log('Salary structures:', salaryStructures);
-      
+
       // Debug specific employee ID 8
       const employee8 = emps.find(e => e.id === 8);
       console.log('Employee ID 8 from employee service:', employee8);
-      
+
       const payrollWithEmployee8 = pr.find(p => p.employee === 8);
       console.log('Payroll with employee 8:', payrollWithEmployee8);
-      
+
       // Check if employee 8 has employee_details in payroll data
       if (payrollWithEmployee8?.employee_details) {
         console.log('Employee 8 details from payroll:', payrollWithEmployee8.employee_details);
       } else {
         console.log('Employee 8 has no employee_details in payroll data');
       }
-      
+
       // Deduplicate payrolls by employee + period (start/end).
       // Backends sometimes return multiple payroll records per employee/period (different ids).
       // Group them and pick the best candidate per group to avoid duplicate rows in the UI.
@@ -450,7 +467,7 @@ const handleBulkGeneratePayslips = async () => {
 
       // Build employee map with proper name resolution
       const map: EmployeeMap = {};
-      
+
       // First, try to extract employee details from payroll data if available
       pr.forEach(payroll => {
         if (payroll.employee_details) {
@@ -459,7 +476,7 @@ const handleBulkGeneratePayslips = async () => {
           const lastName = emp.lname || emp.last_name || '';
           const fullName = `${firstName} ${lastName}`.trim();
           const displayName = emp.name || fullName || emp.email || `Employee ${emp.id}`;
-          
+
           map[emp.id] = {
             name: displayName,
             email: emp.email || '',
@@ -467,17 +484,17 @@ const handleBulkGeneratePayslips = async () => {
           };
         }
       });
-      
+
       // Then add employees from the employee service
       (emps as Employee[]).forEach(e => {
         // Try different field name combinations for names
         const firstName = e.fname || e.first_name || e.firstName || '';
         const lastName = e.lname || e.last_name || e.lastName || '';
         const fullName = `${firstName} ${lastName}`.trim();
-        
+
         // Use name field if available, otherwise construct from parts
         const displayName = e.name || fullName || e.email || `Employee ${e.id}`;
-        
+
         map[e.id] = {
           name: displayName,
           email: e.email,
@@ -493,24 +510,24 @@ const handleBulkGeneratePayslips = async () => {
       const missingIds = Array.from(new Set(pr.map(p => p.employee))).filter(id => !map[id]);
       console.log('Missing employee IDs:', missingIds);
       console.log('All payroll employee IDs:', pr.map(p => p.employee));
-      
+
       if (missingIds.length > 0) {
         console.log('Attempting to fetch missing employee details...');
-        
+
         // Special debug for employee ID 8
         if (missingIds.includes(8)) {
           console.log('🔍 DEBUGGING EMPLOYEE ID 8 - Attempting direct fetch...');
           try {
             const directEmployee8 = await employeeService.getEmployee(8);
             console.log('Direct fetch result for employee 8:', directEmployee8);
-            
+
             // If we found employee 8, add it to the map immediately
             if (directEmployee8) {
               const firstName = directEmployee8.fname || directEmployee8.first_name || directEmployee8.firstName || '';
               const lastName = directEmployee8.lname || directEmployee8.last_name || directEmployee8.lastName || '';
               const fullName = `${firstName} ${lastName}`.trim();
               const displayName = directEmployee8.name || fullName || directEmployee8.email || `Employee ${directEmployee8.id}`;
-              
+
               map[directEmployee8.id] = {
                 name: displayName,
                 email: directEmployee8.email,
@@ -522,21 +539,21 @@ const handleBulkGeneratePayslips = async () => {
             console.error('Direct fetch error for employee 8:', error);
           }
         }
-        
+
         const details = await Promise.allSettled(missingIds.map(id => employeeService.getEmployee(id)));
         details.forEach((result, index) => {
           if (result.status === 'fulfilled' && result.value) {
             const d = result.value;
             console.log(`Successfully fetched employee ${d.id}:`, d);
-            
+
             // Try different field name combinations for names
             const firstName = d.fname || d.first_name || d.firstName || '';
             const lastName = d.lname || d.last_name || d.lastName || '';
             const fullName = `${firstName} ${lastName}`.trim();
-            
+
             // Use name field if available, otherwise construct from parts
             const displayName = d.name || fullName || d.email || `Employee ${d.id}`;
-            
+
             map[d.id] = {
               name: displayName,
               email: d.email,
@@ -547,7 +564,7 @@ const handleBulkGeneratePayslips = async () => {
             // Log the error for debugging
             const missingId = missingIds[index];
             console.error(`Failed to fetch employee ${missingId}:`, result.status === 'rejected' ? result.reason : 'No data returned');
-            
+
             // Use a more generic fallback instead of mock data
             map[missingId] = {
               name: `Employee ${missingId}`,
@@ -558,7 +575,7 @@ const handleBulkGeneratePayslips = async () => {
           }
         });
       }
-      
+
       console.log('Final employee map:', map);
       setEmployees(map);
     } catch (e: any) {
@@ -605,14 +622,14 @@ const handleBulkGeneratePayslips = async () => {
             <p className="text-muted-foreground">Manage salary calculations and disbursements</p>
           </div>
           <div className="flex items-center gap-3">
-            <select 
+            <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
-              <option>December 2024</option>
-              <option>November 2024</option>
-              <option>October 2024</option>
+              {monthOptions.map((m: string) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
             </select>
             <Button onClick={() => setCreateOpen(true)} disabled={loading} className="cursor-pointer">
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -754,8 +771,8 @@ const handleBulkGeneratePayslips = async () => {
                       </CardTitle>
                     </CardHeader> */}
                     <CardContent className="space-y-3 px-4 py-2">
-                      <Button 
-                        className="w-full justify-start" 
+                      <Button
+                        className="w-full justify-start"
                         variant="outline"
                         onClick={handleDownloadAllPayslips}
                         disabled={loading}
@@ -763,8 +780,8 @@ const handleBulkGeneratePayslips = async () => {
                         <Download className="w-4 h-4 mr-2" />
                         Download All Payslips
                       </Button>
-                      <Button 
-                        className="w-full justify-start" 
+                      <Button
+                        className="w-full justify-start"
                         variant="outline"
                         onClick={handlePreviewPayrollRun}
                         disabled={loading}
@@ -772,8 +789,8 @@ const handleBulkGeneratePayslips = async () => {
                         <Eye className="w-4 h-4 mr-2" />
                         Preview Payroll Run
                       </Button>
-                      <Button 
-                        className="w-full justify-start" 
+                      <Button
+                        className="w-full justify-start"
                         variant="outline"
                         onClick={handleGenerateReports}
                         disabled={loading}
@@ -781,8 +798,8 @@ const handleBulkGeneratePayslips = async () => {
                         <TrendingUp className="w-4 h-4 mr-2" />
                         Generate Reports
                       </Button>
-                      <Button 
-                        className="w-full justify-start" 
+                      <Button
+                        className="w-full justify-start"
                         variant="outline"
                         onClick={handleViewDiscrepancies}
                         disabled={loading}
@@ -843,221 +860,220 @@ const handleBulkGeneratePayslips = async () => {
                     <span className="text-sm font-medium">Select All</span>
                   </div>
 
-              <div className="overflow-x-auto rounded-xl border shadow-sm">
-                <table className="w-full min-w-[1400px] table-fixed">
-                  <thead className="sticky top-0 z-10 text-white">
-                    <tr className="bg-gradient-to-r from-purple-600 to-purple-700">
-                      <th className="w-12 px-2 py-4">
-                        <input type="checkbox" className="rounded border-white/30 text-white focus:ring-white/50 cursor-pointer" disabled />
-                      </th>
-                      <th className="w-[260px] text-left px-4 py-4 text-sm font-semibold">Employee</th>
-                      <th className="w-[220px] text-left px-4 py-4 text-sm font-semibold">Period</th>
-                      <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Gross</th>
-                      <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Tax</th>
-                      <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Statutory</th>
-                      <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Deductions</th>
-                      <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Net</th>
-                      <th className="w-[140px] text-center px-4 py-4 text-sm font-semibold">Status</th>
-                      <th className="w-[160px] text-center px-4 py-4 text-sm font-semibold">Paid On</th>
-                      <th className="w-[180px] text-center px-4 py-4 text-sm font-semibold">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={11} className="px-6 py-12 text-center text-gray-500">
-                          <div className="animate-spin w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full mx-auto mb-2"></div>
-                          Loading payroll data...
-                        </td>
-                      </tr>
-                    ) : filtered.length === 0 ? (
-                      <tr>
-                        <td colSpan={11} className="px-6 py-12 text-center text-gray-500">No payroll records found</td>
-                      </tr>
-                    ) : (
-                      filtered.map((p, idx) => {
-                        const emp = employees[p.employee];
-                        const name = emp?.name || `Employee ${p.employee}`;
-                        const dept = emp?.department || 'Unknown';
-                        const slip = payslips.find(ps => ps.payroll === p.id);
-                        const isSelected = selectedEmployees.includes(p.employee);
-
-                        return (
-                          <tr
-                            key={p.id}
-                            className={`transition-all duration-200 hover:bg-purple-50 ${
-                              idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                            } ${isSelected ? 'ring-2 ring-purple-200 bg-purple-25' : ''}`}
-                          >
-                            {/* Checkbox */}
-                            <td className="px-2 py-3">
-                              <div className="flex justify-center">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => handleEmployeeSelect(p.employee)}
-                                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 focus:ring-offset-0 cursor-pointer"
-                                />
-                              </div>
-                            </td>
-
-                            {/* Employee Info */}
-                            <td className="px-4 py-3">
-                              <div className="min-w-0">
-                                <div className="font-semibold text-gray-900 truncate text-sm">{name}</div>
-                                <div className="text-xs text-gray-500 truncate">
-                                  ID: {p.employee} • {dept}
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Period */}
-                            <td className="px-4 py-3">
-                              <div className="text-gray-700 min-w-0">
-                                <div className="font-medium text-xs truncate">
-                                  {p.period_start} → {p.period_end}
-                                </div>
-                                <div className="text-xs text-gray-500 truncate">
-                                  {p.period_end
-                                    ? new Date(p.period_end).toLocaleDateString("en-US", {
-                                        month: "short",
-                                        year: "numeric",
-                                      })
-                                    : "—"}
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Gross Salary */}
-                            <td className="px-4 py-3 text-right">
-                              <div className="font-semibold text-green-700 text-xs">${Number(p.gross_salary || 0).toLocaleString()}</div>
-                            </td>
-
-                            {/* Tax */}
-                            <td className="px-4 py-3 text-right">
-                              <div className="font-medium text-red-600 text-xs">${Number(p.tax_amount || 0).toLocaleString()}</div>
-                            </td>
-
-                            {/* Statutory Deductions */}
-                            <td className="px-4 py-3 text-right">
-                              <div className="font-medium text-orange-500 text-xs">${Number(p.statutory_deductions || 0).toLocaleString()}</div>
-                            </td>
-
-                            {/* Deductions */}
-                            <td className="px-4 py-3 text-right">
-                              <div className="font-medium text-orange-600 text-xs">${Number(p.total_deductions || 0).toLocaleString()}</div>
-                            </td>
-
-                            {/* Net Salary */}
-                            {/** Net salary - highlight if negative and compute numeric value once */}
-                            {(() => {
-                              const netNum = Number(p.net_salary || 0);
-                              const netClass = netNum < 0 ? 'text-red-600' : 'text-blue-700';
-                              return (
-                                <td className="px-4 py-3 text-right">
-                                  <div className={`font-bold ${netClass} text-xs whitespace-nowrap`}>${netNum.toLocaleString()}</div>
-                                  {netNum < 0 && (
-                                    <div className="text-xs text-red-600 mt-1">Negative net — check salary structure</div>
-                                  )}
-                                </td>
-                              );
-                            })()}
-
-                            {/* Status */}
-                            <td className="px-4 py-3 text-center">
-                              <div className="flex items-center justify-center">
-                                {getStatusBadge(p.payment_status)}
-                              </div>
-                            </td>
-
-                            {/* Paid On */}
-                            <td className="px-4 py-3 text-center">
-                              <div className="text-xs text-gray-600">
-                                {p.paid_on ? new Date(p.paid_on).toLocaleDateString() : '—'}
-                              </div>
-                            </td>
-
-                            {/* Actions */}
-                            <td className="px-4 py-3 text-center">
-                              <div className="flex justify-center items-center gap-1 whitespace-nowrap">
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  className="h-7 w-7 p-0 hover:bg-gray-100 border-gray-200 bg-transparent flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105"
-                                  onClick={() => handlePreviewPayroll(p.id)}
-                                  title="Preview Payroll"
-                                >
-                                  <Eye className="w-3 h-3" />
-                                </Button>
-
-                                {/* Inspect JSON button removed */}
-
-                                <Button 
-                                  size="sm" 
-                                  className="h-7 px-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
-                                  onClick={() => handleCalculatePayroll(p.id)}
-                                >
-                                  <Calculator className="w-3 h-3 mr-1" />
-                                  Calc
-                                </Button>
-
-                                {p.payment_status === 'PENDING' ? (
-                                  (() => {
-                                    const netNum = Number(p.net_salary || 0);
-                                    const disabled = netNum <= 0;
-                                    return (
-                                      <Button 
-                                        size="sm" 
-                                        className={`h-7 px-2 ${disabled ? 'bg-gray-300 text-gray-700 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'} text-xs font-medium flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95`}
-                                        onClick={() => {
-                                          if (disabled) {
-                                            toast({ title: 'Cannot pay', description: 'Net salary is non-positive. Fix salary structure or deductions before paying.', variant: 'destructive' });
-                                            return;
-                                          }
-                                          handlePayPayroll(p.id);
-                                        }}
-                                      >
-                                        Pay
-                                      </Button>
-                                    );
-                                  })()
-                                ) : slip?.payslip_pdf_url ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-blue-600 hover:text-blue-700 border-blue-200 text-xs font-medium bg-transparent flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
-                                    onClick={() => window.open(slip.payslip_pdf_url, '_blank')}
-                                  >
-                                    PDF
-                                  </Button>
-                                ) : (
-                                  <Badge
-                                    variant="secondary"
-                                    className="h-7 px-2 bg-green-100 text-green-800 text-xs font-medium flex-shrink-0"
-                                  >
-                                    Paid
-                                  </Badge>
-                                )}
-
-                                {p.payment_status === 'PENDING' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-gray-700 hover:text-gray-900 border-gray-200 text-xs font-medium bg-transparent flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105"
-                                    onClick={() => { setEditPayrollId(p.id); setEditOpen(true); }}
-                                  >
-                                    Edit
-                                  </Button>
-                                )}
-                              </div>
+                  <div className="overflow-x-auto rounded-xl border shadow-sm">
+                    <table className="w-full min-w-[1400px] table-fixed">
+                      <thead className="sticky top-0 z-10 text-white">
+                        <tr className="bg-gradient-to-r from-purple-600 to-purple-700">
+                          <th className="w-12 px-2 py-4">
+                            <input type="checkbox" className="rounded border-white/30 text-white focus:ring-white/50 cursor-pointer" disabled />
+                          </th>
+                          <th className="w-[260px] text-left px-4 py-4 text-sm font-semibold">Employee</th>
+                          <th className="w-[220px] text-left px-4 py-4 text-sm font-semibold">Period</th>
+                          <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Gross</th>
+                          <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Tax</th>
+                          <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Statutory</th>
+                          <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Deductions</th>
+                          <th className="w-[120px] text-right px-4 py-4 text-sm font-semibold">Net</th>
+                          <th className="w-[140px] text-center px-4 py-4 text-sm font-semibold">Status</th>
+                          <th className="w-[160px] text-center px-4 py-4 text-sm font-semibold">Paid On</th>
+                          <th className="w-[180px] text-center px-4 py-4 text-sm font-semibold">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {loading ? (
+                          <tr>
+                            <td colSpan={11} className="px-6 py-12 text-center text-gray-500">
+                              <div className="animate-spin w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full mx-auto mb-2"></div>
+                              Loading payroll data...
                             </td>
                           </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                        ) : filtered.length === 0 ? (
+                          <tr>
+                            <td colSpan={11} className="px-6 py-12 text-center text-gray-500">No payroll records found</td>
+                          </tr>
+                        ) : (
+                          filtered.map((p, idx) => {
+                            const emp = employees[p.employee];
+                            const name = emp?.name || `Employee ${p.employee}`;
+                            const dept = emp?.department || 'Unknown';
+                            const slip = payslips.find(ps => ps.payroll === p.id);
+                            const isSelected = selectedEmployees.includes(p.employee);
+
+                            return (
+                              <tr
+                                key={p.id}
+                                className={`transition-all duration-200 hover:bg-purple-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                  } ${isSelected ? 'ring-2 ring-purple-200 bg-purple-25' : ''}`}
+                              >
+                                {/* Checkbox */}
+                                <td className="px-2 py-3">
+                                  <div className="flex justify-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => handleEmployeeSelect(p.employee)}
+                                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 focus:ring-offset-0 cursor-pointer"
+                                    />
+                                  </div>
+                                </td>
+
+                                {/* Employee Info */}
+                                <td className="px-4 py-3">
+                                  <div className="min-w-0">
+                                    <div className="font-semibold text-gray-900 truncate text-sm">{name}</div>
+                                    <div className="text-xs text-gray-500 truncate">
+                                      ID: {p.employee} • {dept}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* Period */}
+                                <td className="px-4 py-3">
+                                  <div className="text-gray-700 min-w-0">
+                                    <div className="font-medium text-xs truncate">
+                                      {p.period_start} → {p.period_end}
+                                    </div>
+                                    <div className="text-xs text-gray-500 truncate">
+                                      {p.period_end
+                                        ? new Date(p.period_end).toLocaleDateString("en-US", {
+                                          month: "short",
+                                          year: "numeric",
+                                        })
+                                        : "—"}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* Gross Salary */}
+                                <td className="px-4 py-3 text-right">
+                                  <div className="font-semibold text-green-700 text-xs">${Number(p.gross_salary || 0).toLocaleString()}</div>
+                                </td>
+
+                                {/* Tax */}
+                                <td className="px-4 py-3 text-right">
+                                  <div className="font-medium text-red-600 text-xs">${Number(p.tax_amount || 0).toLocaleString()}</div>
+                                </td>
+
+                                {/* Statutory Deductions */}
+                                <td className="px-4 py-3 text-right">
+                                  <div className="font-medium text-orange-500 text-xs">${Number(p.statutory_deductions || 0).toLocaleString()}</div>
+                                </td>
+
+                                {/* Deductions */}
+                                <td className="px-4 py-3 text-right">
+                                  <div className="font-medium text-orange-600 text-xs">${Number(p.total_deductions || 0).toLocaleString()}</div>
+                                </td>
+
+                                {/* Net Salary */}
+                                {/** Net salary - highlight if negative and compute numeric value once */}
+                                {(() => {
+                                  const netNum = Number(p.net_salary || 0);
+                                  const netClass = netNum < 0 ? 'text-red-600' : 'text-blue-700';
+                                  return (
+                                    <td className="px-4 py-3 text-right">
+                                      <div className={`font-bold ${netClass} text-xs whitespace-nowrap`}>${netNum.toLocaleString()}</div>
+                                      {netNum < 0 && (
+                                        <div className="text-xs text-red-600 mt-1">Negative net — check salary structure</div>
+                                      )}
+                                    </td>
+                                  );
+                                })()}
+
+                                {/* Status */}
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex items-center justify-center">
+                                    {getStatusBadge(p.payment_status)}
+                                  </div>
+                                </td>
+
+                                {/* Paid On */}
+                                <td className="px-4 py-3 text-center">
+                                  <div className="text-xs text-gray-600">
+                                    {p.paid_on ? new Date(p.paid_on).toLocaleDateString() : '—'}
+                                  </div>
+                                </td>
+
+                                {/* Actions */}
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex justify-center items-center gap-1 whitespace-nowrap">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 w-7 p-0 hover:bg-gray-100 border-gray-200 bg-transparent flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105"
+                                      onClick={() => handlePreviewPayroll(p.id)}
+                                      title="Preview Payroll"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                    </Button>
+
+                                    {/* Inspect JSON button removed */}
+
+                                    <Button
+                                      size="sm"
+                                      className="h-7 px-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
+                                      onClick={() => handleCalculatePayroll(p.id)}
+                                    >
+                                      <Calculator className="w-3 h-3 mr-1" />
+                                      Calc
+                                    </Button>
+
+                                    {p.payment_status === 'PENDING' ? (
+                                      (() => {
+                                        const netNum = Number(p.net_salary || 0);
+                                        const disabled = netNum <= 0;
+                                        return (
+                                          <Button
+                                            size="sm"
+                                            className={`h-7 px-2 ${disabled ? 'bg-gray-300 text-gray-700 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'} text-xs font-medium flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95`}
+                                            onClick={() => {
+                                              if (disabled) {
+                                                toast({ title: 'Cannot pay', description: 'Net salary is non-positive. Fix salary structure or deductions before paying.', variant: 'destructive' });
+                                                return;
+                                              }
+                                              handlePayPayroll(p.id);
+                                            }}
+                                          >
+                                            Pay
+                                          </Button>
+                                        );
+                                      })()
+                                    ) : slip?.payslip_pdf_url ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-2 text-blue-600 hover:text-blue-700 border-blue-200 text-xs font-medium bg-transparent flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
+                                        onClick={() => window.open(slip.payslip_pdf_url, '_blank')}
+                                      >
+                                        PDF
+                                      </Button>
+                                    ) : (
+                                      <Badge
+                                        variant="secondary"
+                                        className="h-7 px-2 bg-green-100 text-green-800 text-xs font-medium flex-shrink-0"
+                                      >
+                                        Paid
+                                      </Badge>
+                                    )}
+
+                                    {p.payment_status === 'PENDING' && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-2 text-gray-700 hover:text-gray-900 border-gray-200 text-xs font-medium bg-transparent flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105"
+                                        onClick={() => { setEditPayrollId(p.id); setEditOpen(true); }}
+                                      >
+                                        Edit
+                                      </Button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-200">
@@ -1139,8 +1155,8 @@ const handleBulkGeneratePayslips = async () => {
                         Object.entries(employees)
                           .filter(([id, emp]) => {
                             const lower = search.trim().toLowerCase();
-                            return lower === '' || 
-                              emp.name.toLowerCase().includes(lower) || 
+                            return lower === '' ||
+                              emp.name.toLowerCase().includes(lower) ||
                               emp.email?.toLowerCase().includes(lower) ||
                               emp.department?.toLowerCase().includes(lower);
                           })
@@ -1148,13 +1164,12 @@ const handleBulkGeneratePayslips = async () => {
                             const employeeId = Number(id);
                             const payroll = payrolls.find(p => p.employee === employeeId);
                             const status = payroll?.payment_status || 'No Payroll';
-                            
+
                             return (
                               <div
                                 key={id}
-                                className={`grid grid-cols-[1fr_200px_200px_150px_120px] gap-4 px-6 py-4 text-sm items-center transition-colors hover:bg-blue-50 ${
-                                  idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                                }`}
+                                className={`grid grid-cols-[1fr_200px_200px_150px_120px] gap-4 px-6 py-4 text-sm items-center transition-colors hover:bg-blue-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                  }`}
                               >
                                 <div className="min-w-0">
                                   <div className="font-semibold text-gray-900 truncate">{emp.name}</div>
@@ -1216,70 +1231,71 @@ const handleBulkGeneratePayslips = async () => {
                     const status = p.payment_status === 'PAID' ? 'approved' : 'pending';
                     const slip = payslips.find(ps => ps.payroll === p.id);
                     return (
-                        <Card key={p.id} className="transition-transform transform hover:-translate-y-0.5 hover:shadow-md rounded-lg overflow-hidden border border-gray-100">
-                          <div className="flex">
-                            <div className="w-1 bg-gradient-to-b from-[#6C63FF] to-[#FF6B6B] opacity-80" />
-                            <div className="flex-1 p-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <div>
-                                  <h3 className="font-medium text-sm">{name}</h3>
-                                  <p className="text-xs text-muted-foreground">ID: {p.employee}</p>
-                                </div>
-                                {getStatusBadge(status)}
+                      <Card key={p.id} className="transition-transform transform hover:-translate-y-0.5 hover:shadow-md rounded-lg overflow-hidden border border-gray-100">
+                        <div className="flex">
+                          <div className="w-1 bg-gradient-to-b from-[#6C63FF] to-[#FF6B6B] opacity-80" />
+                          <div className="flex-1 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <h3 className="font-medium text-sm">{name}</h3>
+                                <p className="text-xs text-muted-foreground">ID: {p.employee}</p>
                               </div>
-                              <div className="space-y-1 mb-3 text-sm">
-                                <div className="flex justify-between">
-                                  <span>Net Salary:</span>
-                                  <span className="font-medium">${Number(p.net_salary || 0).toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Month:</span>
-                                  <span className="text-sm">{new Date(p.period_end).toLocaleString(undefined, { month: 'long', year: 'numeric' })}</span>
-                                </div>
+                              {getStatusBadge(status)}
+                            </div>
+                            <div className="space-y-1 mb-3 text-sm">
+                              <div className="flex justify-between">
+                                <span>Net Salary:</span>
+                                <span className="font-medium">${Number(p.net_salary || 0).toLocaleString()}</span>
                               </div>
-                              <div className="flex gap-2">
-                                {slip?.payslip_pdf_url ? (
-                                  <a href={slip.payslip_pdf_url} target="_blank" rel="noreferrer" className="flex-1">
-                                    <Button size="sm" className="w-full text-sm py-2">
-                                      <Download className="w-4 h-4 mr-2" />
-                                      Download
-                                    </Button>
-                                  </a>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    className="flex-1 text-sm py-2"
-                                    onClick={async () => {
-                                      if (p.payment_status !== 'PAID') {
-                                        toast({ title: 'Cannot generate payslip', description: 'Payslips can only be generated for payrolls with status Paid.' });
-                                        return;
-                                      }
-                                      try {
-                                        const blob = await payrollService.downloadPayslip(p.id);
-                                        const url = window.URL.createObjectURL(blob);
-                                        const a = document.createElement('a');
-                                        a.href = url;
-                                        a.download = `payslip_${p.id}.pdf`;
-                                        a.click();
-                                        window.URL.revokeObjectURL(url);
-                                      } catch (err) {
-                                        console.error('Failed to download payslip:', err);
-                                        toast({ title: 'Download failed', description: 'Could not download payslip. Please try again.', variant: 'destructive' });
-                                      }
-                                    }}
-                                  >
-                                    <Download className="w-4 h-4 mr-2" />
-                                    Generate & Download
-                                  </Button>
-                                )}
-                                <Button size="sm" variant="outline" onClick={() => { setPreviewPayrollId(p.id); setPreviewOpen(true); }} className="py-2">
-                                  <Eye className="w-4 h-4" />
-                                </Button>
+                              <div className="flex justify-between">
+                                <span>Month:</span>
+                                <span className="text-sm">{new Date(p.period_end).toLocaleString(undefined, { month: 'long', year: 'numeric' })}</span>
                               </div>
                             </div>
+                            <div className="flex gap-2">
+                              {slip?.payslip_pdf_url ? (
+                                <a href={slip.payslip_pdf_url} target="_blank" rel="noreferrer" className="flex-1">
+                                  <Button size="sm" className="w-full text-sm py-2">
+                                    <Download className="w-4 h-4 mr-2" />
+                                    Download
+                                  </Button>
+                                </a>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  className="flex-1 text-sm py-2"
+                                  onClick={async () => {
+                                    if (p.payment_status !== 'PAID') {
+                                      toast({ title: 'Cannot generate payslip', description: 'Payslips can only be generated for payrolls with status Paid.' });
+                                      return;
+                                    }
+                                    try {
+                                      const blob = await payrollService.downloadPayslip(p.id);
+                                      const url = window.URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = `payslip_${p.id}.pdf`;
+                                      a.click();
+                                      window.URL.revokeObjectURL(url);
+                                    } catch (err) {
+                                      console.error('Failed to download payslip:', err);
+                                      toast({ title: 'Download failed', description: 'Could not download payslip. Please try again.', variant: 'destructive' });
+                                    }
+                                  }}
+                                >
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Generate & Download
+                                </Button>
+                              )}
+                              <Button size="sm" variant="outline" onClick={() => { setPreviewPayrollId(p.id); setPreviewOpen(true); }} className="py-2">
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
-                        </Card>
-                      );})}
+                        </div>
+                      </Card>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -1392,8 +1408,8 @@ const handleBulkGeneratePayslips = async () => {
       <PayrollCreateModal
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
-        onSuccess={async () => { 
-          await loadData(); 
+        onSuccess={async () => {
+          await loadData();
         }}
       />
 
