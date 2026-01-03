@@ -8,16 +8,19 @@ import { hasRole, getDashboardPath, getUserRole } from '@/utils/roleUtils';
 interface RoleBasedRouteProps {
   children: React.ReactNode;
   allowedRoles: string[];
+  requiredPermission?: string;
   fallbackPath?: string;
 }
 
-const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({ 
-  children, 
-  allowedRoles, 
-  fallbackPath = '/login' 
+const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
+  children,
+  allowedRoles,
+  requiredPermission,
+  fallbackPath = '/login'
 }) => {
   const { isAuthenticated } = useAuth();
   const user = useSelector((state: RootState) => state.auth.user);
+  const permissions = useSelector((state: RootState) => state.auth.permissions);
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
 
@@ -55,6 +58,15 @@ const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
     // Redirect to appropriate dashboard based on user's role
     const redirectPath = getDashboardPath(user);
     return <Navigate to={redirectPath} replace />;
+  }
+
+  // Check required permission if specified
+  // BYPASS permission check for Admins - they have full access
+  if (requiredPermission && !permissions.includes(requiredPermission)) {
+    if (getUserRole(user) !== 'Admin') {
+      const redirectPath = getDashboardPath(user);
+      return <Navigate to={redirectPath} replace />;
+    }
   }
 
   return <>{children}</>;

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import RoleList from '@/components/admin/RoleList';
-import AddRoleModal from '@/components/admin/AddRoleModal';
+import RoleModal from '@/components/admin/RoleModal';
 import EditPermissionsModal from '@/components/admin/EditPermissionsModal';
 import rolePermissionService, { Role } from '@/services/rolePermissionService';
 import { useToast } from '@/hooks/use-toast';
 import { Shield } from 'lucide-react';
+
 
 /**
  * Roles & Permissions Content Component
@@ -13,10 +15,12 @@ import { Shield } from 'lucide-react';
 const RolesPermissionsContent: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addRoleModalOpen, setAddRoleModalOpen] = useState(false);
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [roleForDetailsEdit, setRoleForDetailsEdit] = useState<Role | null>(null);
   const [editPermissionsModalOpen, setEditPermissionsModalOpen] = useState(false);
-  const [selectedRoleForEdit, setSelectedRoleForEdit] = useState<Role | null>(null);
+  const [selectedRoleForPermissions, setSelectedRoleForPermissions] = useState<Role | null>(null);
   const { toast } = useToast();
+  const { reloadUser } = useAuth();
 
   useEffect(() => {
     loadRoles();
@@ -40,25 +44,59 @@ const RolesPermissionsContent: React.FC = () => {
         description: errorMessage,
         variant: 'destructive',
       });
-      // Set empty array on error to prevent UI issues
       setRoles([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddRoleSuccess = () => {
+  const handleRoleSaveSuccess = () => {
     loadRoles();
+    setRoleForDetailsEdit(null); // Reset after save
+  };
+
+  const handleAddRole = () => {
+    setRoleForDetailsEdit(null); // Ensure add mode
+    setRoleModalOpen(true);
+  };
+
+  const handleEditRole = (role: Role) => {
+    setRoleForDetailsEdit(role);
+    setRoleModalOpen(true);
+  };
+
+  const handleDeleteRole = async (role: Role) => {
+    if (!window.confirm(`Are you sure you want to delete the role "${role.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await rolePermissionService.deleteRole(role.id);
+      toast({
+        title: 'Success',
+        description: `Role "${role.name}" deleted successfully`,
+      });
+      loadRoles();
+    } catch (error: any) {
+      console.error('Error deleting role:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete role. It may be in use.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleEditPermissions = (role: Role) => {
-    setSelectedRoleForEdit(role);
+    setSelectedRoleForPermissions(role);
     setEditPermissionsModalOpen(true);
   };
 
-  const handleEditPermissionsSuccess = () => {
+  const handleEditPermissionsSuccess = async () => {
     loadRoles();
-    setSelectedRoleForEdit(null);
+    setSelectedRoleForPermissions(null);
+    // Refresh current user permissions to reflect changes immediately in Sidebar if applicable
+    await reloadUser();
   };
 
   return (
@@ -85,15 +123,18 @@ const RolesPermissionsContent: React.FC = () => {
       <RoleList
         roles={roles}
         loading={loading}
-        onAddRole={() => setAddRoleModalOpen(true)}
+        onAddRole={handleAddRole}
         onEditPermissions={handleEditPermissions}
+        onEditRole={handleEditRole}
+        onDeleteRole={handleDeleteRole}
       />
 
-      {/* Add Role Modal */}
-      <AddRoleModal
-        open={addRoleModalOpen}
-        onOpenChange={setAddRoleModalOpen}
-        onSuccess={handleAddRoleSuccess}
+      {/* Role Modal (Add/Edit) */}
+      <RoleModal
+        open={roleModalOpen}
+        onOpenChange={setRoleModalOpen}
+        onSuccess={handleRoleSaveSuccess}
+        roleToEdit={roleForDetailsEdit}
       />
 
       {/* Edit Permissions Modal */}
@@ -102,10 +143,11 @@ const RolesPermissionsContent: React.FC = () => {
         onOpenChange={(open) => {
           setEditPermissionsModalOpen(open);
           if (!open) {
-            setSelectedRoleForEdit(null);
+            setSelectedRoleForPermissions(null);
           }
         }}
         roles={roles}
+        initialRoleId={selectedRoleForPermissions?.id}
         onSuccess={handleEditPermissionsSuccess}
       />
     </>

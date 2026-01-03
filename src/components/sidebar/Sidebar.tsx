@@ -25,23 +25,36 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
     return sidebarItems
       .map(item => {
         // 1. Permission Check: If item has a codename, user must have that permission
-        if (item.codename && !permissions.includes(item.codename)) {
-          // Special exemption: If permissions are not loaded yet (empty) but user has role? 
-          // No, we strictly follow the requirement: "tab must vanish immediately".
+        // BYPASS permission check if user is Admin - Admins see ALL tabs
+        if (role !== 'Admin' && item.codename && !permissions.includes(item.codename)) {
           return null;
         }
 
-        // 2. Role Check: Legacy fallback, ensure user has allowed role if defined
-        if (item.allowedRoles && (!role || !item.allowedRoles.includes(role))) return null;
+        // 2. Role Check Strategy:
+        if (role === 'Admin') {
+          // ADMIN: Strictly respect allowedRoles to keep sidebar clean (hidden items stay hidden)
+          if (item.allowedRoles && !item.allowedRoles.includes('Admin')) return null;
+        } else {
+          // OTHERS: Allow permissions to OVERRIDE allowedRoles.
+          // Only check allowedRoles if no codename exists (fallback for items without permissions).
+          if (!item.codename && item.allowedRoles && (!role || !item.allowedRoles.includes(role))) return null;
+        }
 
         // 3. Filter submenu
         let submenu = item.submenu;
         if (submenu && submenu.length > 0) {
           const filteredSub = submenu.filter(sub => {
-            // Check submenu permission
-            if (sub.codename && !permissions.includes(sub.codename)) return false;
-            // Check submenu role
-            if (sub.allowedRoles && (!role || !sub.allowedRoles.includes(role))) return false;
+            // Permission check
+            if (role !== 'Admin' && sub.codename && !permissions.includes(sub.codename)) return false;
+
+            // Role check
+            if (role === 'Admin') {
+              // Admin strict check
+              if (sub.allowedRoles && !sub.allowedRoles.includes('Admin')) return false;
+            } else {
+              // Other permissive check
+              if (!sub.codename && sub.allowedRoles && (!role || !sub.allowedRoles.includes(role))) return false;
+            }
             return true;
           });
           submenu = filteredSub;

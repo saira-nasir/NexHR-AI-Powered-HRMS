@@ -14,6 +14,7 @@ import { RootState } from '@/store';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Chatbot } from '@/components/Chatbot/Chatbot'; // ✅ integrated Chatbot
 
+
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
@@ -53,57 +54,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
-  // WebSocket Listener for Real-time Permissions
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
 
-    // Use environment variable for WS URL if available, fallback to localhost
-    const wsBase = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws';
-    const wsUrl = `${wsBase}/permissions/?token=${token}`;
-
-    console.log('Connecting to Permissions WS:', wsUrl);
-
-    let ws: WebSocket | null = null;
-    try {
-      ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        console.log('✅ Permissions WS Connected');
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('📩 WS Message:', data);
-
-          // Expecting data format: { type: 'permissions_update', permissions: ['code1', 'code2'] }
-          if (data.type === 'permissions_update' && Array.isArray(data.permissions)) {
-            console.log('🔄 Updating permissions from WS');
-            dispatch(setPermissions(data.permissions));
-          }
-        } catch (e) {
-          console.error('❌ WS Error parsing message:', e);
-        }
-      };
-
-      ws.onerror = (e) => {
-        console.error('❌ WS Error:', e);
-      };
-
-      ws.onclose = () => {
-        console.log('aborted Permissions WS Closed');
-      };
-    } catch (e) {
-      console.error('Failed to create WebSocket:', e);
-    }
-
-    return () => {
-      if (ws) {
-        ws.close();
-      }
-    };
-  }, [dispatch]);
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
@@ -201,6 +152,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           <ProfileDrawer isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
         </main>
       </div>
+
+
 
       {/* ✅ Chatbot floating globally across dashboard */}
       <Chatbot />

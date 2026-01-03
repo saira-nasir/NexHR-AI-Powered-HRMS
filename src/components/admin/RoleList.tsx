@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Edit2, Plus, Users } from 'lucide-react';
+import { Edit2, Plus, Users, Trash2, Shield } from 'lucide-react';
 import rolePermissionService, { Role } from '@/services/rolePermissionService';
 
 interface RoleListProps {
@@ -16,6 +16,8 @@ interface RoleListProps {
   loading?: boolean;
   onAddRole: () => void;
   onEditPermissions: (role: Role) => void;
+  onEditRole: (role: Role) => void;
+  onDeleteRole: (role: Role) => void;
 }
 
 /**
@@ -27,6 +29,8 @@ const RoleList: React.FC<RoleListProps> = ({
   loading = false,
   onAddRole,
   onEditPermissions,
+  onEditRole,
+  onDeleteRole,
 }) => {
   if (loading) {
     return (
@@ -45,8 +49,8 @@ const RoleList: React.FC<RoleListProps> = ({
             Manage roles and their assigned permissions
           </p>
         </div>
-        <Button 
-          onClick={onAddRole} 
+        <Button
+          onClick={onAddRole}
           className="gap-2 bg-gradient-to-r from-[#6C63FF] to-[#7B73FF] hover:from-[#5B52FF] hover:to-[#6C63FF] shadow-md hover:shadow-lg transition-all duration-200"
         >
           <Plus className="h-4 w-4" />
@@ -89,8 +93,8 @@ const RoleList: React.FC<RoleListProps> = ({
             const gradientColor = gradientColors[index % gradientColors.length];
 
             return (
-              <Card 
-                key={role.id} 
+              <Card
+                key={role.id}
                 className={`
                   relative overflow-hidden group
                   bg-gradient-to-br ${gradientColor}
@@ -102,15 +106,35 @@ const RoleList: React.FC<RoleListProps> = ({
               >
                 {/* Decorative gradient overlay on hover */}
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/0 to-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                
+
                 <CardHeader className="pb-3 relative z-10">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg font-bold truncate text-foreground group-hover:text-primary transition-colors">
-                        {role.name}
+                      <CardTitle className="text-lg font-bold truncate text-foreground group-hover:text-primary transition-colors flex items-center justify-between">
+                        <span>{role.name}</span>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => { e.stopPropagation(); onEditRole(role); }}
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            title="Edit Role Details"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => { e.stopPropagation(); onDeleteRole(role); }}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            title="Delete Role"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </CardTitle>
                       {role.description && (
-                        <CardDescription className="mt-2 line-clamp-2">
+                        <CardDescription className="mt-1 line-clamp-2 text-xs">
                           {role.description}
                         </CardDescription>
                       )}
@@ -119,8 +143,8 @@ const RoleList: React.FC<RoleListProps> = ({
                 </CardHeader>
                 <CardContent className="space-y-4 relative z-10">
                   <div className="flex items-center gap-2">
-                    <Badge 
-                      variant="secondary" 
+                    <Badge
+                      variant="secondary"
                       className="font-semibold bg-white/80 backdrop-blur-sm text-primary border-primary/30 shadow-sm hover:shadow-md transition-shadow"
                     >
                       {permissionCount} permission{permissionCount !== 1 ? 's' : ''}
@@ -132,8 +156,8 @@ const RoleList: React.FC<RoleListProps> = ({
                     onClick={() => onEditPermissions(role)}
                     className="w-full gap-2 border-primary/30 hover:bg-primary hover:text-white hover:border-primary transition-all duration-200 shadow-sm hover:shadow-md"
                   >
-                    <Edit2 className="h-4 w-4" />
-                    Edit Permissions
+                    <Shield className="h-4 w-4" />
+                    Manage Permissions
                   </Button>
                 </CardContent>
               </Card>
@@ -146,4 +170,3 @@ const RoleList: React.FC<RoleListProps> = ({
 };
 
 export default RoleList;
-

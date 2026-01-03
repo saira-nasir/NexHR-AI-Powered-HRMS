@@ -19,6 +19,7 @@ interface AuthContextType {
   accessToken: string | null;
   refreshAccessToken: () => Promise<boolean>;
   loginWithGoogle: (accessToken: string) => Promise<{ success: boolean; data?: GoogleAuthResponse; message?: string }>;
+  reloadUser: () => Promise<void>;
 }
 
 
@@ -70,6 +71,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (response.status === 200) {
         dispatch(setUser(response.data));
+        // Check for permissions in response
+        if (response.data.permissions && Array.isArray(response.data.permissions)) {
+          dispatch(setPermissions(response.data.permissions));
+        }
         console.log("response data in /profile", response.data)
       }
     } catch (error) {
@@ -171,13 +176,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate('/login');
   };
 
+  const reloadUser = async () => {
+    if (accessToken) {
+      await fetchUserData(accessToken);
+    }
+  };
+
   const value = {
     login,
     logout,
     isAuthenticated,
     accessToken,
     refreshAccessToken,
-    loginWithGoogle
+    loginWithGoogle,
+    reloadUser
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
