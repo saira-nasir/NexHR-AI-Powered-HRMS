@@ -56,11 +56,13 @@ export const usePermissionSync = () => {
 
                 // 3. If we found a Role ID, fetch its permissions
                 if (roleId) {
-                    const permissionsData = await rolePermissionService.getRolePermissions(roleId);
+                    // Use getRole instead of getRolePermissions to avoid 404 if custom endpoint missing
+                    // Assuming getRole returns the role with nested permissions (standard DRF nested serializer)
+                    const roleData = await rolePermissionService.getRole(roleId);
 
-                    if (permissionsData && Array.isArray(permissionsData)) {
+                    if (roleData && roleData.permissions && Array.isArray(roleData.permissions)) {
                         // Extract codenames
-                        const permissionCodenames = permissionsData.map(p => p.codename);
+                        const permissionCodenames = roleData.permissions.map(p => p.codename);
 
                         // Update Redux Store
                         dispatch(setPermissions(permissionCodenames));
