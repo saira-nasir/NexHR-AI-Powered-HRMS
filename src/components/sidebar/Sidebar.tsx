@@ -26,8 +26,13 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
       .map(item => {
         // 1. Permission Check: If item has a codename, user must have that permission
         // BYPASS permission check if user is Admin - Admins see ALL tabs
+        // EXCEPTION: If item has allowedRoles and user's role matches, allow it even without permission
+        // This ensures employee-facing tabs (like Salary Structure) are always visible to employees
         if (role !== 'Admin' && item.codename && !permissions.includes(item.codename)) {
-          return null;
+          // Allow if user's role matches allowedRoles (fallback for role-based access)
+          if (!item.allowedRoles || !item.allowedRoles.includes(role)) {
+            return null;
+          }
         }
 
         // 2. Role Check Strategy:
@@ -44,8 +49,13 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
         let submenu = item.submenu;
         if (submenu && submenu.length > 0) {
           const filteredSub = submenu.filter(sub => {
-            // Permission check
-            if (role !== 'Admin' && sub.codename && !permissions.includes(sub.codename)) return false;
+            // Permission check with role fallback (same logic as main items)
+            if (role !== 'Admin' && sub.codename && !permissions.includes(sub.codename)) {
+              // Allow if user's role matches allowedRoles (fallback for role-based access)
+              if (!sub.allowedRoles || !sub.allowedRoles.includes(role)) {
+                return false;
+              }
+            }
 
             // Role check
             if (role === 'Admin') {

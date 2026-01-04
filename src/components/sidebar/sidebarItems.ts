@@ -67,7 +67,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/employee-salary-structure',
     icon: Receipt,
     allowedRoles: ['Employee'],
-    codename: 'salary_structure',
+    // No codename - always visible to employees since it's view-only
   },
   {
     title: 'Payslips',

@@ -384,28 +384,58 @@ const payrollService = {
   /* ---------------- Employee bank info ---------------- */
   listBankInfo: async () => {
     const { data } = await api.get<EmployeeBankInfo[]>(`${BASE}/bank-info/`);
+    console.log('📡 [payrollService] listBankInfo API response:', {
+      dataType: Array.isArray(data) ? 'Array' : typeof data,
+      dataLength: Array.isArray(data) ? data.length : 'N/A',
+      data: data,
+      firstRecord: Array.isArray(data) && data.length > 0 ? data[0] : null
+    });
     return data;
   },
 
   // Get bank info for a specific employee
+  // NOTE: Backend doesn't support ?employee= query parameter, so we fetch all and filter client-side
   getBankInfo: async (employeeId: number) => {
-    const { data } = await api.get<EmployeeBankInfo>(`${BASE}/bank-info/?employee=${employeeId}`);
-    // Backend might return array or single object
-    if (Array.isArray(data)) {
-      return data.find(bi => bi.employee === employeeId) || null;
+    try {
+      const allBankInfo = await payrollService.listBankInfo();
+      // Normalize employeeId to number for comparison
+      const normalizedEmployeeId = Number(employeeId);
+      
+      if (Array.isArray(allBankInfo)) {
+        // Find bank info where employee ID matches (handle both number and string types)
+        const found = allBankInfo.find(bi => {
+          const biEmployeeId = Number(bi.employee);
+          return biEmployeeId === normalizedEmployeeId;
+        });
+        return found || null;
+      }
+      
+      // Handle single object response
+      if (allBankInfo && typeof allBankInfo === 'object') {
+        const biEmployeeId = Number((allBankInfo as any).employee);
+        return biEmployeeId === normalizedEmployeeId ? allBankInfo as EmployeeBankInfo : null;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching bank info for employee:', employeeId, error);
+      return null;
     }
-    return data;
   },
 
   // Create bank info
   createBankInfo: async (payload: Omit<EmployeeBankInfo, 'id'>) => {
+    console.log('📤 [payrollService] createBankInfo - Sending payload:', payload);
     const { data } = await api.post<EmployeeBankInfo>(`${BASE}/bank-info/`, payload);
+    console.log('📥 [payrollService] createBankInfo - Response received:', data);
     return data;
   },
 
   // Update bank info
   updateBankInfo: async (id: number, payload: Partial<EmployeeBankInfo>) => {
+    console.log(`📤 [payrollService] updateBankInfo (ID: ${id}) - Sending payload:`, payload);
     const { data } = await api.patch<EmployeeBankInfo>(`${BASE}/bank-info/${id}/`, payload);
+    console.log(`📥 [payrollService] updateBankInfo (ID: ${id}) - Response received:`, data);
     return data;
   },
 

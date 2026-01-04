@@ -31,10 +31,21 @@ const BankInfo: React.FC = () => {
   const getUserId = (): number | null => {
     try {
       const token = localStorage.getItem('access_token');
-      if (!token) return null;
+      if (!token) {
+        console.warn('⚠️ [BankInfo] No access token found');
+        return null;
+      }
       const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.user_id || payload.id || null;
-    } catch {
+      const userId = payload.user_id || payload.id || null;
+      console.log('🔑 [BankInfo] JWT Token decoded:', {
+        fullPayload: payload,
+        user_id: payload.user_id,
+        id: payload.id,
+        extractedUserId: userId
+      });
+      return userId;
+    } catch (error) {
+      console.error('❌ [BankInfo] Error decoding JWT token:', error);
       return null;
     }
   };
@@ -51,16 +62,19 @@ const BankInfo: React.FC = () => {
         // Fetch bank info filtered by current user's employee ID
         const data = await payrollService.listBankInfo();
 
+        // Normalize userId to number for consistent comparison
+        const normalizedUserId = Number(userId);
+        
         if (data && Array.isArray(data)) {
-          // Find bank info for current user
-          const userBankInfo = data.find((bi: any) => bi.employee === userId);
+          // Find bank info for current user - use normalized comparison
+          const userBankInfo = data.find((bi: any) => Number(bi.employee) === normalizedUserId);
           if (userBankInfo) {
             setBankInfo(userBankInfo);
           }
         } else if (data && typeof data === 'object' && !Array.isArray(data)) {
           // If we get a single object, check if it belongs to current user
           const bankData = data as any;
-          if (bankData.employee === userId) {
+          if (Number(bankData.employee) === normalizedUserId) {
             setBankInfo(bankData);
           }
         }
@@ -117,31 +131,76 @@ const BankInfo: React.FC = () => {
         account_number: ibanValidation.cleanIBAN || bankInfo.account_number
       };
 
+      // Ensure userId is a number for consistency
+      const normalizedUserId = Number(userId);
+      
+      console.log('💾 [BankInfo] Saving bank info:', {
+        userId: userId,
+        normalizedUserId: normalizedUserId,
+        hasExistingId: !!bankInfo.id,
+        existingId: bankInfo.id,
+        bankInfoData: finalBankInfo
+      });
+      
       // If bankInfo has an id, it means we're updating existing data
       if (bankInfo.id) {
-        await payrollService.updateBankInfo(bankInfo.id, {
+        const payload = {
           ...finalBankInfo,
-          employee: userId
-        });
+          employee: normalizedUserId
+        };
+        console.log('🔄 [BankInfo] Updating bank info with payload:', payload);
+        const updated = await payrollService.updateBankInfo(bankInfo.id, payload);
+        console.log('✅ [BankInfo] Update response:', updated);
         toast.success('Bank information updated successfully');
+        // Update state with response data (includes ID)
+        if (updated) {
+          console.log('✅ [BankInfo] Updated bank info state with:', updated);
+          setBankInfo(updated);
+        }
       } else {
-        // Create new bank info - ensure employee ID is provided
+        // Create new bank info - ensure employee ID is provided as number
         const bankInfoWithEmployee = {
           ...finalBankInfo,
-          employee: userId
+          employee: normalizedUserId
         };
-
-        await payrollService.createBankInfo(bankInfoWithEmployee);
+        console.log('🆕 [BankInfo] Creating bank info with payload:', bankInfoWithEmployee);
+        const created = await payrollService.createBankInfo(bankInfoWithEmployee);
+        console.log('✅ [BankInfo] Create response:', created);
         toast.success('Bank information saved successfully');
+        // Update state with response data (includes ID) - CRITICAL for future updates
+        if (created) {
+          console.log('✅ [BankInfo] Created bank info state with:', created);
+          setBankInfo(created);
+        }
       }
 
-      // Refresh bank info after save
-      const data = await payrollService.listBankInfo();
-      if (data && Array.isArray(data)) {
-        const userBankInfo = data.find((bi: any) => bi.employee === userId);
-        if (userBankInfo) {
-          setBankInfo(userBankInfo);
+      // Refresh bank info after save to ensure we have latest data
+      // This is a fallback in case response doesn't include all fields
+      try {
+        console.log('🔄 [BankInfo] Refreshing bank info list after save...');
+        const data = await payrollService.listBankInfo();
+        console.log('📋 [BankInfo] All bank info from API:', data);
+        if (data && Array.isArray(data)) {
+          console.log(`🔍 [BankInfo] Looking for bank info with employee ID: ${normalizedUserId}`);
+          console.log('🔍 [BankInfo] Available bank info employee IDs:', data.map((bi: any) => ({
+            id: bi.id,
+            employee: bi.employee,
+            employeeType: typeof bi.employee,
+            normalized: Number(bi.employee)
+          })));
+          // Use normalized comparison to handle type mismatches
+          const userBankInfo = data.find((bi: any) => Number(bi.employee) === normalizedUserId);
+          if (userBankInfo) {
+            console.log('✅ [BankInfo] Found bank info after refresh:', userBankInfo);
+            setBankInfo(userBankInfo);
+          } else {
+            console.warn(`⚠️ [BankInfo] Bank info NOT found for employee ${normalizedUserId} after save!`);
+            console.warn('⚠️ [BankInfo] This might indicate an employee ID mismatch issue.');
+          }
         }
+      } catch (refreshError) {
+        console.error('❌ [BankInfo] Could not refresh bank info after save:', refreshError);
+        // Not critical - we already updated from response
       }
     } catch (error: any) {
       console.error('Bank info save error:', error);

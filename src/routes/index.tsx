@@ -300,7 +300,10 @@ export const routes: RouteObject[] = [
           {
             path: "salary-structures",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
+              <RoleBasedRoute 
+                allowedRoles={["Finance Manager", "Admin"]}
+                requiredPermission="salary_structures"
+              >
                 <SalaryStructures />
               </RoleBasedRoute>
             ),
@@ -360,7 +363,7 @@ export const routes: RouteObject[] = [
           {
             path: "employee-salary-structure",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
+              <RoleBasedRoute allowedRoles={["Employee"]}>
                 <EmployeeSalaryStructure />
               </RoleBasedRoute>
             ),

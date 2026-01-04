@@ -120,22 +120,31 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
       const employeeIdsWithBankInfo = new Set<number>();
 
       if (Array.isArray(bankInfoList)) {
+        console.log(`📊 [PayrollCreateModal] Processing ${bankInfoList.length} bank info records...`);
         bankInfoList.forEach((bankInfo: EmployeeBankInfo) => {
+          const normalizedEmployeeId = Number(bankInfo.employee);
           console.log('🔍 [PayrollCreateModal] Processing bank info:', {
             id: bankInfo.id,
             employee: bankInfo.employee,
+            employeeType: typeof bankInfo.employee,
+            normalizedEmployeeId: normalizedEmployeeId,
             bank_name: bankInfo.bank_name,
-            account_number: bankInfo.account_number
+            account_number: bankInfo.account_number ? `${bankInfo.account_number.substring(0, 4)}...` : 'N/A'
           });
           if (bankInfo.employee) {
-            employeeIdsWithBankInfo.add(Number(bankInfo.employee));
+            // Normalize to number for consistent comparison
+            employeeIdsWithBankInfo.add(normalizedEmployeeId);
+            console.log(`✅ [PayrollCreateModal] Added employee ${normalizedEmployeeId} to bank info set`);
           }
         });
       } else if (bankInfoList && typeof bankInfoList === 'object') {
         // Handle single object response
         const bi = bankInfoList as any;
         if (bi.employee) {
-          employeeIdsWithBankInfo.add(Number(bi.employee));
+          const normalizedEmployeeId = Number(bi.employee);
+          // Normalize to number for consistent comparison
+          employeeIdsWithBankInfo.add(normalizedEmployeeId);
+          console.log(`✅ [PayrollCreateModal] Added employee ${normalizedEmployeeId} to bank info set (single object)`);
         }
       }
 
@@ -146,9 +155,23 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
       console.log('✅ [PayrollCreateModal] Employee IDs from employees list:', employeesToCheck.map(e => e.id));
 
       // Cross-check: Show which employees have bank info
+      console.log('🔍 [PayrollCreateModal] Cross-checking employees with bank info...');
+      console.log('🔍 [PayrollCreateModal] Bank info employee IDs in Set:', Array.from(employeeIdsWithBankInfo));
       employeesToCheck.forEach(emp => {
-        const hasBankInfo = employeeIdsWithBankInfo.has(emp.id);
-        console.log(`🔍 [PayrollCreateModal] Employee ${emp.id} (${emp.name || emp.email}): ${hasBankInfo ? '✅ HAS bank info' : '❌ NO bank info'}`);
+        const normalizedEmpId = Number(emp.id);
+        const hasBankInfo = employeeIdsWithBankInfo.has(normalizedEmpId);
+        if (!hasBankInfo) {
+          // Show detailed debug for employees without bank info
+          console.log(`❌ [PayrollCreateModal] Employee ${emp.id} (${emp.name || emp.email}): NO bank info`, {
+            employeeId: emp.id,
+            employeeIdType: typeof emp.id,
+            normalizedEmpId: normalizedEmpId,
+            inSet: employeeIdsWithBankInfo.has(normalizedEmpId),
+            setContents: Array.from(employeeIdsWithBankInfo)
+          });
+        } else {
+          console.log(`✅ [PayrollCreateModal] Employee ${emp.id} (${emp.name || emp.email}): HAS bank info`);
+        }
       });
 
       setEmployeesWithBankInfo(employeeIdsWithBankInfo);
@@ -563,30 +586,45 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
                       console.log('⚠️ [PayrollCreateModal] No salary structure found for employee:', empId);
                     }
 
-                    // Check bank info asynchronously without blocking the UI
-                    // Use setTimeout to make this non-blocking
-                    setTimeout(async () => {
-                      if (!employeesWithBankInfo.has(empId)) {
-                        try {
-                          console.log(`🔍 Checking bank info specifically for employee ${empId}...`);
-                          const info = await payrollService.getBankInfo(empId);
-                          if (info) {
-                            console.log(`✅ Found bank info for employee ${empId}:`, info);
-                            setEmployeesWithBankInfo(prev => {
-                              const newSet = new Set(prev);
-                              newSet.add(empId);
-                              return newSet;
-                            });
+                    // Always check bank info when employee is selected (to get latest data)
+                    // This ensures we have the most up-to-date bank info, especially after employee updates it
+                    (async () => {
+                      try {
+                        console.log(`🔍 Checking bank info for employee ${empId} (refreshing latest data)...`);
+                        const info = await payrollService.getBankInfo(empId);
+                        if (info) {
+                          console.log(`✅ Found bank info for employee ${empId}:`, info);
+                          setEmployeesWithBankInfo(prev => {
+                            const newSet = new Set(prev);
+                            newSet.add(empId);
+                            return newSet;
+                          });
+                          // Only show toast if it was previously missing
+                          if (!employeesWithBankInfo.has(empId)) {
                             toast({
                               title: "Info",
                               description: "Bank details found for this employee.",
                             });
                           }
-                        } catch (err) {
-                          console.log(`❌ No bank info found for employee ${empId} via direct fetch`);
+                        } else {
+                          // Remove from set if bank info was deleted
+                          console.log(`❌ No bank info found for employee ${empId}`);
+                          setEmployeesWithBankInfo(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(empId);
+                            return newSet;
+                          });
                         }
+                      } catch (err) {
+                        console.log(`❌ No bank info found for employee ${empId} via direct fetch`);
+                        // Remove from set if fetch fails (bank info doesn't exist)
+                        setEmployeesWithBankInfo(prev => {
+                          const newSet = new Set(prev);
+                          newSet.delete(empId);
+                          return newSet;
+                        });
                       }
-                    }, 0);
+                    })();
                   }
                 }}
                 disabled={employeesLoading}
@@ -636,15 +674,54 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
                   )}
                 </SelectContent>
               </Select>
-              {formData.employee && formData.employee !== 'none' && !employeesWithBankInfo.has(parseInt(formData.employee)) && (
+              {formData.employee && formData.employee !== 'none' && !employeesWithBankInfo.has(Number(formData.employee)) && (
                 <div className="text-sm p-2 rounded-md text-amber-600 bg-amber-50 border border-amber-200">
                   <strong>Warning:</strong> Bank details missing for selected employee.
                   <br />
                   You can still create the payroll, but payment processing may fail.
                   <br />
-                  <a href="/bank-info" target="_blank" className="text-blue-600 underline hover:text-blue-800 mt-1 inline-block">
-                    Update Bank Information (Opens in new tab) →
-                  </a>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const empId = parseInt(formData.employee);
+                        try {
+                          console.log(`🔄 Manually refreshing bank info for employee ${empId}...`);
+                          const info = await payrollService.getBankInfo(empId);
+                          if (info) {
+                            setEmployeesWithBankInfo(prev => {
+                              const newSet = new Set(prev);
+                              newSet.add(empId);
+                              return newSet;
+                            });
+                            toast({
+                              title: "Success",
+                              description: "Bank details found and updated.",
+                            });
+                          } else {
+                            toast({
+                              title: "No Bank Info",
+                              description: "Bank details still not found for this employee.",
+                              variant: "destructive",
+                            });
+                          }
+                        } catch (err) {
+                          toast({
+                            title: "Error",
+                            description: "Failed to check bank info. Please try again.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      🔄 Refresh Bank Info
+                    </Button>
+                    <a href="/bank-info" target="_blank" className="text-blue-600 underline hover:text-blue-800 inline-flex items-center">
+                      Update Bank Information (Opens in new tab) →
+                    </a>
+                  </div>
                 </div>
               )}
             </div>
