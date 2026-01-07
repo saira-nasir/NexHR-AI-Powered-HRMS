@@ -59,7 +59,6 @@ const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose }) => {
           <Button variant="destructive" className="w-full" onClick={() => { logout(); onClose(); }}>Sign out</Button>
         </div>
 
-        <div className="text-xs text-gray-400 mt-4">Member since: {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}</div>
       </div>
     </HiringHandbookDrawer>
   );

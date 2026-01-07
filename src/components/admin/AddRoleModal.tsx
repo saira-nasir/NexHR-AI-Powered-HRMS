@@ -79,11 +79,22 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({
       onSuccess?.();
     } catch (error: any) {
       console.error('Error creating role:', error);
-      const errorMessage =
-        error?.response?.data?.detail ||
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to create role. Please try again.';
+      const data = error?.response?.data;
+      let errorMessage = 'Failed to create role. Please try again.';
+
+      if (typeof data === 'string') {
+        errorMessage = data;
+      } else if (data) {
+        errorMessage = data.detail || data.message || undefined as any;
+        if (!errorMessage) {
+          const firstKey = Object.keys(data)[0];
+          const val = data[firstKey];
+          if (Array.isArray(val)) errorMessage = val.join(' ');
+          else if (typeof val === 'string') errorMessage = val;
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
 
       toast({
         title: 'Error',

@@ -3,6 +3,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import RoleList from '@/components/admin/RoleList';
 import RoleModal from '@/components/admin/RoleModal';
 import EditPermissionsModal from '@/components/admin/EditPermissionsModal';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import rolePermissionService, { Role } from '@/services/rolePermissionService';
 import { useToast } from '@/hooks/use-toast';
 import { Shield } from 'lucide-react';
@@ -19,6 +28,9 @@ const RolesPermissionsContent: React.FC = () => {
   const [roleForDetailsEdit, setRoleForDetailsEdit] = useState<Role | null>(null);
   const [editPermissionsModalOpen, setEditPermissionsModalOpen] = useState(false);
   const [selectedRoleForPermissions, setSelectedRoleForPermissions] = useState<Role | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [rolePendingDelete, setRolePendingDelete] = useState<Role | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const { toast } = useToast();
   const { reloadUser } = useAuth();
 
@@ -66,24 +78,39 @@ const RolesPermissionsContent: React.FC = () => {
   };
 
   const handleDeleteRole = async (role: Role) => {
-    if (!window.confirm(`Are you sure you want to delete the role "${role.name}"? This action cannot be undone.`)) {
-      return;
-    }
+    // Open confirmation modal instead of native confirm
+    setRolePendingDelete(role);
+    setDeleteModalOpen(true);
+  };
 
+  const confirmDeleteRole = async () => {
+    if (!rolePendingDelete) return;
+    const role = rolePendingDelete;
+    setDeleteLoading(true);
     try {
       await rolePermissionService.deleteRole(role.id);
       toast({
         title: 'Success',
         description: `Role "${role.name}" deleted successfully`,
       });
+      setRolePendingDelete(null);
+      setDeleteModalOpen(false);
       loadRoles();
     } catch (error: any) {
       console.error('Error deleting role:', error);
+      const errorMessage =
+        error?.response?.data?.detail ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to delete role. It may be in use.';
+
       toast({
         title: 'Error',
-        description: 'Failed to delete role. It may be in use.',
+        description: errorMessage,
         variant: 'destructive',
       });
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -150,6 +177,34 @@ const RolesPermissionsContent: React.FC = () => {
         initialRoleId={selectedRoleForPermissions?.id}
         onSuccess={handleEditPermissionsSuccess}
       />
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden">
+          <div className="relative overflow-hidden bg-gradient-to-r from-[#FF6B6B] via-[#FF7A7A] to-[#FF8A8A] px-6 pt-6 pb-4">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
+            <DialogHeader className="relative z-10">
+              <DialogTitle className="text-white text-2xl">Confirm Delete</DialogTitle>
+              <DialogDescription className="text-white/90 mt-2">
+                Are you sure you want to delete the role "{rolePendingDelete?.name}"? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="px-6 py-6 bg-gradient-to-b from-slate-50/50 to-white">
+              <DialogFooter className="border-t border-gray-200 pt-4 mt-6 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setDeleteModalOpen(false)} disabled={deleteLoading}>Cancel</Button>
+              <Button
+                className="bg-gradient-to-r from-[#FF6B6B] to-[#FF4C4C] text-white"
+                onClick={confirmDeleteRole}
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? 'Deleting...' : 'Delete'}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
