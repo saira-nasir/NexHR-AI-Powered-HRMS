@@ -9,6 +9,7 @@ export interface User {
   primary_role?: string;
   group?: string;
   group_name?: string;
+  email?: string; // Added field
 }
 
 export const ROLES = {
@@ -44,7 +45,7 @@ export const normalizeRoleName = (raw?: string | null): UserRole | undefined => 
 // Role-based dashboard mapping - all roles now use /dashboard
 export const ROLE_DASHBOARD_MAP: Record<UserRole, string> = {
   [ROLES.HR]: '/dashboard',
-  [ROLES.ADMIN]: '/dashboard',
+  [ROLES.ADMIN]: '/admin-dashboard',
   [ROLES.FINANCE_MANAGER]: '/dashboard',
   [ROLES.EMPLOYEE]: '/dashboard'
 };
@@ -54,7 +55,11 @@ export const ROLE_DASHBOARD_MAP: Record<UserRole, string> = {
 // Get user's primary role from user data
 export const getUserRole = (user?: User | null): UserRole => {
   if (!user) return ROLES.EMPLOYEE;
-  
+
+  console.log('DEBUG getUserRole - User Input:', user); // DEBUG LOG
+  console.log('DEBUG getUserRole - Raw Role:', user.role); // DEBUG LOG
+  console.log('DEBUG getUserRole - Roles Array:', user.roles); // DEBUG LOG
+
   // Common shapes to check in order of likelihood
   // 1) roles: string[] | { name?: string; title?: string; role?: string }[]
   if (Array.isArray(user.roles) && user.roles.length > 0) {
@@ -70,7 +75,7 @@ export const getUserRole = (user?: User | null): UserRole => {
       if (arbitrary) return arbitrary as UserRole;
     }
   }
-  
+
   // 2) role object or string on user (trust backend default here)
   if (user.role) {
     if (typeof user.role === 'string') {
@@ -89,9 +94,18 @@ export const getUserRole = (user?: User | null): UserRole => {
     if (normalized) return normalized;
     return altSingleRole as UserRole;
   }
-  
-  // Default fallback: align with backend default (Finance)
-  return ROLES.FINANCE_MANAGER;
+
+  // 4) Check for Django superuser/staff flags if role is missing
+  // (Adding type assertion since is_superuser might not be in User interface yet)
+  const u = user as any;
+  if (u.is_superuser) return ROLES.ADMIN;
+  if (u.is_staff) return ROLES.ADMIN;
+
+  // Hardcoded fallback for the known admin email (failsafe)
+  if (user.email === 'admin@nexhr.com') return ROLES.ADMIN;
+
+  // Default fallback: align with safest default (Employee)
+  return ROLES.EMPLOYEE;
 };
 
 // Get dashboard path for user role - now always returns /dashboard
@@ -102,7 +116,12 @@ export const getDashboardPath = (user?: User | null): string => {
 };
 
 // Check if user has required role
-export const hasRole = (user: User | null | undefined, requiredRoles: string[]): boolean => {
+export const hasRole = (user: User | null | undefined, requiredRoles?: string[]): boolean => {
+  // If no roles are required, grant access
+  if (!requiredRoles || requiredRoles.length === 0) {
+    return true;
+  }
+
   const userRole = getUserRole(user);
   const hasAccess = requiredRoles.includes(userRole);
   return hasAccess;

@@ -75,6 +75,8 @@ const AttendanceLeave: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
   const userRole = getUserRole(user);
   const isHR = userRole === ROLES.HR;
+  const permissions = useSelector((state: RootState) => state.auth.permissions) || [];
+  const hasLeaveApproval = permissions.includes('leave_approval');
 
   // UI State
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
@@ -352,12 +354,12 @@ const AttendanceLeave: React.FC = () => {
     fetchEmployees();
   }, []);
 
-  // Fetch all leaves when component mounts (for HR view only)
+  // Fetch all leaves when component mounts (for users with leave approval permission)
   useEffect(() => {
-    if (isHR) {
+    if (hasLeaveApproval) {
       fetchAllLeaves();
     }
-  }, [isHR]);
+  }, [hasLeaveApproval]);
 
   // --- Handlers ---
 
@@ -392,6 +394,10 @@ const AttendanceLeave: React.FC = () => {
 
   // Handle leave approval (HR only)
   const handleApproveLeave = async (leaveId: number) => {
+    if (!hasLeaveApproval) {
+      toast.error('You do not have permission to approve leaves');
+      return;
+    }
     try {
       await payrollService.approveLeave(leaveId);
       toast.success('Leave approved successfully');
@@ -412,6 +418,10 @@ const AttendanceLeave: React.FC = () => {
 
   // Handle leave rejection (HR only)
   const handleRejectLeave = async (leaveId: number) => {
+    if (!hasLeaveApproval) {
+      toast.error('You do not have permission to reject leaves');
+      return;
+    }
     try {
       await payrollService.rejectLeave(leaveId);
       toast.success('Leave rejected successfully');
@@ -739,14 +749,14 @@ const AttendanceLeave: React.FC = () => {
         </div>
 
         <Tabs defaultValue="attendance" className="w-full">
-          <TabsList className={`grid w-full ${isHR ? 'grid-cols-3' : 'grid-cols-2'} bg-muted/50 p-1 rounded-xl`}>
+          <TabsList className={`grid w-full ${hasLeaveApproval ? 'grid-cols-3' : 'grid-cols-2'} bg-muted/50 p-1 rounded-xl`}>
             <TabsTrigger value="attendance" className="rounded-lg">
               <CalendarIcon className="mr-2 h-4 w-4" /> Attendance
             </TabsTrigger>
             <TabsTrigger value="leave" className="rounded-lg">
               <CalendarIcon className="mr-2 h-4 w-4" /> Leave
             </TabsTrigger>
-            {isHR && (
+            {hasLeaveApproval && (
               <TabsTrigger value="leave-approval" className="rounded-lg">
                 <UserCheck className="mr-2 h-4 w-4" /> Leave Approval
               </TabsTrigger>
@@ -1050,7 +1060,7 @@ const AttendanceLeave: React.FC = () => {
             )}
           </TabsContent>
 
-          {isHR && (
+          {hasLeaveApproval && (
             <TabsContent value="leave-approval" className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold">Leave Approval</h2>

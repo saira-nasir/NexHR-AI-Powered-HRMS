@@ -22,14 +22,30 @@ import { Button } from "@/components/ui/button";
 
 // Form validation schema using zod
 const registerFormSchema = z.object({
-  fname: z.string().min(1, "First name is required"),
-  lname: z.string().min(1, "Last name is required"),
+  fname: z.string().min(1, "First name is required").max(50, "First name is too long"),
+  lname: z.string().min(1, "Last name is required").max(50, "Last name is too long"),
   email: z.string().email("Please enter a valid email address"),
-  phone: z.string().min(7, "Phone number is required"),
+  phone: z
+    .string()
+    .min(10, "Phone number must be at least 10 digits")
+    .max(15, "Phone number is too long")
+    .regex(/^[\d\s\-\+\(\)]+$/, "Phone number can only contain digits, spaces, +, -, and parentheses")
+    .refine(
+      (val) => {
+        // Remove all non-digit characters to check actual digit count
+        const digitsOnly = val.replace(/\D/g, '');
+        return digitsOnly.length >= 10 && digitsOnly.length <= 15;
+      },
+      { message: "Phone number must contain 10-15 digits" }
+    ),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
-    .regex(/\d/, "Password must contain at least one number"),
+    .max(128, "Password is too long")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/\d/, "Password must contain at least one number")
+    .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, "Password must contain at least one special character"),
 });
 
 type RegisterFormValues = z.infer<typeof registerFormSchema>;
@@ -201,7 +217,10 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
                 Phone Number
               </FormLabel>
               <FormControl>
-                <Input placeholder="Enter phone number" {...field} />
+                <Input 
+                  placeholder="e.g., +1 (555) 123-4567 or 5551234567" 
+                  {...field} 
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -238,6 +257,9 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
                   )}
                 </button>
               </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Must be 8+ characters with uppercase, lowercase, number, and special character
+              </p>
               <FormMessage />
             </FormItem>
           )}

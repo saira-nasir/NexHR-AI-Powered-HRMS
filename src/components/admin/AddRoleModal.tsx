@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 // Use mock service for frontend testing (switch to real service when backend is ready)
-import rolePermissionService from '@/services/rolePermissionService.mock';
+import rolePermissionService from '@/services/rolePermissionService';
 
 interface AddRoleModalProps {
   open: boolean;
@@ -52,7 +52,7 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       toast({
         title: 'Validation Error',
@@ -79,12 +79,23 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({
       onSuccess?.();
     } catch (error: any) {
       console.error('Error creating role:', error);
-      const errorMessage =
-        error?.response?.data?.detail ||
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to create role. Please try again.';
-      
+      const data = error?.response?.data;
+      let errorMessage = 'Failed to create role. Please try again.';
+
+      if (typeof data === 'string') {
+        errorMessage = data;
+      } else if (data) {
+        errorMessage = data.detail || data.message || undefined as any;
+        if (!errorMessage) {
+          const firstKey = Object.keys(data)[0];
+          const val = data[firstKey];
+          if (Array.isArray(val)) errorMessage = val.join(' ');
+          else if (typeof val === 'string') errorMessage = val;
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
       toast({
         title: 'Error',
         description: errorMessage,
@@ -153,8 +164,8 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={loading}
               className="bg-gradient-to-r from-[#6C63FF] to-[#7B73FF] hover:from-[#5B52FF] hover:to-[#6C63FF] shadow-md hover:shadow-lg transition-all duration-200"
             >

@@ -13,32 +13,32 @@ const STORAGE_KEY_PERMISSIONS = 'mock_permissions';
 // Predefined mock permissions (similar to what backend would provide)
 const DEFAULT_PERMISSIONS: Permission[] = [
   // Meeting permissions
-  { id: 1, name: 'Schedule Meeting', code: 'schedule_meeting', category: 'Meeting', description: 'Create and schedule meetings' },
-  { id: 2, name: 'View All Meetings', code: 'view_all_meetings', category: 'Meeting', description: 'View all meetings in the system' },
-  { id: 3, name: 'Cancel Meeting', code: 'cancel_meeting', category: 'Meeting', description: 'Cancel scheduled meetings' },
-  { id: 4, name: 'Edit Meeting', code: 'edit_meeting', category: 'Meeting', description: 'Edit meeting details' },
+  { id: 1, name: 'Schedule Meeting', codename: 'schedule_meeting', category: 'Meeting', description: 'Create and schedule meetings' },
+  { id: 2, name: 'View All Meetings', codename: 'view_all_meetings', category: 'Meeting', description: 'View all meetings in the system' },
+  { id: 3, name: 'Cancel Meeting', codename: 'cancel_meeting', category: 'Meeting', description: 'Cancel scheduled meetings' },
+  { id: 4, name: 'Edit Meeting', codename: 'edit_meeting', category: 'Meeting', description: 'Edit meeting details' },
   
   // HR permissions
-  { id: 5, name: 'View Employees', code: 'view_employees', category: 'HR', description: 'View employee list' },
-  { id: 6, name: 'Add Employee', code: 'add_employee', category: 'HR', description: 'Add new employees' },
-  { id: 7, name: 'Edit Employee', code: 'edit_employee', category: 'HR', description: 'Edit employee information' },
-  { id: 8, name: 'Delete Employee', code: 'delete_employee', category: 'HR', description: 'Remove employees' },
-  { id: 9, name: 'Manage Attendance', code: 'manage_attendance', category: 'HR', description: 'Manage employee attendance' },
-  { id: 10, name: 'View Attendance', code: 'view_attendance', category: 'HR', description: 'View attendance records' },
+  { id: 5, name: 'View Employees', codename: 'view_employees', category: 'HR', description: 'View employee list' },
+  { id: 6, name: 'Add Employee', codename: 'add_employee', category: 'HR', description: 'Add new employees' },
+  { id: 7, name: 'Edit Employee', codename: 'edit_employee', category: 'HR', description: 'Edit employee information' },
+  { id: 8, name: 'Delete Employee', codename: 'delete_employee', category: 'HR', description: 'Remove employees' },
+  { id: 9, name: 'Manage Attendance', codename: 'manage_attendance', category: 'HR', description: 'Manage employee attendance' },
+  { id: 10, name: 'View Attendance', codename: 'view_attendance', category: 'HR', description: 'View attendance records' },
   
   // Finance permissions
-  { id: 11, name: 'View Payroll', code: 'view_payroll', category: 'Finance', description: 'View payroll information' },
-  { id: 12, name: 'Create Payroll', code: 'create_payroll', category: 'Finance', description: 'Create payroll entries' },
-  { id: 13, name: 'Manage Expenses', code: 'manage_expenses', category: 'Finance', description: 'Manage expense records' },
-  { id: 14, name: 'Approve Expenses', code: 'approve_expenses', category: 'Finance', description: 'Approve expense requests' },
-  { id: 15, name: 'View Reports', code: 'view_reports', category: 'Finance', description: 'View financial reports' },
-  { id: 16, name: 'Manage Loans', code: 'manage_loans', category: 'Finance', description: 'Manage employee loans' },
+  { id: 11, name: 'View Payroll', codename: 'view_payroll', category: 'Finance', description: 'View payroll information' },
+  { id: 12, name: 'Create Payroll', codename: 'create_payroll', category: 'Finance', description: 'Create payroll entries' },
+  { id: 13, name: 'Manage Expenses', codename: 'manage_expenses', category: 'Finance', description: 'Manage expense records' },
+  { id: 14, name: 'Approve Expenses', codename: 'approve_expenses', category: 'Finance', description: 'Approve expense requests' },
+  { id: 15, name: 'View Reports', codename: 'view_reports', category: 'Finance', description: 'View financial reports' },
+  { id: 16, name: 'Manage Loans', codename: 'manage_loans', category: 'Finance', description: 'Manage employee loans' },
   
   // Admin permissions
-  { id: 17, name: 'Manage Roles', code: 'manage_roles', category: 'Admin', description: 'Create and manage roles' },
-  { id: 18, name: 'Assign Roles', code: 'assign_roles', category: 'Admin', description: 'Assign roles to users' },
-  { id: 19, name: 'System Settings', code: 'system_settings', category: 'Admin', description: 'Access system settings' },
-  { id: 20, name: 'User Management', code: 'user_management', category: 'Admin', description: 'Manage user accounts' },
+  { id: 17, name: 'Manage Roles', codename: 'manage_roles', category: 'Admin', description: 'Create and manage roles' },
+  { id: 18, name: 'Assign Roles', codename: 'assign_roles', category: 'Admin', description: 'Assign roles to users' },
+  { id: 19, name: 'System Settings', codename: 'system_settings', category: 'Admin', description: 'Access system settings' },
+  { id: 20, name: 'User Management', codename: 'user_management', category: 'Admin', description: 'Manage user accounts' },
 ];
 
 // Initialize mock data in localStorage

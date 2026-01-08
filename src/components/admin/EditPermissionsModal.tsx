@@ -19,31 +19,33 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Save, X, Shield } from 'lucide-react';
-// Use mock service for frontend testing (switch to real service when backend is ready)
-import rolePermissionService from '@/services/rolePermissionService.mock';
-import type { Role, Permission } from '@/services/rolePermissionService';
+import rolePermissionService, { Role, Permission } from '@/services/rolePermissionService';
 
 interface EditPermissionsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   roles: Role[];
   onSuccess?: () => void;
+  initialRoleId?: number; // Pre-select a role
 }
 
 /**
  * Edit Permissions Modal Component
  * Allows admin to assign permissions to roles, grouped by categories
- * Based on the reference design with role selector and category-based permissions
+ * Updated to support pre-selection
  */
 const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
   open,
   onOpenChange,
   roles,
   onSuccess,
+  initialRoleId,
 }) => {
-  const [selectedRoleId, setSelectedRoleId] = useState<string>('');
+  const [selectedRoleId, setSelectedRoleId] = useState<string>(
+    initialRoleId ? String(initialRoleId) : ''
+  );
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
-  const [selectedPermissionIds, setSelectedPermissionIds] = useState<Set<number>>(
+  const [selectedPermissionCodenames, setSelectedPermissionCodenames] = useState<Set<string>>(
     new Set()
   );
   const [loading, setLoading] = useState(false);
@@ -67,15 +69,21 @@ const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
   useEffect(() => {
     if (open) {
       loadPermissions();
+      if (initialRoleId) {
+        setSelectedRoleId(String(initialRoleId));
+      }
+    } else {
+      // Reset when closed (optional, but good for clearing state if reused)
+      setSelectedRoleId('');
     }
-  }, [open]);
+  }, [open, initialRoleId]);
 
   // Load role permissions when role is selected
   useEffect(() => {
     if (open && selectedRoleId) {
       loadRolePermissions(Number(selectedRoleId));
     } else {
-      setSelectedPermissionIds(new Set());
+      setSelectedPermissionCodenames(new Set());
     }
   }, [open, selectedRoleId]);
 
@@ -86,18 +94,11 @@ const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
       setAllPermissions(permissions || []);
     } catch (error: any) {
       console.error('Error loading permissions:', error);
-      const errorMessage =
-        error?.response?.data?.detail ||
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to load permissions. Please try again.';
-      
       toast({
         title: 'Error Loading Permissions',
-        description: errorMessage,
+        description: 'Failed to load permissions.',
         variant: 'destructive',
       });
-      // Set empty array on error to prevent UI issues
       setAllPermissions([]);
     } finally {
       setLoadingPermissions(false);
@@ -107,32 +108,27 @@ const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
   const loadRolePermissions = async (roleId: number) => {
     try {
       const role = await rolePermissionService.getRole(roleId);
-      const permissionIds = role.permissions?.map((p) => p.id) || role.permission_ids || [];
-      setSelectedPermissionIds(new Set(permissionIds));
+      // Extract codenames from permission objects or use string array if provided (though interface says Permission[])
+      const codenames = role.permissions?.map((p) => p.codename) || [];
+      setSelectedPermissionCodenames(new Set(codenames));
     } catch (error: any) {
       console.error('Error loading role permissions:', error);
-      const errorMessage =
-        error?.response?.data?.detail ||
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to load role permissions. Please try again.';
-      
       toast({
         title: 'Error Loading Role Permissions',
-        description: errorMessage,
+        description: 'Failed to load role permissions.',
         variant: 'destructive',
       });
-      setSelectedPermissionIds(new Set());
+      setSelectedPermissionCodenames(new Set());
     }
   };
 
-  const handlePermissionToggle = (permissionId: number, checked: boolean) => {
-    setSelectedPermissionIds((prev) => {
+  const handlePermissionToggle = (codename: string, checked: boolean) => {
+    setSelectedPermissionCodenames((prev) => {
       const newSet = new Set(prev);
       if (checked) {
-        newSet.add(permissionId);
+        newSet.add(codename);
       } else {
-        newSet.delete(permissionId);
+        newSet.delete(codename);
       }
       return newSet;
     });
@@ -140,18 +136,14 @@ const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
 
   const handleSave = async () => {
     if (!selectedRoleId) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please select a role',
-        variant: 'destructive',
-      });
+      toast({ title: 'Validation Error', description: 'Please select a role', variant: 'destructive' });
       return;
     }
 
     setLoading(true);
     try {
       await rolePermissionService.updateRolePermissions(Number(selectedRoleId), {
-        permission_ids: Array.from(selectedPermissionIds),
+        permissions: Array.from(selectedPermissionCodenames),
       });
 
       const selectedRole = roles.find((r) => r.id === Number(selectedRoleId));
@@ -164,15 +156,9 @@ const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
       onSuccess?.();
     } catch (error: any) {
       console.error('Error updating permissions:', error);
-      const errorMessage =
-        error?.response?.data?.detail ||
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to update permissions. Please try again.';
-
       toast({
         title: 'Error',
-        description: errorMessage,
+        description: error?.response?.data?.message || 'Failed to update permissions.',
         variant: 'destructive',
       });
     } finally {
@@ -211,8 +197,8 @@ const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
               onValueChange={setSelectedRoleId}
               disabled={loading || loadingPermissions}
             >
-              <SelectTrigger 
-                id="role-select" 
+              <SelectTrigger
+                id="role-select"
                 className="w-full h-11 border-primary/20 focus:border-primary focus:ring-primary/20 bg-white shadow-sm hover:border-primary/40 transition-colors"
               >
                 <SelectValue placeholder="Select a role..." />
@@ -251,19 +237,19 @@ const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {permissions.map((permission) => {
-                      const isChecked = selectedPermissionIds.has(permission.id);
+                      const isChecked = selectedPermissionCodenames.has(permission.codename);
                       return (
                         <div
                           key={permission.id}
                           className={`
                             group relative flex items-center space-x-3 p-4 rounded-lg border transition-all duration-200
-                            ${isChecked 
-                              ? 'border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-md shadow-primary/10' 
+                            ${isChecked
+                              ? 'border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-md shadow-primary/10'
                               : 'border-gray-200 bg-white hover:border-primary/40 hover:bg-gradient-to-br hover:from-primary/5 hover:to-transparent hover:shadow-sm'
                             }
                             ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer transform hover:scale-[1.02]'}
                           `}
-                          onClick={() => !loading && handlePermissionToggle(permission.id, !isChecked)}
+                          onClick={() => !loading && handlePermissionToggle(permission.codename, !isChecked)}
                         >
                           {isChecked && (
                             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent rounded-lg"></div>
@@ -272,16 +258,15 @@ const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
                             id={`permission-${permission.id}`}
                             checked={isChecked}
                             onCheckedChange={(checked) =>
-                              handlePermissionToggle(permission.id, checked === true)
+                              handlePermissionToggle(permission.codename, checked === true)
                             }
                             disabled={loading}
                             className="pointer-events-none relative z-10"
                           />
                           <Label
                             htmlFor={`permission-${permission.id}`}
-                            className={`text-sm font-medium cursor-pointer flex-1 leading-relaxed relative z-10 ${
-                              isChecked ? 'text-primary' : 'text-foreground'
-                            }`}
+                            className={`text-sm font-medium cursor-pointer flex-1 leading-relaxed relative z-10 ${isChecked ? 'text-primary' : 'text-foreground'
+                              }`}
                           >
                             {permission.name}
                           </Label>
@@ -325,10 +310,10 @@ const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
 
         <DialogFooter className="border-t border-gray-200 bg-gradient-to-r from-slate-50 to-white px-6 py-4 flex items-center justify-between">
           <div className="text-sm font-medium">
-            {selectedRoleId && selectedPermissionIds.size > 0 && (
+            {selectedRoleId && selectedPermissionCodenames.size > 0 && (
               <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary/10 to-primary/5 text-primary border border-primary/20">
                 <Shield className="h-3.5 w-3.5" />
-                {selectedPermissionIds.size} permission{selectedPermissionIds.size !== 1 ? 's' : ''} selected
+                {selectedPermissionCodenames.size} permission{selectedPermissionCodenames.size !== 1 ? 's' : ''} selected
               </span>
             )}
           </div>

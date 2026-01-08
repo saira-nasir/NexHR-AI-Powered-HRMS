@@ -89,6 +89,33 @@ const SalaryStructureModal: React.FC<SalaryStructureModalProps> = ({
     e.preventDefault();
     setLoading(true);
 
+    // Validation: Negative Values
+    if (
+      parseFloat(formData.basic_pay) < 0 ||
+      parseFloat(formData.allowances) < 0 ||
+      parseFloat(formData.deductions) < 0 ||
+      parseFloat(formData.tax) < 0
+    ) {
+      toast({
+        title: "Validation Error",
+        description: "Financial values cannot be negative.",
+        variant: "destructive"
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Validation: Effective Dates
+    if (dateTo && dateFrom && dateTo < dateFrom) {
+      toast({
+        title: "Validation Error",
+        description: "Effective To date cannot be before Effective From date.",
+        variant: "destructive"
+      });
+      setLoading(false);
+      return;
+    }
+
     try {
       const payload = {
         ...formData,
@@ -127,7 +154,7 @@ const SalaryStructureModal: React.FC<SalaryStructureModalProps> = ({
             {salaryStructure ? 'Edit Salary Structure' : 'Create Salary Structure'}
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

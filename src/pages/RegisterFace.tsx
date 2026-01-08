@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiPostFormData, apiPost, apiGet } from '@/lib/api';
 import { toast } from 'sonner';
-import { Upload, Camera, CheckCircle2, MapPin, Settings } from 'lucide-react';
+import { Upload, Camera, CheckCircle2, MapPin, Settings, AlertCircle, Save } from 'lucide-react';
 import { employeeService, Employee } from '@/services/employeeService';
 
 const RegisterFace = () => {
@@ -25,8 +25,10 @@ const RegisterFace = () => {
   // Company location state
   const [companyLatitude, setCompanyLatitude] = useState<string>('');
   const [companyLongitude, setCompanyLongitude] = useState<string>('');
+  const [companyAddress, setCompanyAddress] = useState<string>('');
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationSaving, setLocationSaving] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // Fetch employees on component mount
   useEffect(() => {
@@ -54,9 +56,12 @@ const RegisterFace = () => {
         if (response.latitude && response.longitude) {
           setCompanyLatitude(response.latitude.toString());
           setCompanyLongitude(response.longitude.toString());
+          setCompanyAddress(response.address || '');
+          setLocationStatus('success');
         }
       } catch (error) {
         console.log('Company location not set yet or failed to fetch');
+        setLocationStatus('idle');
       } finally {
         setLocationLoading(false);
       }
@@ -71,6 +76,30 @@ const RegisterFace = () => {
     }
   };
 
+  const handleGetCurrentLocation = () => {
+    if (navigator.geolocation) {
+      toast.info('Getting your location...');
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setCompanyLatitude(position.coords.latitude.toString());
+          setCompanyLongitude(position.coords.longitude.toString());
+          setLocationStatus('idle');
+          toast.success('Location captured successfully!');
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          toast.error('Failed to get location', {
+            description: 'Please enable location services or enter coordinates manually'
+          });
+        }
+      );
+    } else {
+      toast.error('Geolocation not supported', {
+        description: 'Please enter coordinates manually'
+      });
+    }
+  };
+
   const handleSaveCompanyLocation = async () => {
     if (!companyLatitude || !companyLongitude) {
       toast.error('Please enter both latitude and longitude');
@@ -78,16 +107,20 @@ const RegisterFace = () => {
     }
 
     setLocationSaving(true);
+    setLocationStatus('idle');
     try {
       await apiPost('/company/location/', {
         latitude: parseFloat(companyLatitude),
         longitude: parseFloat(companyLongitude),
+        address: companyAddress,
       });
       toast.success('Company location saved successfully');
+      setLocationStatus('success');
     } catch (error: any) {
       toast.error('Failed to save company location', {
         description: error.response?.data?.detail || 'Please try again',
       });
+      setLocationStatus('error');
     } finally {
       setLocationSaving(false);
     }
@@ -106,11 +139,6 @@ const RegisterFace = () => {
       formData.append('employee_id', selectedEmployeeId);
 
       // ✅ IMPORTANT: This endpoint should ONLY register the face, NOT check in
-      // If you're being automatically checked in, the backend /attendance/register-face/ endpoint
-      // is creating a check-in record, which it should NOT do.
-      // Registration and check-in are separate operations:
-      // - Registration: /attendance/register-face/ (this endpoint)
-      // - Check-in: /attendance/mark-attendance-face/ (separate endpoint)
       const response = await apiPostFormData('/attendance/register-face/', formData);
 
       // Backend returns: { created, employee, reference_image_url, message }
@@ -123,10 +151,6 @@ const RegisterFace = () => {
       let errorMessage = 'Failed to register face. Please try again.';
 
       if (error.response?.data) {
-        // Backend error formats:
-        // 400: { error: "No image uploaded." }
-        // 401: { detail: "Authentication credentials were not provided." }
-        // Other: { message: "..." } or { detail: "..." }
         errorMessage = error.response.data.error ||
           error.response.data.detail ||
           error.response.data.message ||
@@ -150,6 +174,41 @@ const RegisterFace = () => {
       handleRegister(selectedFile);
     }
   };
+
+  // Reusable Employee Selection Component
+  const EmployeeSelection = () => (
+    <Card className="shadow-lg mb-6">
+      <CardHeader>
+        <CardTitle>Select Employee</CardTitle>
+        <CardDescription>
+          Choose the employee for face registration
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          <Label htmlFor="employee">Employee</Label>
+          {employeesLoading ? (
+            <div className="flex items-center justify-center p-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+              <SelectTrigger id="employee">
+                <SelectValue placeholder="Select an employee" />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id.toString()}>
+                    {emp.fname} {emp.lname} ({emp.email})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   if (isRegistered) {
     return (
@@ -189,7 +248,7 @@ const RegisterFace = () => {
         </div>
 
         <Tabs defaultValue="camera" className="w-full">
-          <TabsList className="grid w-full max-w-2xl grid-cols-3">
+          <TabsList className="grid w-full max-w-2xl grid-cols-3 mb-6">
             <TabsTrigger value="camera">
               <Camera className="mr-2 h-4 w-4" />
               Use Camera
@@ -204,40 +263,10 @@ const RegisterFace = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* Employee Selection - Show on all tabs */}
-          <Card className="shadow-lg mt-4">
-            <CardHeader>
-              <CardTitle>Select Employee</CardTitle>
-              <CardDescription>
-                Choose the employee for face registration
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Label htmlFor="employee">Employee</Label>
-                {employeesLoading ? (
-                  <div className="flex items-center justify-center p-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary"></div>
-                  </div>
-                ) : (
-                  <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                    <SelectTrigger id="employee">
-                      <SelectValue placeholder="Select an employee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id.toString()}>
-                          {emp.fname} {emp.lname} ({emp.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
           <TabsContent value="camera" className="space-y-4">
+            {/* Employee Selection is only here and in upload */}
+            <EmployeeSelection />
+
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle>Capture from Camera</CardTitle>
@@ -252,6 +281,9 @@ const RegisterFace = () => {
           </TabsContent>
 
           <TabsContent value="upload" className="space-y-4">
+            {/* Employee Selection is only here and in camera */}
+            <EmployeeSelection />
+
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle>Upload Photo</CardTitle>
@@ -292,61 +324,157 @@ const RegisterFace = () => {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4">
-            <Card className="shadow-lg">
-              <CardHeader>
+            {/* NO Employee Selection here */}
+
+            <Card className="shadow-lg border-primary/20">
+              <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
                 <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5" />
-                  Company Location Settings
+                  <MapPin className="h-5 w-5 text-primary" />
+                  Company Location & Geofencing
                 </CardTitle>
                 <CardDescription>
                   Set the official company coordinates for attendance geolocation verification
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-6 space-y-6">
                 {locationLoading ? (
                   <div className="flex items-center justify-center p-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
                   </div>
                 ) : (
                   <>
+                    {/* Status Indicator */}
+                    {locationStatus === 'success' && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
+                        <span className="text-sm font-medium text-green-900">Company location is configured</span>
+                      </div>
+                    )}
+                    {locationStatus === 'error' && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
+                        <AlertCircle className="h-5 w-5 text-red-600" />
+                        <span className="text-sm font-medium text-red-900">Failed to save location</span>
+                      </div>
+                    )}
+
+                    {/* Get Current Location Button */}
+                    <div>
+                      <Button
+                        onClick={handleGetCurrentLocation}
+                        variant="outline"
+                        className="w-full md:w-auto"
+                      >
+                        <MapPin className="h-4 w-4 mr-2" />
+                        Use Current Location
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Click to automatically detect your current GPS coordinates
+                      </p>
+                    </div>
+
+                    {/* Coordinate Input Fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="latitude">Latitude</Label>
+                        <Label htmlFor="latitude">Latitude *</Label>
                         <Input
                           id="latitude"
                           type="number"
                           step="any"
-                          placeholder="e.g., 40.7128"
+                          placeholder="e.g., 40.7580"
                           value={companyLatitude}
-                          onChange={(e) => setCompanyLatitude(e.target.value)}
+                          onChange={(e) => {
+                            setCompanyLatitude(e.target.value);
+                            setLocationStatus('idle');
+                          }}
                           disabled={locationSaving}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="longitude">Longitude</Label>
+                        <Label htmlFor="longitude">Longitude *</Label>
                         <Input
                           id="longitude"
                           type="number"
                           step="any"
-                          placeholder="e.g., -74.0060"
+                          placeholder="e.g., -73.9855"
                           value={companyLongitude}
-                          onChange={(e) => setCompanyLongitude(e.target.value)}
+                          onChange={(e) => {
+                            setCompanyLongitude(e.target.value);
+                            setLocationStatus('idle');
+                          }}
                           disabled={locationSaving}
                         />
                       </div>
                     </div>
-                    <div className="bg-muted/50 p-4 rounded-lg">
-                      <p className="text-sm text-muted-foreground">
+
+                    {/* Address Field */}
+                    <div className="space-y-2">
+                      <Label htmlFor="address">Address (Optional)</Label>
+                      <Input
+                        id="address"
+                        type="text"
+                        placeholder="e.g., 123 Main Street, New York, NY"
+                        value={companyAddress}
+                        onChange={(e) => setCompanyAddress(e.target.value)}
+                        disabled={locationSaving}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Provide a human-readable address for reference
+                      </p>
+                    </div>
+
+                    {/* Map Preview */}
+                    {companyLatitude && companyLongitude && (
+                      <div className="space-y-2">
+                        <Label>Location Preview</Label>
+                        <div className="border rounded-lg overflow-hidden shadow-sm">
+                          <iframe
+                            width="100%"
+                            height="300"
+                            frameBorder="0"
+                            style={{ border: 0 }}
+                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(companyLongitude) - 0.01},${parseFloat(companyLatitude) - 0.01},${parseFloat(companyLongitude) + 0.01},${parseFloat(companyLatitude) + 0.01}&layer=mapnik&marker=${companyLatitude},${companyLongitude}`}
+                            allowFullScreen
+                            title="Company Location Map"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Red marker shows the company location on the map
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Tip Box */}
+                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                      <p className="text-sm text-blue-900">
                         💡 <strong>Tip:</strong> You can get coordinates from Google Maps by right-clicking on your company location.
                       </p>
                     </div>
+
+                    {/* Save Button */}
                     <Button
                       onClick={handleSaveCompanyLocation}
                       disabled={locationSaving || !companyLatitude || !companyLongitude}
                       className="w-full"
                     >
+                      <Save className="h-4 w-4 mr-2" />
                       {locationSaving ? 'Saving...' : 'Save Company Location'}
                     </Button>
+
+                    {/* Geofencing Info */}
+                    <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        About Geofencing
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        This location will be used to verify employee attendance. Employees checking in/out will need to be within a certain radius of this location (geofencing) for their attendance to be marked successfully.
+                      </p>
+                      <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+                        <li>• Ensures employees are physically present at the workplace</li>
+                        <li>• Prevents remote check-ins from unauthorized locations</li>
+                        <li>• Improves attendance accuracy and accountability</li>
+                      </ul>
+                    </div>
                   </>
                 )}
               </CardContent>
@@ -375,4 +503,3 @@ const RegisterFace = () => {
 };
 
 export default RegisterFace;
-

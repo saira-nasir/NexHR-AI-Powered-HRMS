@@ -1,6 +1,7 @@
 import React from "react";
 import { FaGoogle } from "react-icons/fa";
 import { toast } from "@/components/ui/use-toast";
+import { apiPost } from '@/lib/api';
 
 interface GoogleCalendarConnectButtonProps {
   onSuccess?: () => void;
@@ -77,54 +78,33 @@ const GoogleCalendarConnectButton: React.FC<GoogleCalendarConnectButtonProps> = 
               onStart?.();
 
           // Send authorization code to backend
-          const baseApi = import.meta.env.VITE_API_URL 
-            ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '') 
-            : 'http://127.0.0.1:8000';
           const accessToken = localStorage.getItem("access_token");
-          
+
           if (!accessToken) {
             toast({
               title: "Error",
               description: "Please login first",
               variant: "destructive",
             });
+            setIsProcessing(false);
+            onError?.({ message: 'No access token' });
             return;
           }
 
-          const backendResponse = await fetch(`${baseApi}/api/auth/google-calendar/connect/`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({
-              code: response.code,
-            }),
+          // Use central api helper to respect baseURL and interceptors
+          const data = await apiPost('/auth/google-calendar/connect/', { code: response.code });
+
+          toast({
+            title: "Success",
+            description: "Successfully connected Google Calendar",
+            className: "bg-green-50 border-green-200",
           });
 
-          const data = await backendResponse.json();
-
-          if (backendResponse.ok) {
-            toast({
-              title: "Success",
-              description: "Successfully connected Google Calendar",
-              className: "bg-green-50 border-green-200",
-            });
-            
-            // Wait a bit to ensure backend processes the connection, then refresh
-            setTimeout(() => {
-              onSuccess?.();
-            }, 500);
-            setIsProcessing(false);
-          } else {
-            toast({
-              title: "Error",
-              description: data.message || "Failed to connect Google Calendar",
-              variant: "destructive",
-            });
-            onError?.(data);
-            setIsProcessing(false);
-          }
+          // Wait a bit to ensure backend processes the connection, then refresh
+          setTimeout(() => {
+            onSuccess?.();
+          }, 500);
+          setIsProcessing(false);
         } catch (error) {
           console.error("Backend connection failed:", error);
           toast({

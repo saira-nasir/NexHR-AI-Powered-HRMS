@@ -53,6 +53,23 @@ const TaxBracketModal: React.FC<TaxBracketModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    const min = parseFloat(formData.min_income);
+    const max = parseFloat(formData.max_income);
+    const rate = parseFloat(formData.rate);
+
+    if (min < 0 || max < 0 || rate < 0) {
+      toast({ title: 'Validation Error', description: 'Values cannot be negative.', variant: 'destructive' });
+      setLoading(false);
+      return;
+    }
+
+    if (max < min) {
+      toast({ title: 'Validation Error', description: 'Maximum income cannot be less than Minimum income.', variant: 'destructive' });
+      setLoading(false);
+      return;
+    }
+
     try {
       const payload = {
         ...formData,

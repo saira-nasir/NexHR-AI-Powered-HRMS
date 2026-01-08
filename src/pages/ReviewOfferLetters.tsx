@@ -6,9 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { FileText, CheckCircle, XCircle, ExternalLink, RefreshCw } from 'lucide-react';
+import { FileText, CheckCircle, XCircle, ExternalLink, RefreshCw, Briefcase } from 'lucide-react';
 import { applicationService } from '@/services/jobPortalservice';
-import { format } from 'date-fns';
 import { toast } from 'sonner';
 
 interface SignedOffer {
@@ -69,7 +68,6 @@ const ReviewOfferLetters: React.FC = () => {
             toast.error('Please provide a reason for rejection');
             return;
         }
-        // Joining date is optional for accept, but good to have logic if needed
 
         setIsSubmitting(true);
         try {
@@ -83,7 +81,6 @@ const ReviewOfferLetters: React.FC = () => {
 
             if (response.success) {
                 toast.success(`Offer ${actionType === 'accept' ? 'approved' : 'rejected'} successfully`);
-                // Remove from list
                 setOffers(prev => prev.filter(o => o.application_id !== selectedOffer.application_id));
                 handleCloseDialog();
             } else {
@@ -126,43 +123,60 @@ const ReviewOfferLetters: React.FC = () => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {offers.map((offer) => (
-                            <Card key={offer.application_id} className="hover:shadow-md transition-shadow">
-                                <CardHeader className="pb-4">
-                                    <CardTitle className="text-lg font-semibold text-gray-900">{offer.candidate_name}</CardTitle>
-                                    <CardDescription>{offer.job_name}</CardDescription>
+                            <Card key={offer.application_id} className="group hover:shadow-xl transition-all duration-300 border-gray-200/60 bg-white">
+                                <CardHeader className="pb-3 p-6 bg-gradient-to-r from-gray-50/50 to-white border-b border-gray-50">
+                                    <div className="flex items-start justify-between">
+                                        <div className="space-y-1.5 overflow-hidden w-full">
+                                            <div className="flex items-center justify-between w-full">
+                                                <CardTitle className="text-lg font-bold text-gray-900 truncate pr-2" title={offer.candidate_name}>
+                                                    {offer.candidate_name}
+                                                </CardTitle>
+                                            </div>
+                                            <CardDescription className="flex items-center gap-2 text-sm font-medium text-gray-500">
+                                                <span className="flex items-center justify-center w-6 h-6 rounded-md bg-indigo-50 text-indigo-600 shrink-0">
+                                                    <Briefcase className="h-3.5 w-3.5" />
+                                                </span>
+                                                <span className="truncate" title={offer.job_name}>{offer.job_name}</span>
+                                            </CardDescription>
+                                        </div>
+                                    </div>
                                 </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="text-sm text-gray-600">
-                                        <p className="mb-1"><span className="font-medium">Email:</span> {offer.candidate_email}</p>
-                                        <p><span className="font-medium">Application ID:</span> #{offer.application_id}</p>
+                                <CardContent className="p-6 space-y-6">
+                                    <div className="space-y-3">
+                                        <div className="p-3 bg-gray-50/80 rounded-lg border border-gray-100/80 hover:border-gray-200 transition-colors group-hover:bg-gray-50">
+                                            <div className="flex items-start gap-3 text-sm text-gray-600">
+                                                <div className="min-w-4 pt-0.5 text-gray-400">@</div>
+                                                <p className="font-medium break-all leading-relaxed text-gray-700">{offer.candidate_email}</p>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div className="pt-2">
+                                    <div className="space-y-3 pt-2 border-t border-gray-50">
                                         <a
                                             href={offer.offer_letter_url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                                            className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-medium text-indigo-600 bg-white rounded-md border border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-sm transition-all dashed-border"
                                         >
-                                            <ExternalLink className="h-4 w-4 mr-1.5" />
-                                            View Signed PDF
+                                            <ExternalLink className="h-4 w-4" />
+                                            View Signed Offer
                                         </a>
-                                    </div>
 
-                                    <div className="flex gap-3 pt-2">
-                                        <Button
-                                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                                            onClick={() => handleActionClick(offer, 'accept')}
-                                        >
-                                            <CheckCircle className="h-4 w-4 mr-2" /> Approve
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-                                            onClick={() => handleActionClick(offer, 'reject')}
-                                        >
-                                            <XCircle className="h-4 w-4 mr-2" /> Reject
-                                        </Button>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <Button
+                                                className="bg-green-600 hover:bg-green-700 text-white shadow-sm hover:shadow-md active:scale-[0.98] transition-all"
+                                                onClick={() => handleActionClick(offer, 'accept')}
+                                            >
+                                                <CheckCircle className="h-4 w-4 mr-2" /> Approve
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                className="border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 active:scale-[0.98] transition-all"
+                                                onClick={() => handleActionClick(offer, 'reject')}
+                                            >
+                                                <XCircle className="h-4 w-4 mr-2" /> Reject
+                                            </Button>
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
