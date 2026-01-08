@@ -116,7 +116,12 @@ export const getDashboardPath = (user?: User | null): string => {
 };
 
 // Check if user has required role
-export const hasRole = (user: User | null | undefined, requiredRoles: string[]): boolean => {
+export const hasRole = (user: User | null | undefined, requiredRoles?: string[]): boolean => {
+  // If no roles are required, grant access
+  if (!requiredRoles || requiredRoles.length === 0) {
+    return true;
+  }
+
   const userRole = getUserRole(user);
   const hasAccess = requiredRoles.includes(userRole);
   return hasAccess;

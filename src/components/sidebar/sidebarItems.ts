@@ -67,7 +67,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/employee-salary-structure',
     icon: Receipt,
     allowedRoles: ['Employee'],
-    // No codename - always visible to employees since it's view-only
+    codename: 'salary_structures', // Matches user plural
   },
   {
     title: 'Payslips',
@@ -81,7 +81,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/interview',
     icon: MessageSquare,
     allowedRoles: ['Employee'],
-    codename: 'scheduled_interviews_employee', // Suffix to distinguish from HR interview view? Or just scheduled_interviews? Title is same. Let's use 'scheduled_interviews_employee' to be safe or matches title strictly 'scheduled_interviews'. I'll use 'scheduled_interviews'.
+    codename: 'scheduled_interviews',
   },
   {
     title: 'Teams',
@@ -111,13 +111,12 @@ export const sidebarItems: SidebarMenuItem[] = [
     submenu: [
       { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'], step: 1, codename: 'post_job' },
       { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR', 'Admin'], step: 2, codename: 'screening_console' },
-      { title: 'Scheduled interviews', path: '/assessment-interview', allowedRoles: ['HR', 'Admin'], step: 3, codename: 'scheduled_interviews_hr' }, // Distinguish from employee view? Or just 'scheduled_interviews_manage'? Clean: 'scheduled_interviews_hr'
+      { title: 'Scheduled interviews', path: '/assessment-interview', allowedRoles: ['HR', 'Admin'], step: 3, codename: 'scheduled_interviews' },
       { title: 'Conduct & Score', path: '/hiring/interview', allowedRoles: ['HR', 'Admin'], step: 4, codename: 'conduct_score' },
       { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'], step: 5, codename: 'onboarding' },
-      { title: 'Review Offer Letters', path: '/hiring/review-offers', allowedRoles: ['HR', 'Admin'], step: 6, codename: 'review_offers' },
+      { title: 'Review Offer Letters', path: '/hiring/review-offers', allowedRoles: ['HR', 'Admin'], step: 6, codename: 'review_offer_letter' },
     ],
   },
-
   {
     title: 'Finance',
     path: '/finance',

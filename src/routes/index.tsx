@@ -43,6 +43,7 @@ import Settings from "@/pages/Settings";
 import ResourceAllocation from "@/pages/ResourceAllocation";
 import ReviewOfferLetters from "@/pages/ReviewOfferLetters";
 import MyTasksDashboard from "@/pages/MyTasksDashboard";
+import AdminDashboard from "@/pages/AdminDashboard";
 
 // Finance pages
 import Expenses from "@/pages/Expenses";
@@ -57,8 +58,10 @@ import RolesAndPermissions from "@/pages/RolesAndPermissions";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import PublicRoute from "@/components/PublicRoute";
 import CompanyRegistrationGuard from "@/components/CompanyRegistrationGuard";
+import CompanyOnlyGuard from "@/components/CompanyOnlyGuard";
 import RoleBasedRoute from "@/components/RoleBasedRoute";
-import RoleBasedDashboard from "@/components/RoleBasedDashboard";
+
+import Dashboard from "@/pages/Dasboard"; // Using direct dashboard as default
 
 import PlaceholderPage from "@/components/PlaceholderPage";
 
@@ -102,13 +105,17 @@ export const routes: RouteObject[] = [
     path: "/",
     element: <ProtectedRoute />,
     children: [
-      // 1. These routes are ACCESSIBLE even if company is not registered
-      // This allows the Guard to redirect here safely
-      { path: "company", element: <CompanyInfoForm /> },
+      // 1. These routes are ACCESSIBLE only when explicitly allowed
+      // The Company page should only be shown if the server indicates `company_register`.
+      { path: "company", element: (
+        <CompanyOnlyGuard>
+          <CompanyInfoForm />
+        </CompanyOnlyGuard>
+      ) },
       {
         path: "company-policy",
         element: (
-          <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+          <RoleBasedRoute requiredPermission="company_policy">
             <CompanyPolicy />
           </RoleBasedRoute>
         ),
@@ -119,13 +126,21 @@ export const routes: RouteObject[] = [
       {
         element: <CompanyRegistrationGuard />,
         children: [
-          { path: "dashboard", element: <RoleBasedDashboard /> },
+          { path: "dashboard", element: <Dashboard /> },
+          {
+            path: "admin-dashboard",
+            element: (
+              <RoleBasedRoute allowedRoles={["Admin"]}>
+                <AdminDashboard />
+              </RoleBasedRoute>
+            )
+          },
 
           // HR & Admin Routes
           {
             path: "jobs/create",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="post_job">
                 <JobPostForm />
               </RoleBasedRoute>
             ),
@@ -141,7 +156,7 @@ export const routes: RouteObject[] = [
           {
             path: "team",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="teams">
                 <Team />
               </RoleBasedRoute>
             ),
@@ -165,7 +180,7 @@ export const routes: RouteObject[] = [
           {
             path: "employees",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="employees">
                 <Employees />
               </RoleBasedRoute>
             ),
@@ -181,7 +196,7 @@ export const routes: RouteObject[] = [
           {
             path: "hiring/job-screening",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="screening_console">
                 <JobScreening />
               </RoleBasedRoute>
             ),
@@ -189,7 +204,7 @@ export const routes: RouteObject[] = [
           {
             path: "assessment-interview",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="scheduled_interviews">
                 <AssessmentAndInterview />
               </RoleBasedRoute>
             ),
@@ -197,7 +212,7 @@ export const routes: RouteObject[] = [
           {
             path: "hiring/interview",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="conduct_score">
                 <HiringInterview />
               </RoleBasedRoute>
             ),
@@ -205,7 +220,7 @@ export const routes: RouteObject[] = [
           {
             path: "hiring/review-offers",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="review_offer_letter">
                 <ReviewOfferLetters />
               </RoleBasedRoute>
             ),
@@ -221,7 +236,7 @@ export const routes: RouteObject[] = [
           {
             path: "onboarding",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="onboarding">
                 <Onboarding />
               </RoleBasedRoute>
             ),
@@ -237,7 +252,7 @@ export const routes: RouteObject[] = [
           {
             path: "attendance-management",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="attendance_management">
                 <HRAttendanceManagement />
               </RoleBasedRoute>
             ),
@@ -245,7 +260,7 @@ export const routes: RouteObject[] = [
           {
             path: "resource-allocation",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="resource_allocation">
                 <ResourceAllocation />
               </RoleBasedRoute>
             ),
@@ -255,7 +270,7 @@ export const routes: RouteObject[] = [
           {
             path: "admin/roles-permissions",
             element: (
-              <RoleBasedRoute allowedRoles={["Admin"]}>
+              <RoleBasedRoute requiredPermission="roles_permissions">
                 <RolesAndPermissions />
               </RoleBasedRoute>
             ),
@@ -267,7 +282,7 @@ export const routes: RouteObject[] = [
           {
             path: "payroll",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
+              <RoleBasedRoute requiredPermission="payroll">
                 <PayrollPage />
               </RoleBasedRoute>
             ),
@@ -300,7 +315,7 @@ export const routes: RouteObject[] = [
           {
             path: "salary-structures",
             element: (
-              <RoleBasedRoute 
+              <RoleBasedRoute
                 allowedRoles={["Finance Manager", "Admin"]}
                 requiredPermission="salary_structures"
               >
@@ -331,7 +346,7 @@ export const routes: RouteObject[] = [
           {
             path: "attendance-leave",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
+              <RoleBasedRoute requiredPermission="attendance_leave">
                 <AttendanceLeave />
               </RoleBasedRoute>
             ),
@@ -339,7 +354,7 @@ export const routes: RouteObject[] = [
           {
             path: "register-face",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
+              <RoleBasedRoute requiredPermission="register_face">
                 <RegisterFace />
               </RoleBasedRoute>
             ),
@@ -363,7 +378,7 @@ export const routes: RouteObject[] = [
           {
             path: "employee-salary-structure",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee"]}>
+              <RoleBasedRoute allowedRoles={["Employee"]} requiredPermission="salary_structures">
                 <EmployeeSalaryStructure />
               </RoleBasedRoute>
             ),
@@ -371,7 +386,7 @@ export const routes: RouteObject[] = [
           {
             path: "payslips",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
+              <RoleBasedRoute requiredPermission="payslips">
                 <Payslips />
               </RoleBasedRoute>
             ),
@@ -379,14 +394,21 @@ export const routes: RouteObject[] = [
           {
             path: "interview",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee"]}>
+              <RoleBasedRoute allowedRoles={["Employee"]} requiredPermission="scheduled_interviews">
                 <Interview />
               </RoleBasedRoute>
             ),
           },
 
           // Common routes
-          { path: "settings", element: <Settings /> },
+          {
+            path: "settings",
+            element: (
+              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]} requiredPermission="settings">
+                <Settings />
+              </RoleBasedRoute>
+            )
+          },
 
           { path: "support", element: <PlaceholderPage title="Help & Support" /> },
           { path: "linkedin-auth/callback", element: <LinkedInAuth /> },

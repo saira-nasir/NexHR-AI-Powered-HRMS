@@ -30,6 +30,7 @@ const Employees = () => {
     const [stats, setStats] = useState<CompanyStats | null>(null);
     const [roles, setRoles] = useState<CompanyRole[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [roleUpdating, setRoleUpdating] = useState<Record<number, boolean>>({});
     const [isImporting, setIsImporting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -79,6 +80,9 @@ const Employees = () => {
         const user = employees.find(e => e.id === userId);
         const hasRole = !!user?.role;
 
+        // set per-row loading
+        setRoleUpdating(prev => ({ ...prev, [userId]: true }));
+
         try {
             let result;
             if (hasRole) {
@@ -92,10 +96,8 @@ const Employees = () => {
                 description: result.detail || "User role updated successfully",
             });
 
-            // Optimistically update the UI or simple refetch
-            // Refetching to ensure potential stats updates or side effects are captured could be safer, 
-            // but optimistic update is faster. Let's refetch for correctness as requested 'update the role'.
-            fetchData();
+            // Refresh after update to reflect any server-side changes
+            await fetchData();
 
         } catch (error: any) {
             toast({
@@ -103,6 +105,8 @@ const Employees = () => {
                 description: error.response?.data?.detail || "Failed to update role",
                 variant: "destructive",
             });
+        } finally {
+            setRoleUpdating(prev => ({ ...prev, [userId]: false }));
         }
     };
 
@@ -393,9 +397,15 @@ const Employees = () => {
                                                             <Select
                                                                 value={employee.role?.id.toString() || ""}
                                                                 onValueChange={(value) => handleRoleChange(employee.id, value)}
+                                                                disabled={!!roleUpdating[employee.id]}
                                                             >
                                                                 <SelectTrigger className="w-[180px]">
-                                                                    <SelectValue placeholder="Select Role" />
+                                                                    <div className="flex items-center justify-between w-full">
+                                                                        <SelectValue placeholder={roleUpdating[employee.id] ? "Updating..." : "Select Role"} />
+                                                                        {roleUpdating[employee.id] && (
+                                                                            <div className="ml-2 w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                                                                        )}
+                                                                    </div>
                                                                 </SelectTrigger>
                                                                 <SelectContent>
                                                                     {roles.map((role) => (

@@ -16,7 +16,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const user = useSelector((state: RootState) => state.auth.user);
-  const permissions = useSelector((state: RootState) => state.auth.permissions);
+  const permissions = useSelector((state: RootState) => state.auth.permissions) || [];
 
   // Filter sidebar items according to user role and real-time permissions
   const getVisibleItems = () => {
@@ -24,50 +24,47 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
 
     return sidebarItems
       .map(item => {
-        // 1. Permission Check: If item has a codename, user must have that permission
-        // BYPASS permission check if user is Admin - Admins see ALL tabs
-        // EXCEPTION: If item has allowedRoles and user's role matches, allow it even without permission
-        // This ensures employee-facing tabs (like Salary Structure) are always visible to employees
-        if (role !== 'Admin' && item.codename && !permissions.includes(item.codename)) {
-          // Allow if user's role matches allowedRoles (fallback for role-based access)
-          if (!item.allowedRoles || !item.allowedRoles.includes(role)) {
-            return null;
-          }
+        // 1. Strict Permission Check:
+        // If item has a codename, it MUST be present in permissions list.
+        // We do NOT falback to role checks if a codename is defined.
+        if (item.codename && !permissions.includes(item.codename)) {
+          return null;
         }
 
-        // 2. Role Check Strategy:
-        if (role === 'Admin') {
-          // ADMIN: Strictly respect allowedRoles to keep sidebar clean (hidden items stay hidden)
-          if (item.allowedRoles && !item.allowedRoles.includes('Admin')) return null;
-        } else {
-          // OTHERS: Allow permissions to OVERRIDE allowedRoles.
-          // Only check allowedRoles if no codename exists (fallback for items without permissions).
-          if (!item.codename && item.allowedRoles && (!role || !item.allowedRoles.includes(role))) return null;
+        // 2. Role Check (only if no codename, OR purely as a secondary filter if we kept it)
+        // If item has NO codename, we rely on allowedRoles.
+        // OR if we want to also enforce roles even if permission exists (hybrid).
+        // Capturing original logic: "only show those tabs whose permissions are present"
+        // implies permission is the primary key.
+        // For items without codenames (like Dashboard), we check allowedRoles.
+        if (!item.codename && item.allowedRoles) {
+          const userRole = getUserRole(user);
+          if (!userRole || !item.allowedRoles.includes(userRole)) {
+            return null;
+          }
         }
 
         // 3. Filter submenu
         let submenu = item.submenu;
         if (submenu && submenu.length > 0) {
           const filteredSub = submenu.filter(sub => {
-            // Permission check with role fallback (same logic as main items)
-            if (role !== 'Admin' && sub.codename && !permissions.includes(sub.codename)) {
-              // Allow if user's role matches allowedRoles (fallback for role-based access)
-              if (!sub.allowedRoles || !sub.allowedRoles.includes(role)) {
-                return false;
-              }
+            // Strict Permission Check for submenu
+            if (sub.codename && !permissions.includes(sub.codename)) {
+              return false;
             }
 
-            // Role check
-            if (role === 'Admin') {
-              // Admin strict check
-              if (sub.allowedRoles && !sub.allowedRoles.includes('Admin')) return false;
-            } else {
-              // Other permissive check
-              if (!sub.codename && sub.allowedRoles && (!role || !sub.allowedRoles.includes(role))) return false;
+            // Role Check for submenu (only if no codename)
+            if (!sub.codename && sub.allowedRoles) {
+              const userRole = getUserRole(user);
+              if (!userRole || !sub.allowedRoles.includes(userRole)) {
+                return false;
+              }
             }
             return true;
           });
           submenu = filteredSub;
+          // If submenu becomes empty but parent had no codename/action, maybe hide parent? 
+          // Current logic keeps parent if it passed its own check.
         }
 
         return { ...item, submenu };
