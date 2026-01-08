@@ -63,6 +63,7 @@ import RoleBasedRoute from "@/components/RoleBasedRoute";
 import ExcludeAdminRoute from "@/components/ExcludeAdminRoute";
 
 import Dashboard from "@/pages/Dasboard"; // Using direct dashboard as default
+import RedirectDashboard from "@/components/RedirectDashboard";
 
 import PlaceholderPage from "@/components/PlaceholderPage";
 
@@ -127,7 +128,7 @@ export const routes: RouteObject[] = [
       {
         element: <CompanyRegistrationGuard />,
         children: [
-          { path: "dashboard", element: <Dashboard /> },
+          { path: "dashboard", element: <RedirectDashboard /> },
           {
             path: "admin-dashboard",
             element: (

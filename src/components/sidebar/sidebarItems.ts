@@ -130,6 +130,12 @@ export const sidebarItems: SidebarMenuItem[] = [
       { title: 'Bulk Payments', path: '/bulk-payments', allowedRoles: ['Finance Manager', 'Admin'], codename: 'bulk_payments' },
     ],
   },
+  {
+    title: 'Roles & Permissions',
+    path: '/admin/roles-permissions',
+    icon: Shield,
+    codename: 'roles_permissions',
+  },
 
   {
     title: 'Settings',

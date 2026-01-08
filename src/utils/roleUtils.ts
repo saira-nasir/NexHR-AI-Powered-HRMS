@@ -45,7 +45,7 @@ export const normalizeRoleName = (raw?: string | null): UserRole | undefined => 
 // Role-based dashboard mapping - all roles now use /dashboard
 export const ROLE_DASHBOARD_MAP: Record<UserRole, string> = {
   [ROLES.HR]: '/dashboard',
-  [ROLES.ADMIN]: '/dashboard',
+  [ROLES.ADMIN]: '/admin-dashboard',
   [ROLES.FINANCE_MANAGER]: '/dashboard',
   [ROLES.EMPLOYEE]: '/dashboard'
 };
