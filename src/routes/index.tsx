@@ -60,6 +60,7 @@ import PublicRoute from "@/components/PublicRoute";
 import CompanyRegistrationGuard from "@/components/CompanyRegistrationGuard";
 import CompanyOnlyGuard from "@/components/CompanyOnlyGuard";
 import RoleBasedRoute from "@/components/RoleBasedRoute";
+import ExcludeAdminRoute from "@/components/ExcludeAdminRoute";
 
 import Dashboard from "@/pages/Dasboard"; // Using direct dashboard as default
 
@@ -204,7 +205,7 @@ export const routes: RouteObject[] = [
           {
             path: "assessment-interview",
             element: (
-              <RoleBasedRoute requiredPermission="scheduled_interviews">
+              <RoleBasedRoute requiredPermission="interview_scheduling">
                 <AssessmentAndInterview />
               </RoleBasedRoute>
             ),
@@ -362,7 +363,7 @@ export const routes: RouteObject[] = [
           {
             path: "loan-expense",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "Finance Manager", "Admin"]}>
+              <RoleBasedRoute requiredPermission="loan_expense">
                 <LoanExpense />
               </RoleBasedRoute>
             ),
@@ -370,9 +371,9 @@ export const routes: RouteObject[] = [
           {
             path: "bank-info",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
+              <ExcludeAdminRoute>
                 <BankInfo />
-              </RoleBasedRoute>
+              </ExcludeAdminRoute>
             ),
           },
           {
@@ -394,7 +395,7 @@ export const routes: RouteObject[] = [
           {
             path: "interview",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee"]} requiredPermission="scheduled_interviews">
+              <RoleBasedRoute requiredPermission="my_scheduled_interviews">
                 <Interview />
               </RoleBasedRoute>
             ),

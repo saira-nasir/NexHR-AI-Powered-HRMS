@@ -24,30 +24,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
 
     return sidebarItems
       .map(item => {
-        // 1. Strict Permission Check:
-        // If item has a codename, it MUST be present in permissions list.
-        // We do NOT falback to role checks if a codename is defined.
-        if (item.codename && !permissions.includes(item.codename)) {
-          return null;
-        }
-
-        // 2. Role Check (only if no codename, OR purely as a secondary filter if we kept it)
-        // If item has NO codename, we rely on allowedRoles.
-        // OR if we want to also enforce roles even if permission exists (hybrid).
-        // Capturing original logic: "only show those tabs whose permissions are present"
-        // implies permission is the primary key.
-        // For items without codenames (like Dashboard), we check allowedRoles.
-        if (!item.codename && item.allowedRoles) {
-          const userRole = getUserRole(user);
-          if (!userRole || !item.allowedRoles.includes(userRole)) {
-            return null;
-          }
-        }
-
-        // 3. Filter submenu
-        let submenu = item.submenu;
-        if (submenu && submenu.length > 0) {
-          const filteredSub = submenu.filter(sub => {
+        // Special handling for items with submenus
+        if (item.submenu && item.submenu.length > 0) {
+          // Filter submenu items based on permissions
+          const filteredSub = item.submenu.filter(sub => {
             // Strict Permission Check for submenu
             if (sub.codename && !permissions.includes(sub.codename)) {
               return false;
@@ -62,12 +42,43 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
             }
             return true;
           });
-          submenu = filteredSub;
-          // If submenu becomes empty but parent had no codename/action, maybe hide parent? 
-          // Current logic keeps parent if it passed its own check.
+
+          // Show main tab if ANY subtab is visible (regardless of main tab's own codename/permission)
+          if (filteredSub.length > 0) {
+            return { ...item, submenu: filteredSub };
+          }
+          
+          // If no subtabs are visible, hide the main tab
+          return null;
         }
 
-        return { ...item, submenu };
+        // For items without submenus:
+        // Special case: Hide "My Scheduled Interviews" if user has "interview_scheduling" permission
+        if (item.codename === 'my_scheduled_interviews' && permissions.includes('interview_scheduling')) {
+          return null;
+        }
+
+        // Special case: Bank Info should be shown to everyone except Admin dashboard users
+        if (item.path === '/bank-info' && role === 'Admin') {
+          return null;
+        }
+
+        // 1. Strict Permission Check:
+        // If item has a codename, it MUST be present in permissions list.
+        if (item.codename && !permissions.includes(item.codename)) {
+          return null;
+        }
+
+        // 2. Role Check (only if no codename)
+        // If item has NO codename, we rely on allowedRoles.
+        if (!item.codename && item.allowedRoles) {
+          const userRole = getUserRole(user);
+          if (!userRole || !item.allowedRoles.includes(userRole)) {
+            return null;
+          }
+        }
+
+        return { ...item };
       })
       .filter(Boolean) as typeof sidebarItems;
   };

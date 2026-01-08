@@ -75,11 +75,11 @@ export const sidebarItems: SidebarMenuItem[] = [
     codename: 'payslips',
   },
   {
-    title: 'Scheduled interviews',
+    title: 'My Scheduled Interviews',
     path: '/interview',
     icon: MessageSquare,
     allowedRoles: ['Employee'],
-    codename: 'scheduled_interviews',
+    codename: 'my_scheduled_interviews',
   },
   {
     title: 'Teams',
@@ -109,7 +109,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     submenu: [
       { title: 'Post job', path: '/jobs/create', allowedRoles: ['HR', 'Admin'], step: 1, codename: 'post_job' },
       { title: 'Screening Console', path: '/hiring/job-screening', allowedRoles: ['HR', 'Admin'], step: 2, codename: 'screening_console' },
-      { title: 'Scheduled interviews', path: '/assessment-interview', allowedRoles: ['HR', 'Admin'], step: 3, codename: 'scheduled_interviews' },
+      { title: 'Interview Scheduling', path: '/assessment-interview', allowedRoles: ['HR', 'Admin'], step: 3, codename: 'interview_scheduling' },
       { title: 'Conduct & Score', path: '/hiring/interview', allowedRoles: ['HR', 'Admin'], step: 4, codename: 'conduct_score' },
       { title: 'Onboarding', path: '/onboarding', allowedRoles: ['HR', 'Admin'], step: 5, codename: 'onboarding' },
       { title: 'Review Offer Letters', path: '/hiring/review-offers', allowedRoles: ['HR', 'Admin'], step: 6, codename: 'review_offer_letter' },
