@@ -53,6 +53,7 @@ import SalaryStructures from "@/pages/SalaryStructures";
 import TaxManagement from "@/pages/TaxManagement";
 import LoanExpense from "@/pages/LoanExpense";
 import RolesAndPermissions from "@/pages/RolesAndPermissions";
+import BranchesDepartments from "@/pages/BranchesDepartments";
 
 // Route Guards
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -109,11 +110,13 @@ export const routes: RouteObject[] = [
     children: [
       // 1. These routes are ACCESSIBLE only when explicitly allowed
       // The Company page should only be shown if the server indicates `company_register`.
-      { path: "company", element: (
-        <CompanyOnlyGuard>
-          <CompanyInfoForm />
-        </CompanyOnlyGuard>
-      ) },
+      {
+        path: "company", element: (
+          <CompanyOnlyGuard>
+            <CompanyInfoForm />
+          </CompanyOnlyGuard>
+        )
+      },
       {
         path: "company-policy",
         element: (
@@ -264,6 +267,14 @@ export const routes: RouteObject[] = [
             element: (
               <RoleBasedRoute requiredPermission="resource_allocation">
                 <ResourceAllocation />
+              </RoleBasedRoute>
+            ),
+          },
+          {
+            path: "branches-departments",
+            element: (
+              <RoleBasedRoute requiredPermission="branches_departments">
+                <BranchesDepartments />
               </RoleBasedRoute>
             ),
           },

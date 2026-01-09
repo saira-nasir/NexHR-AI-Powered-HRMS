@@ -12,7 +12,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
 import { getUserRole } from '@/utils/roleUtils';
 
-const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, searchQuery = '' }) => {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const user = useSelector((state: RootState) => state.auth.user);
@@ -47,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
           if (filteredSub.length > 0) {
             return { ...item, submenu: filteredSub };
           }
-          
+
           // If no subtabs are visible, hide the main tab
           return null;
         }
@@ -80,7 +80,22 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
 
         return { ...item };
       })
-      .filter(Boolean) as typeof sidebarItems;
+      .filter(Boolean)
+      .filter((item: any) => {
+        // Search filter
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+
+        // Search in main item title
+        if (item.title.toLowerCase().includes(query)) return true;
+
+        // Search in submenu titles
+        if (item.submenu && item.submenu.some((sub: any) => sub.title.toLowerCase().includes(query))) {
+          return true;
+        }
+
+        return false;
+      }) as typeof sidebarItems;
   };
 
   const visibleItems = getVisibleItems();

@@ -9,6 +9,7 @@ import ReviewTab from '../components/job-post/ReviewTab';
 import JobPostedModal from '../components/modals/JobPostedModal';
 import { jobService, JobPostData, RequiredSkill } from '@/services/JobService';
 import { linkedinService } from '@/services/linkedinService';
+import branchDepartmentService from '@/services/branchDepartmentService';
 // import { googleAuthService } from '@/services/googleAuth';
 import { useNavigate } from 'react-router-dom';
 import { Clock, RefreshCw } from 'lucide-react';
@@ -153,6 +154,7 @@ const JobPostForm: React.FC = () => {
   const [cities, setCities] = useState<OptionType[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [apiDepartments, setApiDepartments] = useState<OptionType[]>([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(true);
   const navigate = useNavigate();
 
   // --- State to Trigger Modal and Mark Review as Completed ---
@@ -453,44 +455,20 @@ const JobPostForm: React.FC = () => {
     []
   );
 
-  // Fetch departments from backend and map to OptionType
+  // Fetch departments from backend using branchDepartmentService
   useEffect(() => {
     const loadDepartments = async () => {
       try {
-        const token = localStorage.getItem('access_token');
-        const headers: Record<string, string> = { Accept: 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+        setLoadingDepartments(true);
+        const data = await branchDepartmentService.getDepartments();
 
-        const baseApi = import.meta.env.VITE_API_URL
-          ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '')
-          : 'http://127.0.0.1:8000/api';
-        const url = `${baseApi}/departments/`;
-
-        const res = await fetch(url, { headers });
-        if (!res.ok) {
-          console.error(`Failed to fetch departments: ${res.status}`);
-          setApiDepartments([]);
-          return;
-        }
-        const data = await res.json();
-
-        // Handle response format: { departments: ["name1", "name2", ...] }
-        if (data.departments && Array.isArray(data.departments)) {
-          const opts = data.departments.map((deptName: string, index: number) => ({
-            value: deptName, // Use department name as value
-            label: deptName  // Use department name as label
+        if (Array.isArray(data)) {
+          const opts = data.map((dept: any) => ({
+            value: dept.id ? String(dept.id) : dept.name,
+            label: dept.name || String(dept),
           }));
           setApiDepartments(opts);
-          console.log(`Loaded ${opts.length} departments from backend`);
-        } else if (Array.isArray(data)) {
-          // Fallback: if response is directly an array
-          const opts = data.map((d: any) => {
-            const label = d.name || d.department_name || d.title || String(d);
-            const value = d.id ? String(d.id) : String(d);
-            return { value, label } as OptionType;
-          });
-          setApiDepartments(opts);
-          console.log(`Loaded ${opts.length} departments from backend`);
+          console.log(`Loaded ${opts.length} departments from branchDepartmentService`);
         } else {
           console.warn('Unexpected departments API response format:', data);
           setApiDepartments([]);
@@ -498,6 +476,8 @@ const JobPostForm: React.FC = () => {
       } catch (err) {
         console.error('Failed to load departments:', err);
         setApiDepartments([]);
+      } finally {
+        setLoadingDepartments(false);
       }
     };
 

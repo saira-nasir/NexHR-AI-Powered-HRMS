@@ -30,6 +30,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   );
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const location = useLocation();
   const isMobile = useIsMobile();
   const { logout } = useAuth();
@@ -78,7 +79,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         "fixed z-50 h-full transition-transform duration-300 lg:relative",
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
-        <Sidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
+        <Sidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} searchQuery={searchQuery} />
       </div>
 
       {/* Main area */}
@@ -112,6 +113,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <input
                   type="search"
                   placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-40 md:w-64 rounded-full border border-gray-200 bg-gray-50 pl-10 pr-4 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-gray-300"
                 />
               </div>

@@ -323,6 +323,20 @@ export const employeeService = {
             throw error;
         }
     },
+
+    /**
+     * Update employee's branch and/or department assignment.
+     * NEW API: /accounts/employees/<user_id>/update-assignment/
+     */
+    async updateEmployeeAssignment(userId: number, payload: { branch?: number; department?: number }): Promise<any> {
+        try {
+            const response = await api.patch(`/accounts/employees/${userId}/update-assignment/`, payload);
+            return response.data;
+        } catch (error) {
+            console.error("Error updating employee assignment:", error);
+            throw error;
+        }
+    },
 };
 
 // Development helper: probe all candidate endpoints

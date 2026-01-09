@@ -37,6 +37,7 @@ interface GeneralInfoTabProps {
   handleSelectChange: (name: string, selectedOption: OptionType | MultiValue<OptionType> | null) => void;
   handleSkillsChange: (skills: RequiredSkill[]) => void;
   minDeadline?: string;
+  loadingDepartments?: boolean;
 }
 
 const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
@@ -52,13 +53,14 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
   handleSelectChange,
   handleSkillsChange,
   minDeadline,
+  loadingDepartments = false,
 }) => {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold border-b pb-2 mb-4 border-[#DBD8E3]">
         General Information
       </h2>
-      
+
       {/* Job Title and Deadline - Side by Side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
@@ -84,7 +86,7 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
             <p className="text-red-500 text-xs mt-1">{validationErrors.jobTitle}</p>
           )}
         </div>
-        
+
         <div>
           <label htmlFor="deadline" className="block text-sm font-medium mb-1">
             Deadline
@@ -122,10 +124,10 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
             min="0"
             max="50"
             className="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-1 focus:ring-[#352F44] focus:border-[#352F44] transition duration-150 ease-in-out"
-            style={{ 
-              borderColor: validationErrors.experienceLevel ? "red" : "#DBD8E3", 
-              backgroundColor: "#FFFFFF", 
-              color: "#2A2438" 
+            style={{
+              borderColor: validationErrors.experienceLevel ? "red" : "#DBD8E3",
+              backgroundColor: "#FFFFFF",
+              color: "#2A2438"
             }}
             placeholder="e.g., 5"
           />
@@ -158,14 +160,27 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
           )}
         </div>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="Department" className="block text-sm font-medium mb-1">
             Department <span className="text-red-500">*</span>
           </label>
-          {isClient ? (
+          {loadingDepartments ? (
+            <div className="flex items-center gap-2 p-3 border rounded-md bg-gray-50">
+              <div className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-gray-500">Loading departments...</span>
+            </div>
+          ) : isClient ? (
             <>
+              {DepartmentOptions && DepartmentOptions.length === 0 && (
+                <p className="text-gray-500 text-sm mb-2">
+                  No departments available. Please create a department in{' '}
+                  <a href="/branches-departments" className="text-blue-600 hover:underline">
+                    Branches & Departments
+                  </a>
+                  {' '}first.
+                </p>
+              )}
               <Select<OptionType>
                 id="Department"
                 name="Department"
@@ -197,11 +212,6 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
                   ),
                 }}
               />
-              {DepartmentOptions && DepartmentOptions.length === 0 && (
-                <p className="text-amber-600 text-xs mt-1">
-                  ⚠️ To create a job post, first create a department for that job.
-                </p>
-              )}
             </>
           ) : (
             <div className="w-full h-[42px] rounded-md animate-pulse" style={{ backgroundColor: "#F2F1F7", border: "1px solid #DBD8E3" }} />
@@ -292,82 +302,84 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
       </div>
 
       {/* State & City */}
-      {formData.locationType !== "Remote" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label htmlFor="state" className="block text-sm font-medium mb-1">
-              State/Province {formData.country && (<span className="text-red-500">*</span>)}
-            </label>
-            {isClient ? (
-              <Select<OptionType>
-                id="state"
-                name="state"
-                options={states}
-                value={formData.state}
-                onChange={(option) => handleSelectChange("state", option)}
-                classNamePrefix="select"
-                placeholder="Select state..."
-                isClearable
-                isDisabled={!formData.country || states.length === 0}
-                required={!!formData.country}
-                styles={{
-                  ...selectStyles,
-                  control: (base) => ({
-                    ...base,
-                    backgroundColor: "#FFFFFF",
-                    borderColor: validationErrors.state ? "red" : "#DBD8E3",
-                    color: "#2A2438",
-                    "&:hover": {
+      {
+        formData.locationType !== "Remote" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="state" className="block text-sm font-medium mb-1">
+                State/Province {formData.country && (<span className="text-red-500">*</span>)}
+              </label>
+              {isClient ? (
+                <Select<OptionType>
+                  id="state"
+                  name="state"
+                  options={states}
+                  value={formData.state}
+                  onChange={(option) => handleSelectChange("state", option)}
+                  classNamePrefix="select"
+                  placeholder="Select state..."
+                  isClearable
+                  isDisabled={!formData.country || states.length === 0}
+                  required={!!formData.country}
+                  styles={{
+                    ...selectStyles,
+                    control: (base) => ({
+                      ...base,
+                      backgroundColor: "#FFFFFF",
                       borderColor: validationErrors.state ? "red" : "#DBD8E3",
-                    },
-                  }),
-                }}
-              />
-            ) : (
-              <div className="w-full h-[42px] rounded-md animate-pulse" style={{ backgroundColor: "#F2F1F7", border: "1px solid #DBD8E3" }} />
-            )}
-            {validationErrors.state && (
-              <p className="text-red-500 text-xs mt-1">{validationErrors.state}</p>
-            )}
-          </div>
-          <div>
-            <label htmlFor="city" className="block text-sm font-medium mb-1">
-              City {formData.state && (<span className="text-red-500">*</span>)}
-            </label>
-            {isClient ? (
-              <Select<OptionType>
-                id="city"
-                name="city"
-                options={cities}
-                value={formData.city}
-                onChange={(option) => handleSelectChange("city", option)}
-                classNamePrefix="select"
-                placeholder="Select city..."
-                isClearable
-                isDisabled={!formData.state || cities.length === 0}
-                required={!!formData.state}
-                styles={{
-                  ...selectStyles,
-                  control: (base) => ({
-                    ...base,
-                    backgroundColor: "#FFFFFF",
-                    borderColor: validationErrors.city ? "red" : "#DBD8E3",
-                    color: "#2A2438",
-                    "&:hover": {
+                      color: "#2A2438",
+                      "&:hover": {
+                        borderColor: validationErrors.state ? "red" : "#DBD8E3",
+                      },
+                    }),
+                  }}
+                />
+              ) : (
+                <div className="w-full h-[42px] rounded-md animate-pulse" style={{ backgroundColor: "#F2F1F7", border: "1px solid #DBD8E3" }} />
+              )}
+              {validationErrors.state && (
+                <p className="text-red-500 text-xs mt-1">{validationErrors.state}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="city" className="block text-sm font-medium mb-1">
+                City {formData.state && (<span className="text-red-500">*</span>)}
+              </label>
+              {isClient ? (
+                <Select<OptionType>
+                  id="city"
+                  name="city"
+                  options={cities}
+                  value={formData.city}
+                  onChange={(option) => handleSelectChange("city", option)}
+                  classNamePrefix="select"
+                  placeholder="Select city..."
+                  isClearable
+                  isDisabled={!formData.state || cities.length === 0}
+                  required={!!formData.state}
+                  styles={{
+                    ...selectStyles,
+                    control: (base) => ({
+                      ...base,
+                      backgroundColor: "#FFFFFF",
                       borderColor: validationErrors.city ? "red" : "#DBD8E3",
-                    },
-                  }),
-                }}
-              />
-            ) : (
-              <div className="w-full h-[42px] rounded-md animate-pulse" style={{ backgroundColor: "#F2F1F7", border: "1px solid #DBD8E3" }} />
-            )}
-            {validationErrors.city && (
-              <p className="text-red-500 text-xs mt-1">{validationErrors.city}</p>
-            )}
+                      color: "#2A2438",
+                      "&:hover": {
+                        borderColor: validationErrors.city ? "red" : "#DBD8E3",
+                      },
+                    }),
+                  }}
+                />
+              ) : (
+                <div className="w-full h-[42px] rounded-md animate-pulse" style={{ backgroundColor: "#F2F1F7", border: "1px solid #DBD8E3" }} />
+              )}
+              {validationErrors.city && (
+                <p className="text-red-500 text-xs mt-1">{validationErrors.city}</p>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Salary Range */}
       <div>
@@ -461,7 +473,7 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
         )}
       </div>
 
-      
+
 
       {/* Required Skills */}
       <div>

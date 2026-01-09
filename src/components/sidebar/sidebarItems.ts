@@ -86,9 +86,9 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/teams',
     icon: Users,
     allowedRoles: ['HR', 'Admin'],
-    codename: 'teams',
     submenu: [
       { title: 'Employees', path: '/employees', allowedRoles: ['HR', 'Admin'], codename: 'employees' },
+      { title: 'Branches & Departments', path: '/branches-departments', allowedRoles: ['HR', 'Admin'], codename: 'branches_departments' },
       { title: 'Attendance Management', path: '/attendance-management', allowedRoles: ['HR', 'Admin'], codename: 'attendance_management' },
       { title: 'Resource Allocation', path: '/resource-allocation', allowedRoles: ['HR', 'Admin'], codename: 'resource_allocation' },
     ],

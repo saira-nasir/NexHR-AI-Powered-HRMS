@@ -20,6 +20,7 @@ import { Search, Upload, Users, Filter, Briefcase, Building, Phone, Mail, Calend
 import { toast } from "@/components/ui/use-toast";
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { employeeService, Employee, CompanyStats, CompanyRole } from '@/services/employeeService';
+import branchDepartmentService, { Branch, Department } from '@/services/branchDepartmentService';
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,8 +30,12 @@ const Employees = () => {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [stats, setStats] = useState<CompanyStats | null>(null);
     const [roles, setRoles] = useState<CompanyRole[]>([]);
+    const [branches, setBranches] = useState<Branch[]>([]);
+    const [departments, setDepartments] = useState<Department[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [roleUpdating, setRoleUpdating] = useState<Record<number, boolean>>({});
+    const [branchUpdating, setBranchUpdating] = useState<Record<number, boolean>>({});
+    const [departmentUpdating, setDepartmentUpdating] = useState<Record<number, boolean>>({});
     const [isImporting, setIsImporting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -42,6 +47,8 @@ const Employees = () => {
     useEffect(() => {
         fetchData();
         fetchRoles();
+        fetchBranches();
+        fetchDepartments();
     }, [currentPage]);
 
     const fetchData = async () => {
@@ -69,6 +76,24 @@ const Employees = () => {
             setRoles(data);
         } catch (error) {
             console.error("Failed to fetch roles", error);
+        }
+    };
+
+    const fetchBranches = async () => {
+        try {
+            const data = await branchDepartmentService.getBranches();
+            setBranches(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error("Failed to fetch branches", error);
+        }
+    };
+
+    const fetchDepartments = async () => {
+        try {
+            const data = await branchDepartmentService.getDepartments();
+            setDepartments(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error("Failed to fetch departments", error);
         }
     };
 
@@ -107,6 +132,66 @@ const Employees = () => {
             });
         } finally {
             setRoleUpdating(prev => ({ ...prev, [userId]: false }));
+        }
+    };
+
+    const handleBranchChange = async (userId: number, branchName: string) => {
+        if (!branchName) return;
+
+        // Find the branch by name
+        const branch = branches.find(b => b.name === branchName);
+        if (!branch) return;
+
+        setBranchUpdating(prev => ({ ...prev, [userId]: true }));
+
+        try {
+            const result = await employeeService.updateEmployeeAssignment(userId, { branch: branch.id });
+
+            toast({
+                title: "Success",
+                description: `Branch updated to ${branch.name}`,
+            });
+
+            // Refresh data
+            await fetchData();
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.response?.data?.detail || "Failed to update branch",
+                variant: "destructive",
+            });
+        } finally {
+            setBranchUpdating(prev => ({ ...prev, [userId]: false }));
+        }
+    };
+
+    const handleDepartmentChange = async (userId: number, departmentName: string) => {
+        if (!departmentName) return;
+
+        // Find the department by name
+        const department = departments.find(d => d.name === departmentName);
+        if (!department) return;
+
+        setDepartmentUpdating(prev => ({ ...prev, [userId]: true }));
+
+        try {
+            const result = await employeeService.updateEmployeeAssignment(userId, { department: department.id });
+
+            toast({
+                title: "Success",
+                description: `Department updated to ${department.name}`,
+            });
+
+            // Refresh data
+            await fetchData();
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.response?.data?.detail || "Failed to update department",
+                variant: "destructive",
+            });
+        } finally {
+            setDepartmentUpdating(prev => ({ ...prev, [userId]: false }));
         }
     };
 
@@ -417,14 +502,50 @@ const Employees = () => {
                                                             </Select>
                                                         </TableCell>
                                                         <TableCell className="px-6 py-4 whitespace-nowrap">
-                                                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                                                {employee.department_name || '-'}
-                                                            </Badge>
+                                                            <Select
+                                                                value={employee.department_name || ""}
+                                                                onValueChange={(value) => handleDepartmentChange(employee.id, value)}
+                                                                disabled={!!departmentUpdating[employee.id]}
+                                                            >
+                                                                <SelectTrigger className="w-[180px]">
+                                                                    <div className="flex items-center justify-between w-full">
+                                                                        <SelectValue placeholder={departmentUpdating[employee.id] ? "Updating..." : employee.department_name || "No Department"} />
+                                                                        {departmentUpdating[employee.id] && (
+                                                                            <div className="ml-2 w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                                                                        )}
+                                                                    </div>
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {departments.map((dept) => (
+                                                                        <SelectItem key={dept.id} value={dept.name}>
+                                                                            {dept.name}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
                                                         </TableCell>
                                                         <TableCell className="px-6 py-4 whitespace-nowrap">
-                                                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                                                {employee.branch_name || '-'}
-                                                            </Badge>
+                                                            <Select
+                                                                value={employee.branch_name || ""}
+                                                                onValueChange={(value) => handleBranchChange(employee.id, value)}
+                                                                disabled={!!branchUpdating[employee.id]}
+                                                            >
+                                                                <SelectTrigger className="w-[180px]">
+                                                                    <div className="flex items-center justify-between w-full">
+                                                                        <SelectValue placeholder={branchUpdating[employee.id] ? "Updating..." : employee.branch_name || "No Branch"} />
+                                                                        {branchUpdating[employee.id] && (
+                                                                            <div className="ml-2 w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                                                                        )}
+                                                                    </div>
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {branches.map((branch) => (
+                                                                        <SelectItem key={branch.id} value={branch.name}>
+                                                                            {branch.name}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
                                                         </TableCell>
                                                         <TableCell className="px-6 py-4 whitespace-nowrap">
                                                             <Badge className={

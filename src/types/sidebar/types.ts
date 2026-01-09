@@ -21,4 +21,5 @@ export type SidebarMenuItem = {
 export interface SidebarProps {
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
+  searchQuery?: string;
 }
