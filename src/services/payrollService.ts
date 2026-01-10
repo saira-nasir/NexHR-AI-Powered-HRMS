@@ -97,6 +97,17 @@ export interface EmployeeAttendance {
   work_hours: string;
   photo?: string | null;
   geo_location?: string | null;
+  // Embedded employee data from backend
+  employee_details?: {
+    id: number;
+    fname?: string;
+    lname?: string;
+    email?: string;
+    phone?: string;
+    department?: string;
+    designation?: string;
+    avatar?: string | null;
+  };
 }
 
 export interface LeaveRecord {
@@ -400,7 +411,7 @@ const payrollService = {
       const allBankInfo = await payrollService.listBankInfo();
       // Normalize employeeId to number for comparison
       const normalizedEmployeeId = Number(employeeId);
-      
+
       if (Array.isArray(allBankInfo)) {
         // Find bank info where employee ID matches (handle both number and string types)
         const found = allBankInfo.find(bi => {
@@ -409,13 +420,13 @@ const payrollService = {
         });
         return found || null;
       }
-      
+
       // Handle single object response
       if (allBankInfo && typeof allBankInfo === 'object') {
         const biEmployeeId = Number((allBankInfo as any).employee);
         return biEmployeeId === normalizedEmployeeId ? allBankInfo as EmployeeBankInfo : null;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error fetching bank info for employee:', employeeId, error);

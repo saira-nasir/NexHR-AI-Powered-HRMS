@@ -125,7 +125,6 @@ export const sidebarItems: SidebarMenuItem[] = [
       { title: 'Payroll', path: '/payroll', allowedRoles: ['Finance Manager', 'Admin'], codename: 'payroll' },
       { title: 'Expenses', path: '/expenses', allowedRoles: ['Finance Manager', 'Admin'], codename: 'expenses' },
       { title: 'Salary Structures', path: '/salary-structures', allowedRoles: ['Finance Manager', 'Admin'], codename: 'salary_structures' },
-      { title: 'Tax Management', path: '/tax-management', allowedRoles: ['Finance Manager', 'Admin'], codename: 'tax_management' },
       { title: 'Loans', path: '/loans', allowedRoles: ['Finance Manager', 'Admin'], codename: 'loans' },
       { title: 'Bulk Payments', path: '/bulk-payments', allowedRoles: ['Finance Manager', 'Admin'], codename: 'bulk_payments' },
     ],
