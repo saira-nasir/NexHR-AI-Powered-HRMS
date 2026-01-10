@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Check, Search } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check } from 'lucide-react';
 
 export interface CustomFormQuestion {
   id: string;
@@ -45,14 +45,6 @@ const CustomFormBuilder: React.FC<CustomFormBuilderProps> = ({
   onShowCustomForm,
   onCustomFormInput,
 }) => {
-  const [query, setQuery] = useState('');
-
-  const filteredQuestions = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return customFormQuestions;
-    return customFormQuestions.filter((x) => x.label.toLowerCase().includes(q) || x.id.toLowerCase().includes(q));
-  }, [query, customFormQuestions]);
-
   const getTypeDescription = (type: CustomFormQuestion['type']) => {
     switch (type) {
       case 'text': return 'Short single-line text input';
@@ -94,17 +86,8 @@ const CustomFormBuilder: React.FC<CustomFormBuilderProps> = ({
         Toggle the questions you want to include in your application form
       </p>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="relative w-full max-w-md">
-            <Search className="absolute left-3 top-2.5 text-[#9A8EA6] w-4 h-4" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search questions..."
-              className="pl-10 pr-3 py-2 w-full border rounded-md bg-white"
-            />
-          </div>
-          <div className="flex gap-2 ml-4">
+        <div className="flex items-center justify-end">
+          <div className="flex gap-2">
             <button
               type="button"
               onClick={() => {
@@ -135,7 +118,7 @@ const CustomFormBuilder: React.FC<CustomFormBuilderProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredQuestions
+          {customFormQuestions
             .filter(question => question.id !== 'applied_at')
             .map((question) => (
               <button

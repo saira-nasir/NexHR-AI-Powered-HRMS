@@ -87,21 +87,31 @@ const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="branch">Branch *</Label>
-                            <Select
-                                value={formData.branch?.toString()}
-                                onValueChange={(value) => setFormData({ ...formData, branch: parseInt(value) })}
-                            >
-                                <SelectTrigger id="branch">
-                                    <SelectValue placeholder="Select a branch" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {branches.map((branch) => (
-                                        <SelectItem key={branch.id} value={branch.id.toString()}>
-                                            {branch.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            {(!department && defaultBranchId) ? (
+                                // If creating a department from a specific branch, show the branch name as read-only
+                                <Input
+                                    id="branch"
+                                    value={branches.find(b => b.id === formData.branch)?.name || ''}
+                                    readOnly
+                                    disabled
+                                />
+                            ) : (
+                                <Select
+                                    value={formData.branch?.toString()}
+                                    onValueChange={(value) => setFormData({ ...formData, branch: parseInt(value) })}
+                                >
+                                    <SelectTrigger id="branch">
+                                        <SelectValue placeholder="Select a branch" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {branches.map((branch) => (
+                                            <SelectItem key={branch.id} value={branch.id.toString()}>
+                                                {branch.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </div>
                     </div>
                     <DialogFooter>

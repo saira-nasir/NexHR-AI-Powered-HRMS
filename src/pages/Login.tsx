@@ -20,7 +20,6 @@ const LoginPage = () => {
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState<LoginErrors>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const { redirectPath, setRedirectPath } = useRedirect();
   const navigate = useNavigate();
   const { login, isAuthenticated } = useAuth();
@@ -200,19 +199,7 @@ const LoginPage = () => {
                 {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
               </div>
 
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="rememberMe"
-                    checked={rememberMe}
-                    onChange={() => setRememberMe(!rememberMe)}
-                    className="mr-2"
-                  />
-                  <label htmlFor="rememberMe" className="text-sm text-gray-700">
-                    Remember Me
-                  </label>
-                </div>
+              <div className="flex items-center justify-end mb-6">
                 <Link to="/forgot-password" className="text-sm text-[#5C5470] hover:text-[#352F44] hover:underline">
                   Forgot your password?
                 </Link>

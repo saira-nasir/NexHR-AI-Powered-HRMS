@@ -95,7 +95,7 @@ const JobPostingForm: React.FC = () => {
     try {
       const response = await jobService.postJob({
         job_title: formData.title,
-        department: formData.department ? parseInt(formData.department) : null,
+        department: formData.department || null,
         job_type: formData.job_type,
         location_type: "onsite",
         city: formData.location,
@@ -108,6 +108,7 @@ const JobPostingForm: React.FC = () => {
         job_description: `${formData.description}\n\nRequirements:\n${formData.requirements}`,
         experience_level: 1,
         job_deadline: formData.application_deadline,
+        required_skills: [],
         job_schema: {
           name: true,
           email: true,
@@ -137,6 +138,7 @@ const JobPostingForm: React.FC = () => {
           min_salary: "",
           max_salary: "",
           application_deadline: "",
+          department: "",
         });
       } else {
         toast({

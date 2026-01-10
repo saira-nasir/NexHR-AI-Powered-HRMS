@@ -26,7 +26,6 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Dashboard',
     path: '/dashboard',
     icon: Home,
-    codename: 'dashboard',
   },
   {
     title: 'My Tasks',

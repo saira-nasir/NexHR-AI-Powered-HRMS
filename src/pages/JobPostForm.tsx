@@ -139,9 +139,9 @@ const JobPostForm: React.FC = () => {
       { id: 'gender', label: 'Gender', type: 'radio', enabled: false },
       { id: 'address', label: 'Address', type: 'text', enabled: false },
       { id: 'DOB', label: 'Date of Birth', type: 'date', enabled: false },
-      { id: 'cover_letter', label: 'Cover Letter', type: 'textarea', enabled: false },
       { id: 'education', label: 'Education', type: 'education', enabled: false },
       { id: 'experience', label: 'Experience', type: 'experience', enabled: false },
+      { id: 'skills', label: 'Skills', type: 'dropdown', enabled: false },
     ],
     customFormAnswers: {},
     required_skills: [],
@@ -197,9 +197,9 @@ const JobPostForm: React.FC = () => {
   }, []);
 
   // --- Validation Function ---
-  const validateStep = (): boolean => {
+  const getErrorsForStep = (step: number): ValidationErrors => {
     const errors: ValidationErrors = {};
-    if (currentStep === 1) {
+    if (step === 1) {
       if (!formData.jobTitle.trim()) {
         errors.jobTitle = "Job Title cannot be empty";
       }
@@ -239,12 +239,17 @@ const JobPostForm: React.FC = () => {
       if (!formData.required_skills || formData.required_skills.length === 0) {
         errors.required_skills = "At least one required skill must be selected";
       }
-    } else if (currentStep === 2) {
+    } else if (step === 2) {
       // For Application Form tab, require that Education is selected.
       if (!formData.educationLevel.trim()) {
         errors.educationLevel = "Education Level is required";
       }
     }
+    return errors;
+  };
+
+  const validateStep = (): boolean => {
+    const errors = getErrorsForStep(currentStep);
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -386,6 +391,17 @@ const JobPostForm: React.FC = () => {
   // "Post Job" is now triggered only on Step 3.
   const handlePostJob = async () => {
     if (isPosting) return; // prevent double submit
+    // run full validation for all non-review steps before posting
+    const errorsStep1 = getErrorsForStep(1);
+    const errorsStep2 = getErrorsForStep(2);
+    const mergedErrors: ValidationErrors = { ...errorsStep1, ...errorsStep2 };
+    if (Object.keys(mergedErrors).length > 0) {
+      setValidationErrors(mergedErrors);
+      // navigate user to the step containing the first error
+      if (mergedErrors.educationLevel) setCurrentStep(2);
+      else setCurrentStep(1);
+      return;
+    }
     setIsPosting(true);
     // Convert datetime-local value to ISO string format
     const formatDeadline = (deadline: string | null): string | null => {
@@ -424,7 +440,7 @@ const JobPostForm: React.FC = () => {
         dob: !!formData.customFormQuestions.find(q => q.id === 'DOB' && q.enabled),
         education: !!formData.customFormQuestions.find(q => q.id === 'education' && q.enabled),
         experience: !!formData.customFormQuestions.find(q => q.id === 'experience' && q.enabled),
-        skills: false, // Always false since we removed the skills field
+        skills: !!formData.customFormQuestions.find(q => q.id === 'skills' && q.enabled),
       },
     };
 

@@ -105,7 +105,6 @@ export const routes: RouteObject[] = [
     ],
   },
   {
-    path: "/",
     element: <ProtectedRoute />,
     children: [
       // 1. These routes are ACCESSIBLE only when explicitly allowed

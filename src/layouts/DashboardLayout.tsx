@@ -8,8 +8,7 @@ import NotificationsDropdown from '@/components/notifications/NotificationsDropd
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSelector, useDispatch } from 'react-redux';
-import { setPermissions } from '@/store/authSlice';
+import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Chatbot } from '@/components/Chatbot/Chatbot'; // ✅ integrated Chatbot
@@ -36,7 +35,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const { logout } = useAuth();
   const [profileOpen, setProfileOpen] = React.useState(false);
   const user = useSelector((state: RootState) => state.auth.user);
-  const dispatch = useDispatch();
 
   const getInitials = () => {
     const fname = user?.firstName || '';

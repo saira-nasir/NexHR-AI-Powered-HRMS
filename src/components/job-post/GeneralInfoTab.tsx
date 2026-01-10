@@ -5,6 +5,7 @@ import CreatableSelect from 'react-select/creatable';
 import { OptionType } from "../../data/formData";
 import RequiredSkillsField from './RequiredSkillsField';
 import { RequiredSkill } from '../../services/JobService';
+import { DateTimePicker } from '@/components/ui/datetime-picker';
 // SkillsTest removed — debug code cleaned up
 
 interface GeneralInfoTabProps {
@@ -91,15 +92,20 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
           <label htmlFor="deadline" className="block text-sm font-medium mb-1">
             Deadline
           </label>
-          <input
-            type="datetime-local"
-            id="deadline"
-            name="deadline"
-            value={formData.deadline || ''}
-            onChange={handleInputChange}
-            className="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-1 focus:ring-[#352F44] focus:border-[#352F44] transition duration-150 ease-in-out"
-            style={{ borderColor: validationErrors.deadline ? "red" : "#DBD8E3", backgroundColor: "#FFFFFF", color: "#2A2438" }}
-            min={minDeadline}
+          <DateTimePicker
+            value={formData.deadline}
+            onChange={(value) => {
+              // Trigger the same validation as the original input
+              handleInputChange({
+                target: {
+                  name: 'deadline',
+                  value: value
+                }
+              } as React.ChangeEvent<HTMLInputElement>);
+            }}
+            placeholder="Select date and time"
+            minDate={minDeadline ? new Date(minDeadline) : undefined}
+            error={!!validationErrors.deadline}
           />
           <p className="mt-1 text-xs text-gray-500">Select both date and time for the application deadline</p>
           {validationErrors.deadline && (
@@ -120,6 +126,13 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
             name="experienceLevel"
             value={formData.experienceLevel}
             onChange={handleInputChange}
+            onKeyDown={(e) => {
+              // Prevent +, -, e, E from being entered
+              if (['+', '-', 'e', 'E'].includes(e.key)) {
+                e.preventDefault();
+              }
+            }}
+            onWheel={(e) => e.currentTarget.blur()}
             required
             min="0"
             max="50"
@@ -243,7 +256,7 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
         </div>
       </div>
 
-      {/* Location Type & Country */}
+      {/* Location Type */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="locationType" className="block text-sm font-medium mb-1">
@@ -263,29 +276,29 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
             <option>Hybrid</option>
           </select>
         </div>
-        <div>
-          <label htmlFor="country" className="block text-sm font-medium mb-1">
-            Country {formData.locationType !== "Remote" && (<span className="text-red-500">*</span>)}
-          </label>
-          {isClient ? (
-            <Select<OptionType>
-              id="country"
-              name="country"
-              options={countryOptions}
-              value={formData.country}
-              onChange={(option) => handleSelectChange("country", option)}
-              classNamePrefix="select"
-              placeholder="Select country..."
-              isClearable
-              required={formData.locationType !== "Remote"}
-              isDisabled={formData.locationType === "Remote"}
-              styles={{
-                ...selectStyles,
-                control: (base) => ({
-                  ...base,
-                  backgroundColor: "#FFFFFF",
-                  borderColor: validationErrors.country ? "red" : "#DBD8E3",
-                  color: "#2A2438",
+        {formData.locationType !== "Remote" && (
+          <div>
+            <label htmlFor="country" className="block text-sm font-medium mb-1">
+              Country <span className="text-red-500">*</span>
+            </label>
+            {isClient ? (
+              <Select<OptionType>
+                id="country"
+                name="country"
+                options={countryOptions}
+                value={formData.country}
+                onChange={(option) => handleSelectChange("country", option)}
+                classNamePrefix="select"
+                placeholder="Select country..."
+                isClearable
+                required
+                styles={{
+                  ...selectStyles,
+                  control: (base) => ({
+                    ...base,
+                    backgroundColor: "#FFFFFF",
+                    borderColor: validationErrors.country ? "red" : "#DBD8E3",
+                    color: "#2A2438",
                   "&:hover": {
                     borderColor: validationErrors.country ? "red" : "#DBD8E3",
                   },
@@ -298,7 +311,8 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
           {validationErrors.country && (
             <p className="text-red-500 text-xs mt-1">{validationErrors.country}</p>
           )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* State & City */}
@@ -393,6 +407,13 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
               name="salaryMin"
               value={formData.salaryMin}
               onChange={handleInputChange}
+              onKeyDown={(e) => {
+                // Prevent +, -, e, E from being entered
+                if (['+', '-', 'e', 'E'].includes(e.key)) {
+                  e.preventDefault();
+                }
+              }}
+              onWheel={(e) => e.currentTarget.blur()}
               className="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-1 focus:ring-[#352F44] focus:border-[#352F44] transition duration-150 ease-in-out"
               style={{ borderColor: "#DBD8E3", backgroundColor: "#FFFFFF", color: "#2A2438" }}
               placeholder="e.g., 50000"
@@ -407,6 +428,13 @@ const GeneralInfoTab: React.FC<GeneralInfoTabProps> = ({
               name="salaryMax"
               value={formData.salaryMax}
               onChange={handleInputChange}
+              onKeyDown={(e) => {
+                // Prevent +, -, e, E from being entered
+                if (['+', '-', 'e', 'E'].includes(e.key)) {
+                  e.preventDefault();
+                }
+              }}
+              onWheel={(e) => e.currentTarget.blur()}
               className="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-1 focus:ring-[#352F44] focus:border-[#352F44] transition duration-150 ease-in-out"
               style={{ borderColor: "#DBD8E3", backgroundColor: "#FFFFFF", color: "#2A2438" }}
               placeholder="e.g., 80000"
