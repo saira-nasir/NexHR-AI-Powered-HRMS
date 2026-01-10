@@ -21,12 +21,12 @@ export const usePaymentConfirmation = () => {
       }
     })();
 
-      const resolvedPayrollId = payrollIdParam || stored;
-      // Start polling if we have a pending payroll id even if the session_id is missing.
-      // This covers cases where Stripe redirects without session_id but webhook will
-      // still update the payroll record later.
-      if (resolvedPayrollId) {
-        pollForWebhookCompletion(Number(resolvedPayrollId));
+    const resolvedPayrollId = payrollIdParam || stored;
+    // Start polling if we have a pending payroll id even if the session_id is missing.
+    // This covers cases where Stripe redirects without session_id but webhook will
+    // still update the payroll record later.
+    if (resolvedPayrollId) {
+      pollForWebhookCompletion(Number(resolvedPayrollId));
     }
     // Only re-run when the actual primitive query values change
   }, [sessionId, payrollIdParam]);
@@ -48,7 +48,7 @@ export const usePaymentConfirmation = () => {
             toast({ title: 'Payment Confirmed', description: 'Payroll marked as paid.' });
             // Clear and reload so the UI fetches the updated payroll list
             clearUrlParams();
-            try { localStorage.removeItem('nexhr.pending_payroll'); } catch {}
+            try { localStorage.removeItem('nexhr.pending_payroll'); } catch { }
             // Force a refresh to ensure the payroll table shows the updated PAID status
             window.location.reload();
             return;
@@ -62,10 +62,7 @@ export const usePaymentConfirmation = () => {
         await sleep(delay);
       }
 
-      toast({
-        title: 'Confirming payment…',
-        description: 'Still waiting for Stripe webhook. The page will reflect PAID once received.',
-      });
+      // Polling timed out - clear params silently without showing toast
       clearUrlParams();
     } finally {
       setIsConfirming(false);

@@ -400,7 +400,7 @@ const payrollService = {
       const allBankInfo = await payrollService.listBankInfo();
       // Normalize employeeId to number for comparison
       const normalizedEmployeeId = Number(employeeId);
-      
+
       if (Array.isArray(allBankInfo)) {
         // Find bank info where employee ID matches (handle both number and string types)
         const found = allBankInfo.find(bi => {
@@ -409,13 +409,13 @@ const payrollService = {
         });
         return found || null;
       }
-      
+
       // Handle single object response
       if (allBankInfo && typeof allBankInfo === 'object') {
         const biEmployeeId = Number((allBankInfo as any).employee);
         return biEmployeeId === normalizedEmployeeId ? allBankInfo as EmployeeBankInfo : null;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error fetching bank info for employee:', employeeId, error);
@@ -619,6 +619,16 @@ const payrollService = {
 
   deleteTaxBracket: async (id: number) => {
     await api.delete(`${BASE}/tax-brackets/${id}/`);
+  },
+
+  /* ---------------- Financial Reports ---------------- */
+  downloadFinancialReport: async (month: number, year: number) => {
+    const response = await api.get(`${BASE}/financial-report/`, {
+      params: { month, year },
+      responseType: 'blob',
+      timeout: 60000 // 60 seconds timeout for PDF generation
+    });
+    return response.data as Blob;
   },
 };
 

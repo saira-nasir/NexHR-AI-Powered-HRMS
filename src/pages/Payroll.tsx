@@ -16,12 +16,12 @@ import {
   AlertCircle,
   Calculator,
   Banknote,
-  TrendingUp,
   Filter,
   Search,
   Calendar,
   RefreshCw
 } from 'lucide-react';
+import { format } from 'date-fns';
 
 import payrollService, { Payroll, Payslip, SalaryStructure } from '@/services/payrollService';
 // Dialog inspector removed - not required
@@ -31,23 +31,14 @@ import { usePaymentConfirmation } from '@/hooks/usePaymentConfirmation';
 import PayrollPreviewModal from '@/components/financeDashboard/PayrollPreviewModal';
 import PayrollCreateModal from '@/components/financeDashboard/PayrollCreateModal';
 import PayrollEditModal from '@/components/financeDashboard/PayrollEditModal';
+import { MonthYearPicker } from '@/components/ui/month-year-picker';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 type EmployeeMap = Record<number, { name: string; email?: string; department?: string }>;
 
 const PayrollPage: React.FC = () => {
-  // Generate last 12 months dynamically
-  const monthOptions = useMemo(() => {
-    const options = [];
-    const today = new Date();
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
-      options.push(label);
-    }
-    return options;
-  }, []);
-
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]);
+  // Use Date object for month/year selection
+  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
@@ -65,6 +56,9 @@ const PayrollPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'ALL' | 'PENDING' | 'PAID' | 'FAILED'>('ALL');
   const [month, setMonth] = useState<string>(''); // yyyy-MM
+  const [reportPopoverOpen, setReportPopoverOpen] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [payingPayrollId, setPayingPayrollId] = useState<number | null>(null);  // Track which payroll is being paid
 
 
 
@@ -115,6 +109,7 @@ const PayrollPage: React.FC = () => {
 
   const handlePayPayroll = async (payrollId: number) => {
     try {
+      setPayingPayrollId(payrollId);  // Set loading state
       const session = await payrollService.createCheckoutSession(payrollId);
 
       if (session.url) {
@@ -130,6 +125,7 @@ const PayrollPage: React.FC = () => {
         throw new Error('No checkout URL received from server');
       }
     } catch (e: any) {
+      setPayingPayrollId(null);  // Clear loading state on error
       toast({ title: 'Checkout failed', description: e?.message || 'Please try again.', variant: 'destructive' });
     }
   };
@@ -325,37 +321,60 @@ const PayrollPage: React.FC = () => {
     }
   };
 
-  const handleGenerateReports = async () => {
+  const handleDownloadFinancialReport = async (selectedDate: Date) => {
+    console.log('🔥 FUNCTION CALLED! selectedDate:', selectedDate);
     try {
-      // Generate comprehensive payroll report
-      const reportData = {
-        totalEmployees: payrolls.length,
-        totalGrossSalary: payrolls.reduce((sum, p) => sum + Number(p.gross_salary || 0), 0),
-        totalTaxAmount: payrolls.reduce((sum, p) => sum + Number(p.tax_amount || 0), 0),
-        totalStatutoryDeductions: payrolls.reduce((sum, p) => sum + Number(p.statutory_deductions || 0), 0),
-        totalNetSalary: payrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0),
-        paidCount: payrolls.filter(p => p.payment_status === 'PAID').length,
-        pendingCount: payrolls.filter(p => p.payment_status === 'PENDING').length,
-        failedCount: payrolls.filter(p => p.payment_status === 'FAILED').length,
-        period: selectedMonth
-      };
+      setGeneratingReport(true);
+      const month = selectedDate.getMonth() + 1; // JavaScript months are 0-indexed
+      const year = selectedDate.getFullYear();
+      const monthLabel = format(selectedDate, 'MMMM yyyy');
 
-      // Create and download report as JSON
-      const reportBlob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-      const url = window.URL.createObjectURL(reportBlob);
+      console.log('📅 Financial Report Request:', {
+        selectedDate,
+        month,
+        year,
+        monthLabel,
+        apiUrl: `/api/payroll/financial-report/?month=${month}&year=${year}`
+      });
+
+      toast({
+        title: 'Generating report',
+        description: `Preparing financial report for ${monthLabel}...`
+      });
+
+      // Call the API to get the financial report PDF
+      const blob = await payrollService.downloadFinancialReport(month, year);
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `payroll_report_${selectedMonth.replace(' ', '_').toLowerCase()}.json`;
+      a.download = `financial_report_${year}_${month.toString().padStart(2, '0')}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      toast({ title: 'Report generated', description: 'Payroll report downloaded successfully.' });
+      toast({
+        title: 'Report downloaded',
+        description: `Financial report for ${monthLabel} has been downloaded successfully.`
+      });
+
+      // Close the popover after successful download
+      setReportPopoverOpen(false);
     } catch (e: any) {
-      toast({ title: 'Report generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+      const errorMessage = e?.response?.data?.detail || e?.message || 'Failed to generate report. Please try again.';
+      console.error('❌ Financial Report Error:', e);
+      toast({
+        title: 'Report generation failed',
+        description: errorMessage,
+        variant: 'destructive'
+      });
+    } finally {
+      setGeneratingReport(false);
     }
   };
+
 
   const handleViewDiscrepancies = async () => {
     try {
@@ -622,15 +641,45 @@ const PayrollPage: React.FC = () => {
             <p className="text-muted-foreground">Manage salary calculations and disbursements</p>
           </div>
           <div className="flex items-center gap-3">
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-            >
-              {monthOptions.map((m: string) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
+            <Popover open={reportPopoverOpen} onOpenChange={setReportPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  disabled={generatingReport}
+                >
+                  <FileText className="w-4 h-4" />
+                  {generatingReport ? 'Generating...' : 'Generate Report'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-4" align="start">
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-semibold text-sm mb-1">Select Month & Year</h4>
+                    <p className="text-xs text-muted-foreground">Choose a period to generate the financial report</p>
+                  </div>
+                  <MonthYearPicker
+                    value={selectedMonth}
+                    onChange={(date) => setSelectedMonth(date)}
+                    className="w-full"
+                  />
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Selected: <span className="font-semibold text-foreground">{format(selectedMonth, 'MMMM yyyy')}</span>
+                    </p>
+                    <Button
+                      onClick={() => handleDownloadFinancialReport(selectedMonth)}
+                      disabled={generatingReport}
+                      className="w-full"
+                      size="sm"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      {generatingReport ? 'Generating...' : 'Download Report'}
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button onClick={() => setCreateOpen(true)} disabled={loading} className="cursor-pointer">
               <RefreshCw className="w-4 h-4 mr-2" />
               Create Payroll
@@ -716,7 +765,7 @@ const PayrollPage: React.FC = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6">
               {/* Payroll Progress */}
               <Card className="transition-transform transform hover:-translate-y-0.5 hover:shadow-lg overflow-hidden rounded-lg border border-gray-50">
                 <div className="flex">
@@ -754,59 +803,6 @@ const PayrollPage: React.FC = () => {
                         </div>
                         <Progress value={0} className="h-2" />
                       </div>
-                    </CardContent>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Quick Actions */}
-              <Card className="transition-transform transform hover:-translate-y-0.5 hover:shadow-lg overflow-hidden rounded-lg border border-gray-50">
-                <div className="flex">
-                  <div className="w-0.5 bg-gradient-to-b from-[#6C63FF]/60 to-[#FF6B6B]/60" />
-                  <div className="flex-1">
-                    {/* <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Banknote className="w-5 h-5" />
-                        Quick Actions
-                      </CardTitle>
-                    </CardHeader> */}
-                    <CardContent className="space-y-3 px-4 py-2">
-                      <Button
-                        className="w-full justify-start"
-                        variant="outline"
-                        onClick={handleDownloadAllPayslips}
-                        disabled={loading}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download All Payslips
-                      </Button>
-                      <Button
-                        className="w-full justify-start"
-                        variant="outline"
-                        onClick={handlePreviewPayrollRun}
-                        disabled={loading}
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        Preview Payroll Run
-                      </Button>
-                      <Button
-                        className="w-full justify-start"
-                        variant="outline"
-                        onClick={handleGenerateReports}
-                        disabled={loading}
-                      >
-                        <TrendingUp className="w-4 h-4 mr-2" />
-                        Generate Reports
-                      </Button>
-                      <Button
-                        className="w-full justify-start"
-                        variant="outline"
-                        onClick={handleViewDiscrepancies}
-                        disabled={loading}
-                      >
-                        <AlertCircle className="w-4 h-4 mr-2" />
-                        View Discrepancies
-                      </Button>
                     </CardContent>
                   </div>
                 </div>
@@ -1021,10 +1017,12 @@ const PayrollPage: React.FC = () => {
                                       (() => {
                                         const netNum = Number(p.net_salary || 0);
                                         const disabled = netNum <= 0;
+                                        const isPayingThis = payingPayrollId === p.id;
                                         return (
                                           <Button
                                             size="sm"
-                                            className={`h-7 px-2 ${disabled ? 'bg-gray-300 text-gray-700 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'} text-xs font-medium flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95`}
+                                            className={`h-7 px-2 ${disabled || isPayingThis ? 'bg-gray-300 text-gray-700 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'} text-xs font-medium flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95`}
+                                            disabled={disabled || isPayingThis}
                                             onClick={() => {
                                               if (disabled) {
                                                 toast({ title: 'Cannot pay', description: 'Net salary is non-positive. Fix salary structure or deductions before paying.', variant: 'destructive' });
@@ -1033,7 +1031,14 @@ const PayrollPage: React.FC = () => {
                                               handlePayPayroll(p.id);
                                             }}
                                           >
-                                            Pay
+                                            {isPayingThis ? (
+                                              <>
+                                                <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                                                Redirecting...
+                                              </>
+                                            ) : (
+                                              'Pay'
+                                            )}
                                           </Button>
                                         );
                                       })()
@@ -1254,7 +1259,12 @@ const PayrollPage: React.FC = () => {
                             </div>
                             <div className="flex gap-2">
                               {slip?.payslip_pdf_url ? (
-                                <a href={slip.payslip_pdf_url} target="_blank" rel="noreferrer" className="flex-1">
+                                <a
+                                  href={slip.payslip_pdf_url.startsWith('http') ? slip.payslip_pdf_url : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${slip.payslip_pdf_url}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex-1"
+                                >
                                   <Button size="sm" className="w-full text-sm py-2">
                                     <Download className="w-4 h-4 mr-2" />
                                     Download
@@ -1270,16 +1280,51 @@ const PayrollPage: React.FC = () => {
                                       return;
                                     }
                                     try {
-                                      const blob = await payrollService.downloadPayslip(p.id);
-                                      const url = window.URL.createObjectURL(blob);
-                                      const a = document.createElement('a');
-                                      a.href = url;
-                                      a.download = `payslip_${p.id}.pdf`;
-                                      a.click();
-                                      window.URL.revokeObjectURL(url);
-                                    } catch (err) {
+                                      // Check if payslip already exists
+                                      let payslip = payslips.find(ps => ps.payroll === p.id);
+
+                                      console.log('🔍 Payslip Debug:', {
+                                        payrollId: p.id,
+                                        payslipFound: !!payslip,
+                                        payslipData: payslip,
+                                        hasPdfUrl: !!payslip?.payslip_pdf_url,
+                                        pdfUrl: payslip?.payslip_pdf_url
+                                      });
+
+                                      // If no payslip exists or no PDF URL, show error
+                                      if (!payslip) {
+                                        toast({ 
+                                          title: 'Payslip not found', 
+                                          description: 'Please confirm payment first to generate the payslip.',
+                                          variant: 'destructive' 
+                                        });
+                                        return;
+                                      }
+
+                                      if (!payslip.payslip_pdf_url) {
+                                        toast({ 
+                                          title: 'PDF not available', 
+                                          description: 'Payslip PDF has not been generated yet.',
+                                          variant: 'destructive' 
+                                        });
+                                        return;
+                                      }
+
+                                      // Open PDF in new tab
+                                      if (payslip?.payslip_pdf_url) {
+                                        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+                                        const pdfUrl = payslip.payslip_pdf_url.startsWith('http')
+                                          ? payslip.payslip_pdf_url
+                                          : `${baseUrl}${payslip.payslip_pdf_url}`;
+                                        window.open(pdfUrl, '_blank');
+                                        toast({ title: 'Success', description: 'Payslip opened!' });
+                                      } else {
+                                        toast({ title: 'Error', description: 'PDF not available.', variant: 'destructive' });
+                                      }
+                                    } catch (err: any) {
                                       console.error('Failed to download payslip:', err);
-                                      toast({ title: 'Download failed', description: 'Could not download payslip. Please try again.', variant: 'destructive' });
+                                      const errorMsg = err?.response?.data?.detail || err?.message || 'Please try again.';
+                                      toast({ title: 'Download failed', description: errorMsg, variant: 'destructive' });
                                     }
                                   }}
                                 >
