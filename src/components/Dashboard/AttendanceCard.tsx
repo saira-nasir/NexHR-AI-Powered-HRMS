@@ -28,7 +28,7 @@ const AttendanceCard: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="h-full min-h-[300px] flex items-center justify-center bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="h-full min-h-[300px] flex items-center justify-center bg-white rounded-xl border border-gray-100 shadow-md ring-1 ring-gray-100">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
             </div>
         );
@@ -36,7 +36,7 @@ const AttendanceCard: React.FC = () => {
 
     if (error || !stats) {
         return (
-            <div className="h-full min-h-[300px] flex items-center justify-center bg-white rounded-xl border border-slate-200 shadow-sm text-red-500">
+            <div className="h-full min-h-[300px] flex items-center justify-center bg-white rounded-xl border border-gray-100 shadow-md ring-1 ring-gray-100 text-red-500">
                 {error || 'No data available'}
             </div>
         );
@@ -54,8 +54,10 @@ const AttendanceCard: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="hr-card h-full flex flex-col"
+            className="group relative hr-card h-full flex flex-col overflow-hidden border border-gray-100 shadow-md ring-1 ring-gray-100 hover:shadow-xl hover:ring-purple-200 hover:border-purple-200 transition-all duration-300 ease-out hover:-translate-y-1"
         >
+            {/* Gradient accent line on hover */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left z-10" />
             {/* Header */}
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div className="flex items-center space-x-2">

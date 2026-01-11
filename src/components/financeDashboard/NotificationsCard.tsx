@@ -9,10 +9,10 @@ import { useToast } from '@/hooks/use-toast';
 
 // Define the expected structure for the paginated response
 interface PaginatedNotifications {
-    count: number;
-    next: string | null;
-    previous: string | null;
-    results: Notification[];
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Notification[];
 }
 
 // Helper type to handle the response from listNotifications
@@ -31,7 +31,7 @@ const NotificationsCard: React.FC = () => {
     try {
       setLoading(true);
       const response: NotificationResponse = await payrollService.listNotifications();
-      
+
       // FIX: Check if response is the new paginated object and extract 'results', 
       // otherwise assume it's the old array format. Default to empty array.
       let dataArray: Notification[] = [];
@@ -46,7 +46,7 @@ const NotificationsCard: React.FC = () => {
 
       // Sort newest first for display in the card
       dataArray.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      
+
       setNotifications(dataArray);
 
     } catch (error) {
@@ -60,8 +60,8 @@ const NotificationsCard: React.FC = () => {
   const handleMarkAsRead = async (id: number) => {
     try {
       await payrollService.markNotificationAsRead(id);
-      setNotifications(prev => 
-        prev.map(notif => 
+      setNotifications(prev =>
+        prev.map(notif =>
           notif.id === id ? { ...notif, is_read: true } : notif
         )
       );
@@ -88,17 +88,17 @@ const NotificationsCard: React.FC = () => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
+
     if (diffInSeconds < 60) return 'Just now';
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
     if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-    
+
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   return (
-    <Card className="rounded-lg border border-gray-100 bg-white hover:shadow-lg transform hover:-translate-y-1 transition-all duration-300 group border-l-4 border-[#6C63FF]/20 overflow-hidden shadow-sm">
+    <Card className="group rounded-lg bg-white transform hover:-translate-y-1 transition-all duration-300 ease-out border border-gray-100 shadow-md ring-1 ring-gray-100 hover:shadow-xl hover:ring-purple-200 hover:border-purple-200 overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 px-4 pt-4">
         <CardTitle className="text-base font-semibold group-hover:text-[#6C63FF] transition-colors flex items-center gap-2.5 text-gray-800">
           <Bell className="h-4 w-4 text-[#6C63FF]" />
@@ -114,11 +114,11 @@ const NotificationsCard: React.FC = () => {
         <ScrollArea className="min-h-[120px] max-h-[400px] w-full">
           {loading ? (
             <div className="flex items-center justify-center h-32">
-              <div 
-                className="animate-spin w-6 h-6 border-2 rounded-full" 
+              <div
+                className="animate-spin w-6 h-6 border-2 rounded-full"
                 style={{
-                  borderColor: '#6C63FF', 
-                  borderTopColor: 'transparent', 
+                  borderColor: '#6C63FF',
+                  borderTopColor: 'transparent',
                   borderRightColor: 'transparent'
                 }}
               />
@@ -136,30 +136,28 @@ const NotificationsCard: React.FC = () => {
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-2.5 rounded-lg border transition-all duration-200 hover:shadow-md flex items-start gap-3 group/notif relative ${
-                    notification.is_read 
-                      ? 'bg-white border-gray-100 hover:border-gray-200' 
+                  className={`p-2.5 rounded-lg border transition-all duration-200 hover:shadow-md flex items-start gap-3 group/notif relative ${notification.is_read
+                      ? 'bg-white border-gray-100 hover:border-gray-200'
                       : 'bg-gradient-to-r from-[#F3F4F6] to-[#F9FAFB] border-[#E9E7FF] hover:border-[#6C63FF]/30'
-                  }`}
+                    }`}
                 >
                   {!notification.is_read && (
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-[#6C63FF] rounded-r-full opacity-60" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm leading-relaxed ${
-                      notification.is_read 
-                        ? 'text-gray-600' 
+                    <p className={`text-sm leading-relaxed ${notification.is_read
+                        ? 'text-gray-600'
                         : 'text-gray-900 font-semibold'
-                    }`}>
+                      }`}>
                       {notification.message}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
                       <span>{formatTimeAgo(notification.created_at)}</span>
                       <span>•</span>
-                      <span>{new Date(notification.created_at).toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
+                      <span>{new Date(notification.created_at).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
                         minute: '2-digit',
-                        hour12: true 
+                        hour12: true
                       })}</span>
                     </p>
                   </div>

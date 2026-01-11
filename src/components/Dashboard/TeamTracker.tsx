@@ -69,7 +69,7 @@ const TeamTracker: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="hr-card col-span-1 row-span-2 flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+      <div className="hr-card col-span-1 row-span-2 flex flex-col h-full bg-white rounded-xl border border-gray-100 shadow-md ring-1 ring-gray-100 p-5">
         <div className="flex items-center justify-between mb-6">
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-4 w-16" />
@@ -83,7 +83,7 @@ const TeamTracker: React.FC = () => {
 
   if (error) {
     return (
-      <div className="hr-card col-span-1 row-span-2 flex flex-col items-center justify-center h-full bg-white rounded-xl shadow-sm border border-slate-100 p-5 text-center">
+      <div className="hr-card col-span-1 row-span-2 flex flex-col items-center justify-center h-full bg-white rounded-xl border border-gray-100 shadow-md ring-1 ring-gray-100 p-5 text-center">
         <Users className="h-10 w-10 text-slate-300 mb-2" />
         <p className="text-slate-500">{error}</p>
       </div>
@@ -91,7 +91,9 @@ const TeamTracker: React.FC = () => {
   }
 
   return (
-    <div className="hr-card col-span-1 row-span-2 flex flex-col h-full bg-white rounded-xl hover:shadow-xl transition-all duration-300">
+    <div className="group relative hr-card col-span-1 row-span-2 flex flex-col h-full bg-white rounded-xl overflow-hidden border border-gray-100 shadow-md ring-1 ring-gray-100 hover:shadow-xl hover:ring-purple-200 hover:border-purple-200 transition-all duration-300 ease-out hover:-translate-y-1">
+      {/* Gradient accent line on hover */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left z-10" />
       <div className="p-5 border-b border-slate-100">
         <div className="flex items-center justify-between">
           <div>
