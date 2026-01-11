@@ -75,6 +75,7 @@ const AttendanceLeave: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
   const userRole = getUserRole(user);
   const isHR = userRole === ROLES.HR;
+  const isAdmin = userRole === ROLES.ADMIN;
   const permissions = useSelector((state: RootState) => state.auth.permissions) || [];
   const hasLeaveApproval = permissions.includes('leave_approval');
 
@@ -102,6 +103,10 @@ const AttendanceLeave: React.FC = () => {
     from_date: '',
     to_date: '',
   });
+  const [touchedFields, setTouchedFields] = useState<{ from_date: boolean; to_date: boolean }>({
+    from_date: false,
+    to_date: false
+  });
 
   const fetchInProgress = useRef(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -115,6 +120,7 @@ const AttendanceLeave: React.FC = () => {
   const [allLeavesLoading, setAllLeavesLoading] = useState(false);
   const [employeesMap, setEmployeesMap] = useState<Map<number, Employee>>(new Map());
   const [isSubmittingLeave, setIsSubmittingLeave] = useState(false);
+  const [processingAction, setProcessingAction] = useState<{ leaveId: number; action: 'approve' | 'reject' } | null>(null);
 
   type TodayButtonState = {
     date: string;
@@ -133,6 +139,14 @@ const AttendanceLeave: React.FC = () => {
   const [todayButtonState, setTodayButtonState] = useState<TodayButtonState>(emptyButtonState());
 
   // --- Helpers ---
+  const parseDateStringToLocal = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    const [year, month, day] = dateStr.split('-').map(Number);
+    if (year && month && day) {
+      return new Date(year, month - 1, day);
+    }
+    return new Date(dateStr);
+  };
 
   const normalizeDate = (value?: string | null): string | null => {
     if (!value) return null;
@@ -548,6 +562,7 @@ const AttendanceLeave: React.FC = () => {
       toast.success('Leave application submitted');
       setOpen(false);
       setFormData({ leave_type: 'Casual', from_date: '', to_date: '' });
+      setTouchedFields({ from_date: false, to_date: false });
       // Fetch and properly filter leaves for current user only
       const data = await apiGet(`/payroll/leaves/?employee=${employee}`);
       const filtered = Array.isArray(data) ? data.filter((l: Leave) => l.employee === employee) : [];
@@ -561,12 +576,46 @@ const AttendanceLeave: React.FC = () => {
     }
   };
 
+  // --- Leave form helpers / validation ---
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+
+  const isFromDateValid = (from?: string) => {
+    if (!from) return false;
+    return from >= getTodayStr();
+  };
+
+  const isToDateValid = (from?: string, to?: string) => {
+    if (!to || !from) return false;
+    return to >= from;
+  };
+
+  const isLeaveFormValid = () => {
+    return isFromDateValid(formData.from_date) && isToDateValid(formData.from_date, formData.to_date);
+  };
+
+  const handleFromDateChange = (value: string) => {
+    const from = value;
+    let to = formData.to_date;
+    if (!to || to < from) {
+      to = from;
+    }
+    setFormData(prev => ({ ...prev, from_date: from, to_date: to }));
+    setTouchedFields(prev => ({ ...prev, from_date: true }));
+  };
+
+  const handleToDateChange = (value: string) => {
+    setFormData(prev => ({ ...prev, to_date: value }));
+    setTouchedFields(prev => ({ ...prev, to_date: true }));
+  };
+
   // Handle leave approval (HR only)
   const handleApproveLeave = async (leaveId: number) => {
-    if (!hasLeaveApproval) {
+    if (!hasLeaveApproval && !isAdmin) {
       toast.error('You do not have permission to approve leaves');
       return;
     }
+    if (processingAction !== null) return; // Prevent multiple simultaneous actions
+    setProcessingAction({ leaveId, action: 'approve' });
     try {
       await payrollService.approveLeave(leaveId);
       toast.success('Leave approved successfully');
@@ -582,15 +631,19 @@ const AttendanceLeave: React.FC = () => {
       toast.error('Failed to approve leave', {
         description: error.response?.data?.detail || 'Please try again'
       });
+    } finally {
+      setProcessingAction(null);
     }
   };
 
   // Handle leave rejection (HR only)
   const handleRejectLeave = async (leaveId: number) => {
-    if (!hasLeaveApproval) {
+    if (!hasLeaveApproval && !isAdmin) {
       toast.error('You do not have permission to reject leaves');
       return;
     }
+    if (processingAction !== null) return; // Prevent multiple simultaneous actions
+    setProcessingAction({ leaveId, action: 'reject' });
     try {
       await payrollService.rejectLeave(leaveId);
       toast.success('Leave rejected successfully');
@@ -606,6 +659,8 @@ const AttendanceLeave: React.FC = () => {
       toast.error('Failed to reject leave', {
         description: error.response?.data?.detail || 'Please try again'
       });
+    } finally {
+      setProcessingAction(null);
     }
   };
 
@@ -810,8 +865,15 @@ const AttendanceLeave: React.FC = () => {
     } catch (error: any) {
       console.error('Manual Check-In Error:', error);
       console.error('Error Response:', error.response?.data);
-      const msg = error.response?.data?.message || error.response?.data?.detail || error.message || 'Failed to check in';
-      toast.error('Error', { description: msg });
+      const data = error.response?.data;
+      if (data && data.error) {
+        const dist = typeof data.distance_meters === 'number' ? `${Math.round(data.distance_meters)}m` : data.distance_meters;
+        const allowed = typeof data.allowed_radius === 'number' ? `${Math.round(data.allowed_radius)}m` : data.allowed_radius;
+        toast.error('Check-In Failed', { description: `${data.error} (${dist} away, allowed ${allowed})` });
+      } else {
+        const msg = data?.message || data?.detail || error.message || 'Failed to check in';
+        toast.error('Error', { description: msg });
+      }
       // Reset button state on error to allow retry
       const userId = getUserId();
       if (userId) {
@@ -903,7 +965,14 @@ const AttendanceLeave: React.FC = () => {
         toast.error('Checkout Failed', { description: response.message });
       }
     } catch (error: any) {
-      toast.error('Error', { description: error.response?.data?.message || 'Failed to check out' });
+      const data = error.response?.data;
+      if (data && data.error) {
+        const dist = typeof data.distance_meters === 'number' ? `${Math.round(data.distance_meters)}m` : data.distance_meters;
+        const allowed = typeof data.allowed_radius === 'number' ? `${Math.round(data.allowed_radius)}m` : data.allowed_radius;
+        toast.error('Check-Out Failed', { description: `${data.error} (${dist} away, allowed ${allowed})` });
+      } else {
+        toast.error('Error', { description: data?.message || 'Failed to check out' });
+      }
     } finally {
       setMarkAttendanceLoading(false);
     }
@@ -992,148 +1061,154 @@ const AttendanceLeave: React.FC = () => {
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in bg-gradient-to-br from-background via-muted/5 to-background min-h-screen">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Attendance & Leave</h1>
-          <p className="text-muted-foreground">Manage your attendance records and leave applications</p>
+          <h1 className="text-3xl font-bold text-foreground">{isAdmin ? 'Leave Approval' : 'Attendance & Leave'}</h1>
+          <p className="text-muted-foreground">{isAdmin ? 'Review and approve employee leave requests' : 'Manage your attendance records and leave applications'}</p>
         </div>
 
-        <Tabs defaultValue="attendance" className="w-full">
-          <TabsList className={`grid w-full ${hasLeaveApproval ? 'grid-cols-3' : 'grid-cols-2'} bg-muted/50 p-1 rounded-xl`}>
-            <TabsTrigger value="attendance" className="rounded-lg">
-              <CalendarIcon className="mr-2 h-4 w-4" /> Attendance
-            </TabsTrigger>
-            <TabsTrigger value="leave" className="rounded-lg">
-              <CalendarIcon className="mr-2 h-4 w-4" /> Leave
-            </TabsTrigger>
-            {hasLeaveApproval && (
+        <Tabs defaultValue={isAdmin ? 'leave-approval' : 'attendance'} className="w-full">
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-1' : (hasLeaveApproval ? 'grid-cols-3' : 'grid-cols-2')} bg-muted/50 p-1 rounded-xl`}>
+            {!isAdmin && (
+              <>
+                <TabsTrigger value="attendance" className="rounded-lg">
+                  <CalendarIcon className="mr-2 h-4 w-4" /> Attendance
+                </TabsTrigger>
+                <TabsTrigger value="leave" className="rounded-lg">
+                  <CalendarIcon className="mr-2 h-4 w-4" /> Leave
+                </TabsTrigger>
+              </>
+            )}
+
+            {(hasLeaveApproval || isAdmin) && (
               <TabsTrigger value="leave-approval" className="rounded-lg">
                 <UserCheck className="mr-2 h-4 w-4" /> Leave Approval
               </TabsTrigger>
             )}
           </TabsList>
 
-          <TabsContent value="attendance" className="space-y-6">
-            {attendanceLoading ? (
-              <div className="flex flex-col items-center justify-center h-64 space-y-4">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-                <p className="text-muted-foreground">Loading attendance data...</p>
-              </div>
-            ) : (
-              <>
-                {/* Control Buttons */}
-                <div className="flex flex-row gap-4 mb-6 justify-center">
-                  {/* Face Check-in */}
-                  <Button
-                    onClick={() => {
-                      if (isCheckInDisabled) return;
-                      if (!hasCheckedInToday || hasCheckedOutToday) {
-                        setAttendanceMode('checkin');
-                        setAttendanceResult(null);
-                      }
-                    }}
-                    disabled={isCheckInDisabled}
-                    className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${attendanceMode === 'checkin' && (!hasCheckedInToday || hasCheckedOutToday)
-                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
-                      : 'bg-white text-green-700 border-2 border-green-300'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Camera className="h-4 w-4" />
-                      <span>Face Check In</span>
-                    </div>
-                  </Button>
-
-                  {/* Manual Check-in */}
-                  <Button
-                    onClick={handleManualCheckIn}
-                    disabled={isCheckInDisabled}
-                    className="w-40 h-14 text-sm font-semibold shadow-md bg-white text-green-700 border-2 border-green-300 hover:bg-green-50"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4" />
-                      <span>Manual Check In</span>
-                    </div>
-                  </Button>
-
-                  {/* Check Out */}
-                  <Button
-                    onClick={() => setShowCheckoutConfirm(true)}
-                    disabled={isCheckOutDisabled}
-                    className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${hasCheckedInToday && !hasCheckedOutToday
-                      ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
-                      : 'bg-white text-blue-700 border-2 border-blue-300 opacity-50'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <XCircle className="h-4 w-4" />
-                      <span>Check Out</span>
-                    </div>
-                  </Button>
+          {!isAdmin && (
+            <TabsContent value="attendance" className="space-y-6">
+              {attendanceLoading ? (
+                <div className="flex flex-col items-center justify-center h-64 space-y-4">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+                  <p className="text-muted-foreground">Loading attendance data...</p>
                 </div>
+              ) : (
+                <>
+                  {/* Control Buttons */}
+                  <div className="flex flex-row gap-4 mb-6 justify-center">
+                    {/* Face Check-in */}
+                    <Button
+                      onClick={() => {
+                        if (isCheckInDisabled) return;
+                        if (!hasCheckedInToday || hasCheckedOutToday) {
+                          setAttendanceMode('checkin');
+                          setAttendanceResult(null);
+                        }
+                      }}
+                      disabled={isCheckInDisabled}
+                      className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${attendanceMode === 'checkin' && (!hasCheckedInToday || hasCheckedOutToday)
+                        ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                        : 'bg-white text-green-700 border-2 border-green-300'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Camera className="h-4 w-4" />
+                        <span>Face Check In</span>
+                      </div>
+                    </Button>
 
-                {/* Webcam / Result Section */}
-                {attendanceMode === 'checkin' && !todayAttendance?.check_out && (
-                  <div className="mb-6">
-                    <div>
-                      {!attendanceResult ? (
-                        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-                          {/* <CardHeader>
+                    {/* Manual Check-in */}
+                    <Button
+                      onClick={handleManualCheckIn}
+                      disabled={isCheckInDisabled}
+                      className="w-40 h-14 text-sm font-semibold shadow-md bg-white text-green-700 border-2 border-green-300 hover:bg-green-50"
+                    >
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4" />
+                        <span>Manual Check In</span>
+                      </div>
+                    </Button>
+
+                    {/* Check Out */}
+                    <Button
+                      onClick={() => setShowCheckoutConfirm(true)}
+                      disabled={isCheckOutDisabled}
+                      className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${hasCheckedInToday && !hasCheckedOutToday
+                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                        : 'bg-white text-blue-700 border-2 border-blue-300 opacity-50'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <XCircle className="h-4 w-4" />
+                        <span>Check Out</span>
+                      </div>
+                    </Button>
+                  </div>
+
+                  {/* Webcam / Result Section */}
+                  {attendanceMode === 'checkin' && !todayAttendance?.check_out && (
+                    <div className="mb-6">
+                      <div>
+                        {!attendanceResult ? (
+                          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+                            {/* <CardHeader>
                             <CardTitle className="flex items-center gap-2"><Camera className="w-5 h-5" /> Check In</CardTitle>
                             <CardDescription>Capture your photo to check in via facial recognition</CardDescription>
                           </CardHeader> */}
-                          <CardContent>
-                            <WebcamCapture
-                              key="webcam-checkin"
-                              onCapture={handleCheckIn}
-                              isLoading={markAttendanceLoading}
-                            />
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        <Card className={`shadow-lg ${attendanceResult.verified ? 'border-green-500' : 'border-red-500'}`}>
-                          <CardContent className="pt-12 pb-12 text-center space-y-6">
-                            <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center ${attendanceResult.verified ? 'bg-green-500' : 'bg-red-500'}`}>
-                              {attendanceResult.verified ? <CheckCircle2 className="h-12 w-12 text-white" /> : <XCircle className="h-12 w-12 text-white" />}
-                            </div>
-                            <div>
-                              <h2 className="text-3xl font-bold mb-2">{attendanceResult.verified ? 'Success!' : 'Failed'}</h2>
-                              <p className="text-muted-foreground">{attendanceResult.message}</p>
-                            </div>
-                            <Button
-                              onClick={() => resetAttendanceResult(attendanceResult.verified ? 'checkin' : undefined)}
-                              variant={attendanceResult.verified ? "outline" : "default"}
-                            >
-                              {attendanceResult.verified ? 'Done' : 'Try Again'}
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                    {/* Recognition Status Card - Temporarily hidden */}
-                    {/* <div className="lg:col-span-1">
+                            <CardContent>
+                              <WebcamCapture
+                                key="webcam-checkin"
+                                onCapture={handleCheckIn}
+                                isLoading={markAttendanceLoading}
+                              />
+                            </CardContent>
+                          </Card>
+                        ) : (
+                          <Card className={`shadow-lg ${attendanceResult.verified ? 'border-green-500' : 'border-red-500'}`}>
+                            <CardContent className="pt-12 pb-12 text-center space-y-6">
+                              <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center ${attendanceResult.verified ? 'bg-green-500' : 'bg-red-500'}`}>
+                                {attendanceResult.verified ? <CheckCircle2 className="h-12 w-12 text-white" /> : <XCircle className="h-12 w-12 text-white" />}
+                              </div>
+                              <div>
+                                <h2 className="text-3xl font-bold mb-2">{attendanceResult.verified ? 'Success!' : 'Failed'}</h2>
+                                <p className="text-muted-foreground">{attendanceResult.message}</p>
+                              </div>
+                              <Button
+                                onClick={() => resetAttendanceResult(attendanceResult.verified ? 'checkin' : undefined)}
+                                variant={attendanceResult.verified ? "outline" : "default"}
+                              >
+                                {attendanceResult.verified ? 'Done' : 'Try Again'}
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                      {/* Recognition Status Card - Temporarily hidden */}
+                      {/* <div className="lg:col-span-1">
                       <EmployeeProfile employee={recognizedEmployee} timestamp={recognitionTime} />
                     </div> */}
-                  </div>
-                )}
-
-                {/* Checkout Result */}
-                {attendanceResult && attendanceMode === 'checkin' && todayAttendance?.check_out && (
-                  <div className="mb-6">
-                    <div>
-                      <Card className="border-green-500 shadow-lg">
-                        <CardContent className="pt-12 pb-12 text-center space-y-6">
-                          <div className="mx-auto w-24 h-24 rounded-full bg-green-500 flex items-center justify-center">
-                            <CheckCircle2 className="h-12 w-12 text-white" />
-                          </div>
-                          <div>
-                            <h2 className="text-3xl font-bold mb-2">Check-Out Successful!</h2>
-                            <p className="text-muted-foreground">{attendanceResult.message}</p>
-                          </div>
-                          <Button onClick={() => setAttendanceResult(null)} variant="outline" size="lg">Done</Button>
-                        </CardContent>
-                      </Card>
                     </div>
-                    {/* Recognition Status Card - Temporarily hidden */}
-                    {/* <div className="lg:col-span-1">
+                  )}
+
+                  {/* Checkout Result */}
+                  {attendanceResult && attendanceMode === 'checkin' && todayAttendance?.check_out && (
+                    <div className="mb-6">
+                      <div>
+                        <Card className="border-green-500 shadow-lg">
+                          <CardContent className="pt-12 pb-12 text-center space-y-6">
+                            <div className="mx-auto w-24 h-24 rounded-full bg-green-500 flex items-center justify-center">
+                              <CheckCircle2 className="h-12 w-12 text-white" />
+                            </div>
+                            <div>
+                              <h2 className="text-3xl font-bold mb-2">Check-Out Successful!</h2>
+                              <p className="text-muted-foreground">{attendanceResult.message}</p>
+                            </div>
+                            <Button onClick={() => setAttendanceResult(null)} variant="outline" size="lg">Done</Button>
+                          </CardContent>
+                        </Card>
+                      </div>
+                      {/* Recognition Status Card - Temporarily hidden */}
+                      {/* <div className="lg:col-span-1">
                       <EmployeeProfile 
                         employee={recognizedEmployee} 
                         timestamp={recognitionTime} 
@@ -1142,162 +1217,185 @@ const AttendanceLeave: React.FC = () => {
                         isCheckedOut={true}
                       />
                     </div> */}
-                  </div>
-                )}
+                    </div>
+                  )}
 
-                {/* Dialogs */}
-                <Dialog open={showCheckoutConfirm} onOpenChange={setShowCheckoutConfirm}>
+                  {/* Dialogs */}
+                  <Dialog open={showCheckoutConfirm} onOpenChange={setShowCheckoutConfirm}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Confirm Check-Out</DialogTitle>
+                        <DialogDescription>Are you sure you want to check out? This will complete your work day.</DialogDescription>
+                      </DialogHeader>
+                      <div className="flex gap-3 justify-end mt-4">
+                        <Button variant="outline" onClick={() => setShowCheckoutConfirm(false)} disabled={markAttendanceLoading}>Cancel</Button>
+                        <Button
+                          onClick={handleCheckOut}
+                          disabled={markAttendanceLoading}
+                          className="bg-red-500 hover:bg-red-600 text-white"
+                        >
+                          {markAttendanceLoading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : 'Confirm'}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Calendar */}
+                  <div className="mt-8">
+                    <AttendanceCalendar
+                      year={currentYear}
+                      month={currentMonth}
+                      attendanceData={attendanceMap}
+                      onDateClick={(date) => {
+                        const rec = timeCards.find(r => r.date === date);
+                        if (rec) { setSelectedRecord(rec); setShowDetailModal(true); }
+                      }}
+                      onMonthChange={(dir) => {
+                        if (dir === 'prev') setCurrentMonth(prev => prev === 0 ? 11 : prev - 1);
+                        else setCurrentMonth(prev => prev === 11 ? 0 : prev + 1);
+                        if (dir === 'prev' && currentMonth === 0) setCurrentYear(y => y - 1);
+                        if (dir === 'next' && currentMonth === 11) setCurrentYear(y => y + 1);
+                      }}
+                    />
+                  </div>
+
+                  <AttendanceDetailModal
+                    isOpen={showDetailModal}
+                    onClose={() => setShowDetailModal(false)}
+                    data={selectedRecord}
+                    onRequestCorrection={() => { toast.success('Request submitted'); setShowDetailModal(false); }}
+                    onDownloadPDF={() => toast.success('PDF Downloaded')}
+                  />
+                </>
+              )}
+            </TabsContent>
+          )}
+
+          {!isAdmin && (
+            <TabsContent value="leave" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">Leave Management</h2>
+                  <p className="text-muted-foreground">Apply for leave and track your applications</p>
+                </div>
+                <Dialog open={open} onOpenChange={setOpen}>
+                  <DialogTrigger asChild>
+                    <Button><Plus className="mr-2 h-4 w-4" /> Apply for Leave</Button>
+                  </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Confirm Check-Out</DialogTitle>
-                      <DialogDescription>Are you sure you want to check out? This will complete your work day.</DialogDescription>
+                      <DialogTitle>Apply for Leave</DialogTitle>
+                      <DialogDescription>Fill in the details to submit your leave request</DialogDescription>
                     </DialogHeader>
-                    <div className="flex gap-3 justify-end mt-4">
-                      <Button variant="outline" onClick={() => setShowCheckoutConfirm(false)} disabled={markAttendanceLoading}>Cancel</Button>
-                      <Button
-                        onClick={handleCheckOut}
-                        disabled={markAttendanceLoading}
-                        className="bg-red-500 hover:bg-red-600 text-white"
-                      >
-                        {markAttendanceLoading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : 'Confirm'}
+                    <form onSubmit={handleLeaveSubmit} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Leave Type</Label>
+                        <Select value={formData.leave_type} onValueChange={(v) => setFormData({ ...formData, leave_type: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Casual">Casual</SelectItem>
+                            <SelectItem value="Sick">Sick</SelectItem>
+                            <SelectItem value="Annual">Annual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>From Date</Label>
+                        <Input
+                          type="date"
+                          value={formData.from_date}
+                          onChange={(e) => handleFromDateChange(e.target.value)}
+                          required
+                          min={getTodayStr()}
+                        />
+                        {touchedFields.from_date && !isFromDateValid(formData.from_date) && (
+                          <p className="text-sm text-red-600">From date cannot be earlier than today</p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>To Date</Label>
+                        <Input
+                          type="date"
+                          value={formData.to_date}
+                          onChange={(e) => handleToDateChange(e.target.value)}
+                          required
+                          min={formData.from_date || getTodayStr()}
+                        />
+                        {touchedFields.to_date && !isToDateValid(formData.from_date, formData.to_date) && (
+                          <p className="text-sm text-red-600">To date must be the same or after the From date</p>
+                        )}
+                      </div>
+                      <Button type="submit" className="w-full" disabled={isSubmittingLeave || !isLeaveFormValid()}>
+                        {isSubmittingLeave ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          'Submit Application'
+                        )}
                       </Button>
-                    </div>
+                    </form>
                   </DialogContent>
                 </Dialog>
+              </div>
 
-                {/* Calendar */}
-                <div className="mt-8">
-                  <AttendanceCalendar
-                    year={currentYear}
-                    month={currentMonth}
-                    attendanceData={attendanceMap}
-                    onDateClick={(date) => {
-                      const rec = timeCards.find(r => r.date === date);
-                      if (rec) { setSelectedRecord(rec); setShowDetailModal(true); }
-                    }}
-                    onMonthChange={(dir) => {
-                      if (dir === 'prev') setCurrentMonth(prev => prev === 0 ? 11 : prev - 1);
-                      else setCurrentMonth(prev => prev === 11 ? 0 : prev + 1);
-                      if (dir === 'prev' && currentMonth === 0) setCurrentYear(y => y - 1);
-                      if (dir === 'next' && currentMonth === 11) setCurrentYear(y => y + 1);
-                    }}
-                  />
+              {leavesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin text-primary mr-2" />
+                  <span className="text-muted-foreground">Loading leave records...</span>
                 </div>
-
-                <AttendanceDetailModal
-                  isOpen={showDetailModal}
-                  onClose={() => setShowDetailModal(false)}
-                  data={selectedRecord}
-                  onRequestCorrection={() => { toast.success('Request submitted'); setShowDetailModal(false); }}
-                  onDownloadPDF={() => toast.success('PDF Downloaded')}
-                />
-              </>
-            )}
-          </TabsContent>
-
-          <TabsContent value="leave" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold">Leave Management</h2>
-                <p className="text-muted-foreground">Apply for leave and track your applications</p>
-              </div>
-              <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger asChild>
-                  <Button><Plus className="mr-2 h-4 w-4" /> Apply for Leave</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Apply for Leave</DialogTitle>
-                    <DialogDescription>Fill in the details to submit your leave request</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleLeaveSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Leave Type</Label>
-                      <Select value={formData.leave_type} onValueChange={(v) => setFormData({ ...formData, leave_type: v })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Casual">Casual</SelectItem>
-                          <SelectItem value="Sick">Sick</SelectItem>
-                          <SelectItem value="Annual">Annual</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>From Date</Label>
-                      <Input type="date" value={formData.from_date} onChange={(e) => setFormData({ ...formData, from_date: e.target.value })} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>To Date</Label>
-                      <Input type="date" value={formData.to_date} onChange={(e) => setFormData({ ...formData, to_date: e.target.value })} required />
-                    </div>
-                    <Button type="submit" className="w-full" disabled={isSubmittingLeave}>
-                      {isSubmittingLeave ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Submitting...
-                        </>
-                      ) : (
-                        'Submit Application'
-                      )}
-                    </Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </div>
-
-            {leavesLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <RefreshCw className="h-6 w-6 animate-spin text-primary mr-2" />
-                <span className="text-muted-foreground">Loading leave records...</span>
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {leaves.map((leave) => (
-                  <Card key={leave.id} className="border-l-4 border-l-primary/50">
-                    <CardHeader>
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <CardTitle>{leave.leave_type} Leave</CardTitle>
-                          <CardDescription>
-                            {new Date(leave.from_date).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })} - {new Date(leave.to_date).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })}
-                          </CardDescription>
+              ) : (
+                <div className="grid gap-4">
+                  {leaves.map((leave) => (
+                    <Card key={leave.id} className="border-l-4 border-l-primary/50">
+                      <CardHeader>
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <CardTitle>{leave.leave_type} Leave</CardTitle>
+                            <CardDescription>
+                              {parseDateStringToLocal(leave.from_date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })} - {parseDateStringToLocal(leave.to_date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </CardDescription>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={`capitalize ${leave.status === 'APPROVED' ? 'bg-green-100 text-green-700 border-green-300' :
+                              leave.status === 'REJECTED' ? 'bg-red-100 text-red-700 border-red-300' :
+                                'bg-yellow-100 text-yellow-700 border-yellow-300'
+                              }`}
+                          >
+                            {leave.status.toLowerCase()}
+                          </Badge>
                         </div>
-                        <Badge
-                          variant="outline"
-                          className={`capitalize ${leave.status === 'APPROVED' ? 'bg-green-100 text-green-700 border-green-300' :
-                            leave.status === 'REJECTED' ? 'bg-red-100 text-red-700 border-red-300' :
-                              'bg-yellow-100 text-yellow-700 border-yellow-300'
-                            }`}
-                        >
-                          {leave.status.toLowerCase()}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                ))}
-                {leaves.length === 0 && (
-                  <div className="text-center p-8 text-muted-foreground">
-                    No leave records found.
-                  </div>
-                )}
-              </div>
-            )}
-          </TabsContent>
+                      </CardHeader>
+                    </Card>
+                  ))}
+                  {leaves.length === 0 && (
+                    <div className="text-center p-8 text-muted-foreground">
+                      No leave records found.
+                    </div>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+          )}
 
-          {hasLeaveApproval && (
+          {(hasLeaveApproval || isAdmin) && (
             <TabsContent value="leave-approval" className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold">Leave Approval</h2>
-                <p className="text-muted-foreground">Review and approve or reject employee leave requests</p>
-              </div>
+              {!isAdmin && (
+                <div>
+                  <h2 className="text-2xl font-bold">Leave Approval</h2>
+                  <p className="text-muted-foreground">Review and approve or reject employee leave requests</p>
+                </div>
+              )}
 
               {pendingLeaves.length > 0 && (
                 <Card className="border-l-4 border-l-amber-500">
@@ -1324,11 +1422,11 @@ const AttendanceLeave: React.FC = () => {
                               </div>
                               <div>
                                 <p className="text-muted-foreground">From Date</p>
-                                <p className="font-medium">{new Date(leave.from_date).toLocaleDateString()}</p>
+                                <p className="font-medium">{parseDateStringToLocal(leave.from_date).toLocaleDateString()}</p>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">To Date</p>
-                                <p className="font-medium">{new Date(leave.to_date).toLocaleDateString()}</p>
+                                <p className="font-medium">{parseDateStringToLocal(leave.to_date).toLocaleDateString()}</p>
                               </div>
                             </div>
                             {leave.reason && (
@@ -1342,16 +1440,28 @@ const AttendanceLeave: React.FC = () => {
                             <Button
                               size="sm"
                               onClick={() => handleApproveLeave(leave.id)}
+                              disabled={processingAction !== null}
                               className="bg-green-600 hover:bg-green-700"
                             >
-                              <CheckCircle className="h-4 w-4 mr-1" />Approve
+                              {processingAction?.leaveId === leave.id && processingAction?.action === 'approve' ? (
+                                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                              )}
+                              Approve
                             </Button>
                             <Button
                               size="sm"
                               variant="destructive"
                               onClick={() => handleRejectLeave(leave.id)}
+                              disabled={processingAction !== null}
                             >
-                              <XCircle className="h-4 w-4 mr-1" />Reject
+                              {processingAction?.leaveId === leave.id && processingAction?.action === 'reject' ? (
+                                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <XCircle className="h-4 w-4 mr-1" />
+                              )}
+                              Reject
                             </Button>
                           </div>
                         </div>
@@ -1390,8 +1500,8 @@ const AttendanceLeave: React.FC = () => {
                             <tr key={leave.id} className="border-b border-border hover:bg-muted/50">
                               <td className="p-4 font-medium">{getEmployeeName(leave.employee)}</td>
                               <td className="p-4">{leave.leave_type}</td>
-                              <td className="p-4">{new Date(leave.from_date).toLocaleDateString()}</td>
-                              <td className="p-4">{new Date(leave.to_date).toLocaleDateString()}</td>
+                              <td className="p-4">{parseDateStringToLocal(leave.from_date).toLocaleDateString()}</td>
+                              <td className="p-4">{parseDateStringToLocal(leave.to_date).toLocaleDateString()}</td>
                               <td className="p-4">
                                 <Badge
                                   variant={
@@ -1412,17 +1522,27 @@ const AttendanceLeave: React.FC = () => {
                                         size="sm"
                                         variant="outline"
                                         onClick={() => handleApproveLeave(leave.id)}
+                                        disabled={processingAction !== null}
                                         className="text-green-600 hover:text-green-700"
                                       >
-                                        <CheckCircle className="h-4 w-4" />
+                                        {processingAction?.leaveId === leave.id && processingAction?.action === 'approve' ? (
+                                          <RefreshCw className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <CheckCircle className="h-4 w-4" />
+                                        )}
                                       </Button>
                                       <Button
                                         size="sm"
                                         variant="outline"
                                         onClick={() => handleRejectLeave(leave.id)}
+                                        disabled={processingAction !== null}
                                         className="text-red-600 hover:text-red-700"
                                       >
-                                        <XCircle className="h-4 w-4" />
+                                        {processingAction?.leaveId === leave.id && processingAction?.action === 'reject' ? (
+                                          <RefreshCw className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <XCircle className="h-4 w-4" />
+                                        )}
                                       </Button>
                                     </>
                                   )}

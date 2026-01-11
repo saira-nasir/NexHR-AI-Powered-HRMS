@@ -269,7 +269,11 @@ export const routes: RouteObject[] = [
           { path: "success", element: <PaymentSuccess /> },
           {
             path: "payroll",
-            element: <PayrollPage />,
+            element: (
+              <RoleBasedRoute requiredPermission="payroll">
+                <PayrollPage />
+              </RoleBasedRoute>
+            ),
           },
           {
             path: "expenses",
