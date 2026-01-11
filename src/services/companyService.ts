@@ -14,6 +14,7 @@ export const registerCompany = async (companyData: {
         },
         body: JSON.stringify(companyData),
     });
+    
 
     if (!response.ok) {
         const errorData = await response.json();

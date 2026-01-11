@@ -97,6 +97,17 @@ export interface EmployeeAttendance {
   work_hours: string;
   photo?: string | null;
   geo_location?: string | null;
+  // Embedded employee data from backend
+  employee_details?: {
+    id: number;
+    fname?: string;
+    lname?: string;
+    email?: string;
+    phone?: string;
+    department?: string;
+    designation?: string;
+    avatar?: string | null;
+  };
 }
 
 export interface LeaveRecord {

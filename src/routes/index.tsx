@@ -50,7 +50,7 @@ import Expenses from "@/pages/Expenses";
 import Loans from "@/pages/Loans";
 import BulkPayments from "@/pages/BulkPayments";
 import SalaryStructures from "@/pages/SalaryStructures";
-import TaxManagement from "@/pages/TaxManagement";
+
 import LoanExpense from "@/pages/LoanExpense";
 import RolesAndPermissions from "@/pages/RolesAndPermissions";
 
@@ -306,7 +306,11 @@ export const routes: RouteObject[] = [
           },
           {
             path: "tax-management",
-            element: <TaxManagement />,
+            element: (
+              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
+                <Navigate to="/dashboard" replace />
+              </RoleBasedRoute>
+            ),
           },
 
 

@@ -50,42 +50,43 @@ const BankInfo: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const fetchBankInfo = async () => {
-      try {
-        const userId = getUserId();
-        if (!userId) {
-          setLoading(false);
-          return;
-        }
-
-        // Fetch bank info filtered by current user's employee ID
-        const data = await payrollService.listBankInfo();
-
-        // Normalize userId to number for consistent comparison
-        const normalizedUserId = Number(userId);
-        
-        if (data && Array.isArray(data)) {
-          // Find bank info for current user - use normalized comparison
-          const userBankInfo = data.find((bi: any) => Number(bi.employee) === normalizedUserId);
-          if (userBankInfo) {
-            setBankInfo(userBankInfo);
-          }
-        } else if (data && typeof data === 'object' && !Array.isArray(data)) {
-          // If we get a single object, check if it belongs to current user
-          const bankData = data as any;
-          if (Number(bankData.employee) === normalizedUserId) {
-            setBankInfo(bankData);
-          }
-        }
-      } catch (error) {
-        console.log('No existing bank info found, will create new one');
-        // Bank info might not exist yet, that's okay
-      } finally {
+  // Reusable function to fetch bank info
+  const fetchBankInfo = async () => {
+    try {
+      const userId = getUserId();
+      if (!userId) {
         setLoading(false);
+        return;
       }
-    };
 
+      // Fetch bank info filtered by current user's employee ID
+      const data = await payrollService.listBankInfo();
+
+      // Normalize userId to number for consistent comparison
+      const normalizedUserId = Number(userId);
+
+      if (data && Array.isArray(data)) {
+        // Find bank info for current user - use normalized comparison
+        const userBankInfo = data.find((bi: any) => Number(bi.employee) === normalizedUserId);
+        if (userBankInfo) {
+          setBankInfo(userBankInfo);
+        }
+      } else if (data && typeof data === 'object' && !Array.isArray(data)) {
+        // If we get a single object, check if it belongs to current user
+        const bankData = data as any;
+        if (Number(bankData.employee) === normalizedUserId) {
+          setBankInfo(bankData);
+        }
+      }
+    } catch (error) {
+      console.log('No existing bank info found, will create new one');
+      // Bank info might not exist yet, that's okay
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchBankInfo();
   }, []);
 
@@ -133,7 +134,7 @@ const BankInfo: React.FC = () => {
 
       // Ensure userId is a number for consistency
       const normalizedUserId = Number(userId);
-      
+
       console.log('💾 [BankInfo] Saving bank info:', {
         userId: userId,
         normalizedUserId: normalizedUserId,
@@ -141,7 +142,7 @@ const BankInfo: React.FC = () => {
         existingId: bankInfo.id,
         bankInfoData: finalBankInfo
       });
-      
+
       // If bankInfo has an id, it means we're updating existing data
       if (bankInfo.id) {
         const payload = {
@@ -174,34 +175,10 @@ const BankInfo: React.FC = () => {
         }
       }
 
-      // Refresh bank info after save to ensure we have latest data
-      // This is a fallback in case response doesn't include all fields
-      try {
-        console.log('🔄 [BankInfo] Refreshing bank info list after save...');
-        const data = await payrollService.listBankInfo();
-        console.log('📋 [BankInfo] All bank info from API:', data);
-        if (data && Array.isArray(data)) {
-          console.log(`🔍 [BankInfo] Looking for bank info with employee ID: ${normalizedUserId}`);
-          console.log('🔍 [BankInfo] Available bank info employee IDs:', data.map((bi: any) => ({
-            id: bi.id,
-            employee: bi.employee,
-            employeeType: typeof bi.employee,
-            normalized: Number(bi.employee)
-          })));
-          // Use normalized comparison to handle type mismatches
-          const userBankInfo = data.find((bi: any) => Number(bi.employee) === normalizedUserId);
-          if (userBankInfo) {
-            console.log('✅ [BankInfo] Found bank info after refresh:', userBankInfo);
-            setBankInfo(userBankInfo);
-          } else {
-            console.warn(`⚠️ [BankInfo] Bank info NOT found for employee ${normalizedUserId} after save!`);
-            console.warn('⚠️ [BankInfo] This might indicate an employee ID mismatch issue.');
-          }
-        }
-      } catch (refreshError) {
-        console.error('❌ [BankInfo] Could not refresh bank info after save:', refreshError);
-        // Not critical - we already updated from response
-      }
+      // Refresh bank info after save to ensure UI shows latest data
+      // Small delay to ensure backend has committed the data
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await fetchBankInfo();
     } catch (error: any) {
       console.error('Bank info save error:', error);
       const errorMessage = error.response?.data?.detail ||

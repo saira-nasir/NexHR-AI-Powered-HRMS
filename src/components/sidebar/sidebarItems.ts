@@ -120,12 +120,11 @@ export const sidebarItems: SidebarMenuItem[] = [
     path: '/finance',
     icon: DollarSign,
     submenu: [
-      { title: 'Payroll', path: '/payroll' },
-      { title: 'Expenses', path: '/expenses' },
-      { title: 'Salary Structures', path: '/salary-structures' },
-      { title: 'Tax Management', path: '/tax-management' },
-      { title: 'Loans', path: '/loans' },
-      { title: 'Bulk Payments', path: '/bulk-payments' },
+      { title: 'Payroll', path: '/payroll', allowedRoles: ['Finance Manager', 'Admin'], codename: 'payroll' },
+      { title: 'Expenses', path: '/expenses', allowedRoles: ['Finance Manager', 'Admin'], codename: 'expenses' },
+      { title: 'Salary Structures', path: '/salary-structures', allowedRoles: ['Finance Manager', 'Admin'], codename: 'salary_structures' },
+      { title: 'Loans', path: '/loans', allowedRoles: ['Finance Manager', 'Admin'], codename: 'loans' },
+      { title: 'Bulk Payments', path: '/bulk-payments', allowedRoles: ['Finance Manager', 'Admin'], codename: 'bulk_payments' },
     ],
   },
   {
