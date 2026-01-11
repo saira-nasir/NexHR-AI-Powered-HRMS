@@ -83,6 +83,8 @@ interface InterviewScoringFormProps {
   onClose?: () => void;
   // parent can register a close request handler to be called when user tries to close workspace
   onRegisterClose?: (handler: () => void) => void;
+  // optional callback invoked after successful submission so parent can refresh lists
+  onSubmitted?: () => Promise<void> | void;
 }
 
 export default function InterviewScoringForm({ initialData, onClose, onRegisterClose }: InterviewScoringFormProps = {}) {
@@ -305,28 +307,32 @@ export default function InterviewScoringForm({ initialData, onClose, onRegisterC
 
     setIsSubmitting(true)
 
-    try {
-      // Submit to backend
-      const resp = await interviewService.submitFeedback(roundId, submissionData)
-      
-      if (!resp.success) {
+      try {
+        // Submit to backend
+        const resp = await interviewService.submitFeedback(roundId, submissionData)
+
+        if (!resp.success) {
+          setIsSubmitting(false)
+          return
+        }
+
+        // Close workspace
+        if (onClose) {
+          onClose()
+        }
+
+        // Let parent refresh the scheduled rounds if provided, otherwise fall back
+        if (onSubmitted) {
+          await onSubmitted()
+        } else {
+          await interviewService.fetchScheduledRounds()
+        }
+
+      } catch (error) {
+        // Error already logged by service
+      } finally {
         setIsSubmitting(false)
-        return
       }
-
-      // Close workspace
-      if (onClose) {
-        onClose()
-      }
-
-      // Refresh scheduled rounds
-      await interviewService.fetchScheduledRounds()
-
-    } catch (error) {
-      // Error already logged by service
-    } finally {
-      setIsSubmitting(false)
-    }
   }
 
   // Allow parent to request close: register a handler that checks unsaved changes and opens the dialog

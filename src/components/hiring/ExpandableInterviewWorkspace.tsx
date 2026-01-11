@@ -9,6 +9,7 @@ interface ExpandableInterviewWorkspaceProps {
   interview: ScheduledInterview | null;
   isOpen: boolean;
   onClose: () => void;
+  onRefresh?: () => void;
 }
 
 export const ExpandableInterviewWorkspace: React.FC<ExpandableInterviewWorkspaceProps> = ({
@@ -91,6 +92,7 @@ export const ExpandableInterviewWorkspace: React.FC<ExpandableInterviewWorkspace
                   jobData: interview.jobData,
                 }}
                 onClose={onClose}
+                onSubmitted={onRefresh}
                 onRegisterClose={(fn) => {
                   formCloseHandlerRef.current = fn
                 }}

@@ -104,32 +104,33 @@ const HiringInterview: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedInterview, setSelectedInterview] = useState<ScheduledInterview | null>(null);
 
-  // Fetch scheduled rounds from API on mount
-  useEffect(() => {
-    const fetchScheduledRounds = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await applicationService.getScheduledRounds();
-        if (response.success && response.data) {
-          const rounds = response.data.rounds || response.data.results || response.data || [];
-          const transformed = rounds
-            .map(transformApiRound)
-            .filter((r: ScheduledInterview | null): r is ScheduledInterview => r !== null);
-          setInterviews(transformed);
-        } else {
-          setError(response.message || 'Failed to fetch scheduled interviews');
-          setInterviews([]);
-        }
-      } catch (err: any) {
-        console.error('Error fetching scheduled rounds:', err);
-        setError(err?.message || 'Failed to fetch scheduled interviews');
+  // Fetch scheduled rounds from API (exposed so callers can refresh)
+  const fetchScheduledRounds = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await applicationService.getScheduledRounds();
+      if (response.success && response.data) {
+        const rounds = response.data.rounds || response.data.results || response.data || [];
+        const transformed = rounds
+          .map(transformApiRound)
+          .filter((r: ScheduledInterview | null): r is ScheduledInterview => r !== null);
+        setInterviews(transformed);
+      } else {
+        setError(response.message || 'Failed to fetch scheduled interviews');
         setInterviews([]);
-      } finally {
-        setIsLoading(false);
       }
-    };
+    } catch (err: any) {
+      console.error('Error fetching scheduled rounds:', err);
+      setError(err?.message || 'Failed to fetch scheduled interviews');
+      setInterviews([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  // Initial load
+  useEffect(() => {
     fetchScheduledRounds();
   }, []);
 
@@ -235,6 +236,7 @@ const HiringInterview: React.FC = () => {
         interview={selectedInterview}
         isOpen={!!selectedInterview}
         onClose={handleClose}
+        onRefresh={fetchScheduledRounds}
       />
 
       {/* Bottom Action Bar */}
