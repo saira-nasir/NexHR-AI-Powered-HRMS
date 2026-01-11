@@ -183,6 +183,7 @@ export interface BulkPaymentLog {
   status: "PROCESSING" | "COMPLETED" | "FAILED" | string;
   // may contain items/results field
   items?: any[];
+  stripe_result?: any;
 }
 
 export interface TaxBracket {
@@ -518,6 +519,7 @@ const payrollService = {
     period_start?: string;
     period_end?: string;
     total_amount?: number | string;
+    use_stripe?: boolean;
   }) => {
     let payIds = payload.payrolls;
 
@@ -551,7 +553,10 @@ const payrollService = {
     if (payload.period_end) {
       postPayload.period_end = payload.period_end;
     }
-
+    // Pass use_stripe if provided (crucial for triggering Stripe logic)
+    if (payload.use_stripe !== undefined) {
+      postPayload.use_stripe = payload.use_stripe;
+    }
 
     const { data } = await api.post<BulkPaymentLog>(`${BASE}/bulk-payments/`, postPayload);
     return data;
@@ -630,6 +635,16 @@ const payrollService = {
 
   deleteTaxBracket: async (id: number) => {
     await api.delete(`${BASE}/tax-brackets/${id}/`);
+  },
+
+  /* ---------------- Financial Reports ---------------- */
+  downloadFinancialReport: async (month: number, year: number) => {
+    const response = await api.get(`${BASE}/financial-report/`, {
+      params: { month, year },
+      responseType: 'blob',
+      timeout: 60000 // 60 seconds timeout for PDF generation
+    });
+    return response.data as Blob;
   },
 };
 

@@ -119,8 +119,6 @@ export const sidebarItems: SidebarMenuItem[] = [
     title: 'Finance',
     path: '/finance',
     icon: DollarSign,
-    allowedRoles: ['Finance Manager', 'Admin'],
-    codename: 'finance',
     submenu: [
       { title: 'Payroll', path: '/payroll', allowedRoles: ['Finance Manager', 'Admin'], codename: 'payroll' },
       { title: 'Expenses', path: '/expenses', allowedRoles: ['Finance Manager', 'Admin'], codename: 'expenses' },

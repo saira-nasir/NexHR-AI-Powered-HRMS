@@ -285,47 +285,24 @@ export const routes: RouteObject[] = [
           { path: "success", element: <PaymentSuccess /> },
           {
             path: "payroll",
-            element: (
-              <RoleBasedRoute requiredPermission="payroll">
-                <PayrollPage />
-              </RoleBasedRoute>
-            ),
+            element: <PayrollPage />,
           },
           {
             path: "expenses",
-            element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
-                <Expenses />
-              </RoleBasedRoute>
-            ),
+            element: <Expenses />,
           },
           { path: "invoices", element: <Navigate to="/loans" replace /> },
           {
             path: "loans",
-            element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
-                <Loans />
-              </RoleBasedRoute>
-            ),
+            element: <Loans />,
           },
           {
             path: "bulk-payments",
-            element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
-                <BulkPayments />
-              </RoleBasedRoute>
-            ),
+            element: <BulkPayments />,
           },
           {
             path: "salary-structures",
-            element: (
-              <RoleBasedRoute
-                allowedRoles={["Finance Manager", "Admin"]}
-                requiredPermission="salary_structures"
-              >
-                <SalaryStructures />
-              </RoleBasedRoute>
-            ),
+            element: <SalaryStructures />,
           },
           {
             path: "tax-management",
