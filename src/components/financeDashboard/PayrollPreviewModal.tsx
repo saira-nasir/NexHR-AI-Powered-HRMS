@@ -68,18 +68,6 @@ const PayrollPreviewModal: React.FC<Props> = ({ open, onOpenChange, payrollId, p
           </div>
         )}
         <div className="mt-4 flex justify-end gap-2">
-          {payrollId && (
-            <Button
-              onClick={async () => {
-                if (!payrollId) return;
-                await payrollService.calculatePayroll(payrollId);
-                if (onRecalculate) await onRecalculate(payrollId);
-                onOpenChange(false);
-              }}
-            >
-              Recalculate
-            </Button>
-          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
         </div>
       </DialogContent>

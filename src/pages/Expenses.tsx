@@ -196,12 +196,9 @@ const Expenses: React.FC = () => {
             <h1 className="text-3xl font-bold">Expense Management</h1>
             <p className="text-muted-foreground">Review and approve employee expense claims</p>
           </div>
-          <div className="text-sm text-muted-foreground">
+          <div>
             <div>Signed in as: <span className="font-medium">{user?.email || '—'}</span></div>
             <div>Role: <span className="font-medium">{userRole}</span></div>
-            {userRole !== 'Finance Manager' && (
-              <div className="text-xs text-red-600 mt-1">Note: This page requires Finance Manager role to manage approvals. You may be redirected.</div>
-            )}
           </div>
           <div className="flex items-center gap-4">
             <div className="text-center">

@@ -1,7 +1,7 @@
 import React from 'react';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Download, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import {
@@ -9,7 +9,6 @@ import {
   ActiveEmployeesCard,
   TaxComplianceCard,
   PendingDisbursementsCard,
-  PayrollTrendsChart,
   TaxComplianceChart,
   RecentDisbursementsCard,
   // SalaryStructureTable and TaxManagementTable moved to dedicated pages
@@ -39,10 +38,10 @@ const FinanceDashboard: React.FC = () => {
       ]);
       setPayrolls(pr);
       setPayslips(ps);
-      
+
       // Build employee map with proper name resolution (same as Payroll page)
       const map: Record<number, { name: string; email?: string; department?: string }> = {};
-      
+
       // First, try to extract employee details from payroll data if available
       pr.forEach(payroll => {
         if (payroll.employee_details) {
@@ -51,7 +50,7 @@ const FinanceDashboard: React.FC = () => {
           const lastName = emp.lname || emp.last_name || '';
           const fullName = `${firstName} ${lastName}`.trim();
           const displayName = emp.name || fullName || emp.email || `Employee ${emp.id}`;
-          
+
           map[emp.id] = {
             name: displayName,
             email: emp.email || '',
@@ -59,7 +58,7 @@ const FinanceDashboard: React.FC = () => {
           };
         }
       });
-      
+
       // Then add employees from the employee service
       if (Array.isArray(emps)) {
         for (const e of emps) {
@@ -67,18 +66,18 @@ const FinanceDashboard: React.FC = () => {
           const firstName = e.fname || e.first_name || e.firstName || '';
           const lastName = e.lname || e.last_name || e.lastName || '';
           const fullName = `${firstName} ${lastName}`.trim();
-          
+
           // Use name field if available, otherwise construct from parts
           const displayName = e.name || fullName || e.email || `Employee ${e.id}`;
-          
-          map[e.id] = { 
-            name: displayName, 
+
+          map[e.id] = {
+            name: displayName,
             email: e.email,
             department: e.company || e.department || 'Unknown',
           };
         }
       }
-      
+
       setEmployeeMap(map);
       console.log('Finance Dashboard - Employee map created:', map);
     } catch (e: any) {
@@ -107,6 +106,17 @@ const FinanceDashboard: React.FC = () => {
   const totalNet = payrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0);
   const paidCount = payrolls.filter(p => p.payment_status === 'PAID').length;
   const pending = payrolls.filter(p => p.payment_status === 'PENDING');
+  const totalEmployees = new Set(payrolls.map(p => p.employee)).size;
+  const approvedEmployees = paidCount;
+
+  // Dynamic progress calculations
+  const calculatedPayrolls = payrolls.filter(p => Number(p.net_salary || 0) > 0);
+  const taxCalculatedPayrolls = payrolls.filter(p => Number(p.tax_amount || 0) > 0);
+
+  const salaryCalculationProgress = payrolls.length > 0 ? (calculatedPayrolls.length / payrolls.length) * 100 : 0;
+  const taxDeductionProgress = payrolls.length > 0 ? (taxCalculatedPayrolls.length / payrolls.length) * 100 : 0;
+  const approvalProgress = totalEmployees > 0 ? (approvedEmployees / totalEmployees) * 100 : 0;
+  const disbursementProgress = payrolls.length > 0 ? (paidCount / payrolls.length) * 100 : 0;
   const recentDisbursements = payrolls
     .filter(p => p.payment_status === 'PAID')
     .slice(0, 6)
@@ -130,6 +140,12 @@ const FinanceDashboard: React.FC = () => {
 
   const handleCalculate = async () => {
     if (payrolls.length === 0) return;
+
+    if (pending.length === 0) {
+      toast({ title: 'No pending calculations', description: 'All payrolls are already calculated/paid.' });
+      return;
+    }
+
     try {
       // Calculate for all pending payrolls sequentially
       for (const pr of pending) {
@@ -140,10 +156,10 @@ const FinanceDashboard: React.FC = () => {
     } catch (e: any) {
       const errorMessage = e?.response?.data?.detail || e?.message || 'Please try again.';
       if (errorMessage.includes('No SalaryStructure linked')) {
-        toast({ 
-          title: 'Calculation failed', 
-          description: 'Some employees need salary structures before calculation. Please create them first.', 
-          variant: 'destructive' 
+        toast({
+          title: 'Calculation failed',
+          description: 'Some employees need salary structures before calculation. Please create them first.',
+          variant: 'destructive'
         });
       } else {
         toast({ title: 'Calculation failed', description: errorMessage, variant: 'destructive' });
@@ -170,13 +186,13 @@ const FinanceDashboard: React.FC = () => {
   // Helper function to convert data to CSV format with proper escaping
   const convertToCSV = (data: any[]): string => {
     if (data.length === 0) return '';
-    
+
     // Get headers from first object
     const headers = Object.keys(data[0]);
-    
+
     // Create CSV header row
     const csvHeaders = headers.map(h => `"${h}"`).join(',');
-    
+
     // Create CSV data rows
     const csvRows = data.map(row => {
       return headers.map(header => {
@@ -188,7 +204,7 @@ const FinanceDashboard: React.FC = () => {
         return `"${stringValue.replace(/"/g, '""')}"`;
       }).join(',');
     });
-    
+
     return [csvHeaders, ...csvRows].join('\n');
   };
 
@@ -236,22 +252,22 @@ const FinanceDashboard: React.FC = () => {
       const failedCount = payrolls.filter(p => p.payment_status === 'FAILED').length;
 
       // Build well-formatted CSV content
-      const exportDate = new Date().toLocaleString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
+      const exportDate = new Date().toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
       });
 
       let csvContent = '';
-      
+
       // Header section with metadata
       csvContent += '"FINANCE DATA EXPORT"\n';
       csvContent += `"Generated: ${exportDate}"\n`;
       csvContent += `"Company: NexHR"\n`;
       csvContent += '"\n'; // Empty row for spacing
-      
+
       // Summary section
       csvContent += '"SUMMARY"\n';
       csvContent += '"Metric","Value"\n';
@@ -268,7 +284,7 @@ const FinanceDashboard: React.FC = () => {
       csvContent += `"Failed","${failedCount}"\n`;
       csvContent += '"\n'; // Empty row
       csvContent += '"\n'; // Extra spacing
-      
+
       // Payroll data section
       csvContent += '"PAYROLL DETAILS"\n';
       csvContent += convertToCSV(payrollData);
@@ -288,7 +304,7 @@ const FinanceDashboard: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      
+
       toast({ title: 'Data exported', description: 'Finance data exported as CSV successfully.' });
     } catch (e: any) {
       toast({ title: 'Export failed', description: e?.message || 'Please try again.', variant: 'destructive' });
@@ -385,7 +401,7 @@ const FinanceDashboard: React.FC = () => {
 
         pdf.setFontSize(11);
         pdf.setTextColor(60, 60, 60);
-        
+
         Object.entries(breakdownByDepartment).forEach(([dept, data]) => {
           if (yPosition > 250) {
             pdf.addPage();
@@ -411,7 +427,7 @@ const FinanceDashboard: React.FC = () => {
 
         pdf.setFontSize(10);
         pdf.setTextColor(60, 60, 60);
-        
+
         recentDisbursementsData.forEach((disbursement) => {
           if (yPosition > 250) {
             pdf.addPage();
@@ -425,7 +441,7 @@ const FinanceDashboard: React.FC = () => {
 
       // Save PDF
       pdf.save(`finance_report_${new Date().toISOString().split('T')[0]}.pdf`);
-      
+
       toast({ title: 'Report generated', description: 'Finance report generated as PDF successfully.' });
     } catch (e: any) {
       toast({ title: 'Report generation failed', description: e?.message || 'Please try again.', variant: 'destructive' });
@@ -447,7 +463,7 @@ const FinanceDashboard: React.FC = () => {
           console.error(`Failed to calculate payroll ${p.id}:`, error);
         }
       }
-      
+
       toast({ title: 'Processing started', description: `${pending.length} payroll(s) are being processed.` });
       await loadData();
     } catch (e: any) {
@@ -462,10 +478,10 @@ const FinanceDashboard: React.FC = () => {
         toast({ title: 'No completed payments', description: 'No completed payments to view.' });
         return;
       }
-      
-      toast({ 
-        title: 'Completed Payments', 
-        description: `${paidPayrolls.length} payment(s) completed. Total amount: $${paidPayrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0).toLocaleString()}` 
+
+      toast({
+        title: 'Completed Payments',
+        description: `${paidPayrolls.length} payment(s) completed. Total amount: $${paidPayrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0).toLocaleString()}`
       });
     } catch (e: any) {
       toast({ title: 'Failed to load details', description: e?.message || 'Please try again.', variant: 'destructive' });
@@ -488,7 +504,7 @@ const FinanceDashboard: React.FC = () => {
           console.error(`Failed to retry payroll ${p.id}:`, error);
         }
       }
-      
+
       toast({ title: 'Retry initiated', description: `${failedPayrolls.length} failed payroll(s) are being retried.` });
       await loadData();
     } catch (e: any) {
@@ -504,24 +520,6 @@ const FinanceDashboard: React.FC = () => {
             <h1 className="text-3xl font-bold tracking-tight">Finance Dashboard</h1>
             <p className="text-muted-foreground">Manage payroll, budgets, and financial compliance for NexHR</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleExportData}
-              disabled={isLoading}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-            <Button 
-              onClick={handleGenerateReport}
-              disabled={isLoading}
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Generate Report
-            </Button>
-          </div>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -531,99 +529,76 @@ const FinanceDashboard: React.FC = () => {
           <PendingDisbursementsCard count={pending.length} totalAmount={`$${pending.reduce((s, p) => s + Number(p.net_salary || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`} />
         </div>
 
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 gap-2 bg-[#F3F4F6] rounded-full p-1">
-              <TabsTrigger
-                value="overview"
-                className="rounded-full px-6 py-2 text-sm font-semibold text-[#6C63FF] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-[#6C63FF] hover:bg-white/60 hover:shadow-sm transition-all duration-200"
-              >
-                Overview
-              </TabsTrigger>
-              {/* Salary Structures and Tax Management moved to dedicated pages */}
-              <TabsTrigger
-                value="reports"
-                className="rounded-full px-6 py-2 text-sm font-semibold text-gray-600 data-[state=active]:bg-white data-[state=active]:text-[#6C63FF] hover:bg-white/60 hover:shadow-sm transition-all duration-200"
-              >
-                Reports
-              </TabsTrigger>
-            </TabsList>
+        <div className="space-y-6">
+          {/* Payroll Progress Card */}
+          <Card className="transition-transform transform hover:-translate-y-0.5 hover:shadow-lg overflow-hidden rounded-lg border border-gray-50">
+            <div className="flex">
+              <div className="w-0.5 bg-gradient-to-b from-[#6C63FF]/60 to-[#FF6B6B]/60" />
+              <div className="flex-1">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    Payroll Progress
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 px-4 py-2">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-sm">Salary Calculation</span>
+                      <span className={`font-medium ${salaryCalculationProgress === 100 ? 'text-green-600' : 'text-yellow-600'}`}>
+                        {calculatedPayrolls.length}/{payrolls.length} ({Math.round(salaryCalculationProgress)}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gradient-to-r from-purple-600 to-purple-700 h-2 rounded-full transition-all duration-300" style={{ width: `${salaryCalculationProgress}%` }}></div>
+                    </div>
 
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <PayrollTrendsChart data={[] /* can be built from payrolls when periods available */} />
-              <TaxComplianceChart data={taxCompliance} />
-            </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-sm">Tax Deductions</span>
+                      <span className={`font-medium ${taxDeductionProgress === 100 ? 'text-green-600' : 'text-yellow-600'}`}>
+                        {taxCalculatedPayrolls.length}/{payrolls.length} ({Math.round(taxDeductionProgress)}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gradient-to-r from-purple-600 to-purple-700 h-2 rounded-full transition-all duration-300" style={{ width: `${taxDeductionProgress}%` }}></div>
+                    </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-              <RecentDisbursementsCard disbursements={recentDisbursements} />
-              <NotificationsCard />
-            </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-sm">Approval Process</span>
+                      <span className={`font-medium ${approvalProgress === 100 ? 'text-green-600' : 'text-yellow-600'}`}>
+                        {approvedEmployees}/{totalEmployees} ({Math.round(approvalProgress)}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gradient-to-r from-purple-600 to-purple-700 h-2 rounded-full transition-all duration-300" style={{ width: `${approvalProgress}%` }}></div>
+                    </div>
 
-          </TabsContent>
-
-          {/* Payroll tab removed - payroll management is handled on the dedicated Payrolls page */}
-
-          {/* salary-structures and tax-management content removed from dashboard
-              They are available under Finance > Salary Structures and Finance > Tax Management
-          */}
-
-          {/* Disbursement tab removed per design change - only Overview and Reports remain */}
-
-          <TabsContent value="reports" className="space-y-4">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-primary/20 group cursor-pointer transform hover:-translate-y-1">
-                <div className="flex flex-col h-full">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Payroll Reports</h3>
-                    <p className="text-muted-foreground mb-6 leading-relaxed">Monthly and quarterly payroll summaries with detailed analytics</p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-sm">Disbursement</span>
+                      <span className={`font-medium ${disbursementProgress === 100 ? 'text-green-600' : disbursementProgress > 0 ? 'text-yellow-600' : 'text-gray-600'}`}>
+                        {paidCount}/{payrolls.length} ({Math.round(disbursementProgress)}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gradient-to-r from-purple-600 to-purple-700 h-2 rounded-full transition-all duration-300" style={{ width: `${disbursementProgress}%` }}></div>
+                    </div>
                   </div>
-                  <Button 
-                    className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md"
-                    onClick={handleGenerateReport}
-                    disabled={isLoading}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Generate Report
-                  </Button>
-                </div>
-              </div>
-              <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-primary/20 group cursor-pointer transform hover:-translate-y-1">
-                <div className="flex flex-col h-full">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Tax Reports</h3>
-                    <p className="text-muted-foreground mb-6 leading-relaxed">Tax deduction and compliance reports for regulatory filing</p>
-                  </div>
-                  <Button 
-                    className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md"
-                    onClick={handleGenerateReport}
-                    disabled={isLoading}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Generate Report
-                  </Button>
-                </div>
-              </div>
-              <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-primary/20 group cursor-pointer transform hover:-translate-y-1">
-                <div className="flex flex-col h-full">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Financial Reports</h3>
-                    <p className="text-muted-foreground mb-6 leading-relaxed">Audit and financial analysis reports for stakeholders</p>
-                  </div>
-                  <Button 
-                    className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md"
-                    onClick={handleGenerateReport}
-                    disabled={isLoading}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Generate Report
-                  </Button>
-                </div>
+                </CardContent>
               </div>
             </div>
-          </TabsContent>
-        </Tabs>
+          </Card>
+
+          <div className="grid gap-6 md:grid-cols-1">
+            <TaxComplianceChart data={taxCompliance} />
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <RecentDisbursementsCard disbursements={recentDisbursements} />
+            <NotificationsCard />
+          </div>
+
+        </div>
       </div>
-    </DashboardLayout>
+    </DashboardLayout >
   );
 };
 

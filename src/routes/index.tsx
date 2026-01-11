@@ -50,7 +50,7 @@ import Expenses from "@/pages/Expenses";
 import Loans from "@/pages/Loans";
 import BulkPayments from "@/pages/BulkPayments";
 import SalaryStructures from "@/pages/SalaryStructures";
-import TaxManagement from "@/pages/TaxManagement";
+
 import LoanExpense from "@/pages/LoanExpense";
 import RolesAndPermissions from "@/pages/RolesAndPermissions";
 import BranchesDepartments from "@/pages/BranchesDepartments";
@@ -269,11 +269,7 @@ export const routes: RouteObject[] = [
           { path: "success", element: <PaymentSuccess /> },
           {
             path: "payroll",
-            element: (
-              <RoleBasedRoute requiredPermission="payroll">
-                <PayrollPage />
-              </RoleBasedRoute>
-            ),
+            element: <PayrollPage />,
           },
           {
             path: "expenses",
@@ -314,7 +310,7 @@ export const routes: RouteObject[] = [
             path: "tax-management",
             element: (
               <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
-                <TaxManagement />
+                <Navigate to="/dashboard" replace />
               </RoleBasedRoute>
             ),
           },

@@ -301,18 +301,72 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate Date Range
-    if (formData.period_end < formData.period_start) {
+    // ========== VALIDATION CHECKS ==========
+
+    // 1. Validate Employee Selection
+    if (!formData.employee || formData.employee === 'none') {
       toast({
         title: "Validation Error",
-        description: "Period End Date cannot be before Start Date.",
+        description: "Please select an employee for this payroll.",
         variant: "destructive",
       });
       return;
     }
 
-    // Validate Numeric Fields (Prevent Negatives)
-    if (parseFloat(formData.gross_salary) < 0 || parseFloat(formData.total_deductions) < 0 || parseFloat(formData.tax_amount) < 0) {
+    // 2. Validate Period Dates - Same Date Check
+    const startDate = new Date(formData.period_start);
+    const endDate = new Date(formData.period_end);
+
+    // Reset time to midnight for accurate date comparison
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    if (startDate.getTime() === endDate.getTime()) {
+      toast({
+        title: "Validation Error",
+        description: "Period Start and End dates cannot be the same. Please select a valid date range.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 3. Validate End Date is After Start Date
+    if (endDate < startDate) {
+      toast({
+        title: "Validation Error",
+        description: "Period End Date must be after the Start Date.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 4. Validate Minimum Period Length (at least 1 day)
+    const daysDifference = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDifference < 1) {
+      toast({
+        title: "Validation Error",
+        description: "Payroll period must be at least 1 day long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 5. Validate Maximum Period Length (warn if more than 31 days)
+    if (daysDifference > 31) {
+      toast({
+        title: "Warning",
+        description: `Payroll period is ${daysDifference} days long. Are you sure this is correct? Typical payroll periods are 7-31 days.`,
+        variant: "default",
+      });
+      // Allow to continue but warn the user
+    }
+
+    // 6. Validate Numeric Fields (Prevent Negatives)
+    const grossSalary = parseFloat(formData.gross_salary);
+    const totalDeductions = parseFloat(formData.total_deductions);
+    const taxAmount = parseFloat(formData.tax_amount);
+
+    if (grossSalary < 0 || totalDeductions < 0 || taxAmount < 0) {
       toast({
         title: "Validation Error",
         description: "Salary and deduction amounts cannot be negative.",
@@ -321,7 +375,27 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
       return;
     }
 
-    // Validate that selected employee has bank info
+    // 7. Validate Gross Salary is Positive
+    if (grossSalary <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Gross salary must be greater than zero.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 8. Validate Deductions Don't Exceed Gross Salary
+    if (totalDeductions > grossSalary) {
+      toast({
+        title: "Validation Error",
+        description: "Total deductions cannot exceed gross salary. This would result in negative net salary.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 9. Validate that selected employee has bank info
     if (formData.employee && formData.employee !== 'none') {
       const selectedEmployeeId = parseInt(formData.employee);
       if (!employeesWithBankInfo.has(selectedEmployeeId)) {
@@ -337,19 +411,23 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
     setIsLoading(true);
 
     try {
-      const payrollData = {
+      // Build payload - backend requires all numeric fields to be present
+      const payrollData: any = {
         period_start: formData.period_start.toISOString().split('T')[0],
         period_end: formData.period_end.toISOString().split('T')[0],
-        gross_salary: formData.gross_salary,
-        total_deductions: formData.total_deductions,
+        gross_salary: formData.gross_salary,  // Required field, validated above
+        total_deductions: formData.total_deductions,  // Required field, validated above
         net_salary: calculateNetSalary(),
-        tax_amount: formData.tax_amount,
-        statutory_deductions: formData.statutory_deductions,
+        // Backend requires these fields - send '0' if empty
+        tax_amount: formData.tax_amount && formData.tax_amount.trim() !== '' ? formData.tax_amount : '0',
+        statutory_deductions: formData.statutory_deductions && formData.statutory_deductions.trim() !== '' ? formData.statutory_deductions : '0',
         payment_status: formData.payment_status,
         paid_on: formData.payment_status === 'PAID' ? formData.paid_on.toISOString().split('T')[0] : null,
-        employee: formData.employee && formData.employee !== 'none' ? parseInt(formData.employee) : null,
+        employee: parseInt(formData.employee),  // Already validated to not be 'none'
         salary_structure: formData.salary_structure && formData.salary_structure !== 'none' ? parseInt(formData.salary_structure) : null,
       };
+
+      console.log('📤 Sending payroll data to backend:', payrollData);
 
       await payrollService.createPayroll(payrollData);
 
@@ -444,9 +522,17 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
     const structure = salaryStructures.find(struct => struct.id === parseInt(structureId));
     if (!structure) return 'Select Salary Structure';
 
-    // Try multiple possible name fields
-    const name = structure.name || structure.title || (structure as any).structure_name || (structure as any).salary_name;
+    // User requested to show exact employee name for the structure
+    if (structure.employee) {
+      const empName = getEmployeeName(structure.employee.toString());
+      // Check if getEmployeeName returned generic 'Unknown' or 'Select', if so rely on structure
+      if (empName && !empName.includes('Unknown') && !empName.includes('Select')) {
+        return empName;
+      }
+    }
 
+    // Fallback logic
+    const name = structure.name || structure.title || (structure as any).structure_name || (structure as any).salary_name;
     if (name) {
       return name;
     }
@@ -736,20 +822,36 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
                   if (value && value !== 'none') {
                     const structure = salaryStructures.find(s => s.id.toString() === value);
                     if (structure) {
+                      // Parse all numeric fields from backend structure
                       const basicPay = parseFloat(structure.basic_pay) || 0;
                       const allowances = parseFloat(structure.allowances) || 0;
                       const deductions = parseFloat(structure.deductions) || 0;
                       const tax = parseFloat(structure.tax) || 0;
 
+                      // Calculate derived values
                       const gross = basicPay + allowances;
                       const totalDeductions = deductions + tax;
 
-                      setFormData(prev => ({
-                        ...prev,
+                      // Build update object dynamically from backend data
+                      const updates: any = {
                         salary_structure: value,
                         gross_salary: gross.toFixed(2),
                         total_deductions: totalDeductions.toFixed(2),
-                        tax_amount: tax.toFixed(2)
+                        tax_amount: tax.toFixed(2),
+                      };
+
+                      // Only set statutory_deductions if backend provides it
+                      // Otherwise leave it empty for user to fill or backend to default
+                      if ((structure as any).statutory_deductions !== undefined) {
+                        updates.statutory_deductions = parseFloat((structure as any).statutory_deductions).toFixed(2);
+                      } else {
+                        // Leave as empty string - backend will handle default
+                        updates.statutory_deductions = '';
+                      }
+
+                      setFormData(prev => ({
+                        ...prev,
+                        ...updates
                       }));
                     }
                   }
@@ -790,6 +892,8 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
                 onChange={(e) => handleInputChange('gross_salary', e.target.value)}
                 placeholder="0.00"
                 required
+                readOnly={formData.salary_structure && formData.salary_structure !== 'none'}
+                className={formData.salary_structure && formData.salary_structure !== 'none' ? 'bg-muted cursor-not-allowed' : ''}
               />
             </div>
 
@@ -804,6 +908,8 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
                 onChange={(e) => handleInputChange('total_deductions', e.target.value)}
                 placeholder="0.00"
                 required
+                readOnly={formData.salary_structure && formData.salary_structure !== 'none'}
+                className={formData.salary_structure && formData.salary_structure !== 'none' ? 'bg-muted cursor-not-allowed' : ''}
               />
             </div>
           </div>
@@ -819,6 +925,8 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
                 value={formData.tax_amount}
                 onChange={(e) => handleInputChange('tax_amount', e.target.value)}
                 placeholder="0.00"
+                readOnly={formData.salary_structure && formData.salary_structure !== 'none'}
+                className={formData.salary_structure && formData.salary_structure !== 'none' ? 'bg-muted cursor-not-allowed' : ''}
               />
             </div>
 
@@ -832,6 +940,8 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
                 value={formData.statutory_deductions}
                 onChange={(e) => handleInputChange('statutory_deductions', e.target.value)}
                 placeholder="0.00"
+                readOnly={formData.salary_structure && formData.salary_structure !== 'none'}
+                className={formData.salary_structure && formData.salary_structure !== 'none' ? 'bg-muted cursor-not-allowed' : ''}
               />
             </div>
           </div>

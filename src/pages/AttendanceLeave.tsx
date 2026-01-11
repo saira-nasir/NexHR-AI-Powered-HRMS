@@ -105,12 +105,32 @@ const AttendanceLeave: React.FC = () => {
 
   const fetchInProgress = useRef(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const lastFetchTime = useRef<number>(0);
+  const attendanceCompleteRef = useRef<boolean>(false); // Track if attendance is complete
+  const POLLING_INTERVAL = 300000; // 5 minutes - only poll when needed
+  const MIN_FETCH_GAP = 3000; // Minimum 3 seconds between fetches
 
   // Leave Approval State (for HR)
   const [allLeaves, setAllLeaves] = useState<LeaveRecord[]>([]);
   const [allLeavesLoading, setAllLeavesLoading] = useState(false);
   const [employeesMap, setEmployeesMap] = useState<Map<number, Employee>>(new Map());
   const [isSubmittingLeave, setIsSubmittingLeave] = useState(false);
+
+  type TodayButtonState = {
+    date: string;
+    checkIn: boolean;
+    checkOut: boolean;
+  };
+
+  const getTodayKey = () => new Date().toISOString().split('T')[0];
+  const buttonStorageKey = (userId: number) => `attendance_state_${userId}`;
+  const emptyButtonState = (date: string = getTodayKey()): TodayButtonState => ({
+    date,
+    checkIn: false,
+    checkOut: false,
+  });
+
+  const [todayButtonState, setTodayButtonState] = useState<TodayButtonState>(emptyButtonState());
 
   // --- Helpers ---
 
@@ -202,16 +222,64 @@ const AttendanceLeave: React.FC = () => {
     return Array.from(mergedByDate.values()).sort((a, b) => dateValue(b.date) - dateValue(a.date));
   };
 
+  // --- UI Button State Persistence ---
+
+  const loadStoredButtonState = (userId: number): TodayButtonState => {
+    try {
+      const raw = localStorage.getItem(buttonStorageKey(userId));
+      if (!raw) return emptyButtonState();
+      const parsed = JSON.parse(raw) as TodayButtonState;
+      if (!parsed?.date || parsed.date !== getTodayKey()) return emptyButtonState();
+      return { ...emptyButtonState(parsed.date), ...parsed };
+    } catch {
+      return emptyButtonState();
+    }
+  };
+
+  const persistButtonState = (userId: number, state: TodayButtonState) => {
+    try {
+      localStorage.setItem(buttonStorageKey(userId), JSON.stringify(state));
+    } catch (err) {
+      console.warn('Unable to persist attendance button state', err);
+    }
+  };
+
+  const updateButtonState = (patch: Partial<TodayButtonState>, userIdOverride?: number) => {
+    const uid = userIdOverride ?? getUserId();
+    if (!uid) return;
+    setTodayButtonState((prev) => {
+      const currentDate = getTodayKey();
+      const base = prev.date === currentDate ? prev : emptyButtonState(currentDate);
+      const next: TodayButtonState = {
+        date: currentDate,
+        checkIn: patch.checkIn ?? base.checkIn,
+        checkOut: patch.checkOut ?? base.checkOut,
+      };
+      // If checkout is set true, ensure checkIn flag stays true as well
+      if (next.checkOut) next.checkIn = true;
+      persistButtonState(uid, next);
+      return next;
+    });
+  };
+
   // --- API Calls ---
 
-  const fetchAttendance = async (skipMerge: boolean = false) => {
-    if (fetchInProgress.current) return;
+  const fetchAttendance = async (skipMerge: boolean = false, force: boolean = false) => {
+    // Prevent excessive polling
+    const now = Date.now();
+    if (!force && !skipMerge && (now - lastFetchTime.current < MIN_FETCH_GAP)) {
+      return;
+    }
+    if (fetchInProgress.current && !force) return;
+
     fetchInProgress.current = true;
+    lastFetchTime.current = now;
 
     try {
       const userId = getUserId();
       if (!userId) {
         setAttendanceLoading(false);
+        fetchInProgress.current = false;
         return;
       }
 
@@ -222,46 +290,100 @@ const AttendanceLeave: React.FC = () => {
         ? data.filter((record: Attendance) => record.employee === userId)
         : [];
 
-      const todayKey = normalizeDate(new Date().toISOString());
-      let todayRecord: Attendance | null = null;
+      // Process all state updates synchronously after getting merged records
+      const todayKeyValue = normalizeDate(new Date().toISOString());
 
       setAttendance((prevRecords) => {
         const merged = skipMerge
           ? filteredData.sort((a, b) => dateValue(b.date) - dateValue(a.date))
           : mergeAttendanceRecords(filteredData, prevRecords, userId);
 
-        todayRecord = merged.find((record) => sameDate(record.date, todayKey) && record.employee === userId) ?? null;
+        // Find today's record from merged data
+        const todayRecord = merged.find((record) => sameDate(record.date, todayKeyValue) && record.employee === userId) ?? null;
+
+        // CRITICAL FIX: Process todayRecord inside this callback to avoid closure bug
+        // This ensures we're working with the correct merged data
+        if (todayRecord && todayRecord.employee === userId) {
+          const rec = todayRecord;
+
+          // Check if check_in/check_out are time strings or full dates
+          const hasCheckIn = !!(rec.check_in && String(rec.check_in).trim() !== '');
+          const hasCheckOut = !!(rec.check_out && String(rec.check_out).trim() !== '');
+
+          // Track if attendance is complete (both check-in and check-out done)
+          attendanceCompleteRef.current = hasCheckIn && hasCheckOut;
+
+          // Use queueMicrotask to batch state updates after this callback
+          queueMicrotask(() => {
+            // Update today attendance
+            setTodayAttendance({ ...rec });
+
+            // Update button state
+            updateButtonState({
+              checkIn: hasCheckIn,
+              checkOut: hasCheckOut,
+            }, userId);
+
+            // Parse Check-in time
+            if (hasCheckIn) {
+              try {
+                const checkInStr = String(rec.check_in);
+                let checkInDate: Date;
+
+                if (/^\d{2}:\d{2}:\d{2}/.test(checkInStr)) {
+                  const today = new Date().toISOString().split('T')[0];
+                  checkInDate = new Date(`${today}T${checkInStr}`);
+                } else {
+                  checkInDate = new Date(rec.check_in);
+                }
+
+                setCheckInTime(!isNaN(checkInDate.getTime()) ? checkInDate : new Date());
+              } catch {
+                setCheckInTime(new Date());
+              }
+            } else {
+              setCheckInTime(null);
+            }
+
+            // Parse Check-out time
+            if (hasCheckOut) {
+              try {
+                const checkOutStr = String(rec.check_out);
+                let checkOutDate: Date;
+
+                if (/^\d{2}:\d{2}:\d{2}/.test(checkOutStr)) {
+                  const today = new Date().toISOString().split('T')[0];
+                  checkOutDate = new Date(`${today}T${checkOutStr}`);
+                } else {
+                  checkOutDate = new Date(rec.check_out);
+                }
+
+                setCheckOutTime(!isNaN(checkOutDate.getTime()) ? checkOutDate : new Date());
+                setAttendanceMode('checkin');
+              } catch {
+                setCheckOutTime(new Date());
+              }
+            } else {
+              setCheckOutTime(null);
+            }
+          });
+        } else {
+          // No record for today - reset everything
+          attendanceCompleteRef.current = false;
+          queueMicrotask(() => {
+            setTodayAttendance(null);
+            setCheckInTime(null);
+            setCheckOutTime(null);
+            setAttendanceMode('checkin');
+            updateButtonState({
+              checkIn: false,
+              checkOut: false,
+            }, userId);
+          });
+        }
+
         return merged;
       });
-
-      // Update Today's State
-      if (todayRecord && (todayRecord as Attendance).employee === userId) {
-        const rec = todayRecord as Attendance;
-        setTodayAttendance({ ...rec });
-
-        // Parse Check-in
-        if (rec.check_in) {
-          const d = new Date(rec.check_in);
-          setCheckInTime(!isNaN(d.getTime()) ? d : new Date());
-        } else {
-          setCheckInTime(null);
-        }
-
-        // Parse Check-out
-        if (rec.check_out) {
-          // Only set checkout if it's different from previous state (avoids flickering)
-          const d = new Date(rec.check_out);
-          setCheckOutTime(!isNaN(d.getTime()) ? d : new Date());
-          setAttendanceMode('checkin'); // Reset mode if cycle complete
-        } else {
-          setCheckOutTime(null);
-        }
-      } else {
-        setTodayAttendance(null);
-        setCheckInTime(null);
-        setCheckOutTime(null);
-        setAttendanceMode('checkin');
-      }
 
     } catch (error: any) {
       console.error('Error fetching attendance:', error);
@@ -296,10 +418,57 @@ const AttendanceLeave: React.FC = () => {
     return () => clearInterval(interval);
   }, [currentUserId]);
 
+  // Load button state from localStorage ONLY on initial mount or user change
+  // CRITICAL FIX: Removed todayAttendance from dependencies to prevent infinite loop
+  // The API response will override localStorage state anyway via updateButtonState
   useEffect(() => {
-    fetchAttendance();
-    const interval = setInterval(() => fetchAttendance().catch(console.error), 30000);
+    const userId = getUserId();
+    if (!userId) return;
+
+    // Only load localStorage state on initial mount before API response arrives
+    // This provides immediate UI feedback while waiting for backend data
+    const stored = loadStoredButtonState(userId);
+    setTodayButtonState(stored);
+  }, [currentUserId]); // Removed todayAttendance - API updates will call updateButtonState directly
+
+  useEffect(() => {
+    fetchAttendance(false, true); // Force initial fetch
+
+    // Smart polling: Only poll if attendance is not complete
+    // Stop polling when both check-in and check-out are done
+    const interval = setInterval(() => {
+      // Don't poll if attendance is complete
+      if (attendanceCompleteRef.current) {
+        return;
+      }
+
+      // Only poll when tab is visible and not already fetching
+      if (document.visibilityState === 'visible' && !fetchInProgress.current) {
+        fetchAttendance(false, false).catch(console.error);
+      }
+    }, POLLING_INTERVAL);
+
     return () => clearInterval(interval);
+  }, []);
+
+  // Reset state automatically at midnight
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const current = getTodayKey();
+      setTodayButtonState((prev) => {
+        if (prev.date === current) return prev;
+        const resetState = emptyButtonState(current);
+        const uid = getUserId();
+        if (uid) persistButtonState(uid, resetState);
+        setTodayAttendance(null);
+        setCheckInTime(null);
+        setCheckOutTime(null);
+        setAttendanceMode('checkin');
+        setAttendanceResult(null);
+        return resetState;
+      });
+    }, 60 * 1000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -459,6 +628,7 @@ const AttendanceLeave: React.FC = () => {
 
   // --- Face Recognition Check-In ---
   const handleCheckIn = async (file: File | Blob) => {
+    if (markAttendanceLoading || hasCheckedInToday) return;
     setMarkAttendanceLoading(true);
     setAttendanceResult(null);
 
@@ -531,20 +701,37 @@ const AttendanceLeave: React.FC = () => {
         setCheckInTime(now);
         setCheckOutTime(null);
         setAttendanceMode('checkin');
-
+        attendanceCompleteRef.current = false; // Reset completion flag
+        updateButtonState({ checkIn: true, checkOut: false }, userId);
         toast.success('Check-In Successful', { description: response.message });
 
-        // Refresh background
-        setTimeout(() => fetchAttendance(false), 1000);
+        // Single fetch after delay - no need for multiple calls
+        setTimeout(() => fetchAttendance(false, true), 2000);
 
         // Auto-dismiss result to show UI
         setTimeout(() => setAttendanceResult(null), 2000);
       } else {
         toast.error('Verification Failed', { description: response.message });
+        // Reset button state on failure to allow retry
+        const userId = getUserId();
+        if (userId) {
+          updateButtonState({ checkIn: false, checkOut: false }, userId);
+        }
       }
     } catch (error: any) {
-      const msg = error.response?.data?.message || 'Failed to check in';
+      console.error('Face Check-In Error:', error);
+      console.error('Error Response:', error.response?.data);
+      const msg = error.response?.data?.message || error.response?.data?.detail || error.message || 'Failed to check in';
       toast.error('Check-In Failed', { description: msg });
+      // Reset button state on error to allow retry
+      const userId = getUserId();
+      if (userId) {
+        updateButtonState({ checkIn: false, checkOut: false }, userId);
+      }
+      // Refresh attendance to sync with backend state - only once
+      if (!attendanceCompleteRef.current) {
+        setTimeout(() => fetchAttendance(false, true), 2000);
+      }
     } finally {
       setMarkAttendanceLoading(false);
     }
@@ -552,6 +739,7 @@ const AttendanceLeave: React.FC = () => {
 
   // --- Manual Check-In ---
   const handleManualCheckIn = async () => {
+    if (markAttendanceLoading || hasCheckedInToday) return;
     setMarkAttendanceLoading(true);
     setAttendanceResult(null);
 
@@ -606,13 +794,33 @@ const AttendanceLeave: React.FC = () => {
         setCheckOutTime(null);
         setAttendanceMode('checkin');
         setAttendanceResult({ verified: true, message: response.message });
+        attendanceCompleteRef.current = false; // Reset completion flag
+        updateButtonState({ checkIn: true, checkOut: false }, userId);
         toast.success('Check-In Successful');
-        setTimeout(() => fetchAttendance(true), 500);
+        // Single fetch after delay
+        setTimeout(() => fetchAttendance(false, true), 2000);
       } else {
         toast.error('Check-In Failed', { description: response.message });
+        // Reset button state on failure to allow retry
+        const userId = getUserId();
+        if (userId) {
+          updateButtonState({ checkIn: false, checkOut: false }, userId);
+        }
       }
     } catch (error: any) {
-      toast.error('Error', { description: error.response?.data?.message || 'Failed to check in' });
+      console.error('Manual Check-In Error:', error);
+      console.error('Error Response:', error.response?.data);
+      const msg = error.response?.data?.message || error.response?.data?.detail || error.message || 'Failed to check in';
+      toast.error('Error', { description: msg });
+      // Reset button state on error to allow retry
+      const userId = getUserId();
+      if (userId) {
+        updateButtonState({ checkIn: false, checkOut: false }, userId);
+      }
+      // Refresh attendance to sync with backend state - only once
+      if (!attendanceCompleteRef.current) {
+        setTimeout(() => fetchAttendance(false, true), 2000);
+      }
     } finally {
       setMarkAttendanceLoading(false);
     }
@@ -621,6 +829,10 @@ const AttendanceLeave: React.FC = () => {
   // --- Manual Check-Out ---
   const handleCheckOut = async () => {
     if (!showCheckoutConfirm) return;
+    if (markAttendanceLoading || isCheckOutDisabled) {
+      setShowCheckoutConfirm(false);
+      return;
+    }
     setMarkAttendanceLoading(true);
     setShowCheckoutConfirm(false);
 
@@ -682,8 +894,11 @@ const AttendanceLeave: React.FC = () => {
         } : null);
 
         setCheckOutTime(checkoutTime);
+        attendanceCompleteRef.current = true; // Mark as complete - stops polling
+        updateButtonState({ checkOut: true }, userId);
         toast.success('Check-Out Successful');
-        setTimeout(() => fetchAttendance(false), 1000);
+        // Single fetch to confirm - then polling stops
+        setTimeout(() => fetchAttendance(false, true), 2000);
       } else {
         toast.error('Checkout Failed', { description: response.message });
       }
@@ -697,7 +912,8 @@ const AttendanceLeave: React.FC = () => {
   const resetAttendanceResult = async (nextMode?: 'checkin' | 'checkout') => {
     setAttendanceResult(null);
     if (nextMode) setAttendanceMode(nextMode);
-    setTimeout(() => fetchAttendance(true), 100);
+    // Only fetch if needed, not on every reset
+    // setTimeout(() => fetchAttendance(true), 100);
   };
 
   // --- Derived State for Calendar ---
@@ -738,6 +954,38 @@ const AttendanceLeave: React.FC = () => {
     return m;
   }, [timeCards, currentMonth, currentYear]);
 
+  // Memoize button states to prevent unnecessary recalculations
+  // CRITICAL: Check both buttonState AND todayAttendance for accurate state
+  const hasCheckedInToday = useMemo(() => {
+    // Priority 1: Button state (immediate updates)
+    if (todayButtonState.checkIn) return true;
+    // Priority 2: Backend data (time strings like "10:32:49.314947" or full dates)
+    const checkIn = todayAttendance?.check_in;
+    if (!checkIn) return false;
+    const checkInStr = String(checkIn).trim();
+    // Time strings are truthy if not empty
+    return checkInStr !== '' && checkInStr !== 'null';
+  }, [todayButtonState.checkIn, todayAttendance?.check_in]);
+
+  const hasCheckedOutToday = useMemo(() => {
+    // Priority 1: Button state (immediate updates)
+    if (todayButtonState.checkOut) return true;
+    // Priority 2: Backend data (time strings like "10:33:08.182621" or full dates)
+    const checkOut = todayAttendance?.check_out;
+    if (!checkOut) return false;
+    const checkOutStr = String(checkOut).trim();
+    // Time strings are truthy if not empty
+    return checkOutStr !== '' && checkOutStr !== 'null';
+  }, [todayButtonState.checkOut, todayAttendance?.check_out]);
+
+  const isCheckInDisabled = useMemo(() => {
+    return hasCheckedInToday || markAttendanceLoading;
+  }, [hasCheckedInToday, markAttendanceLoading]);
+
+  const isCheckOutDisabled = useMemo(() => {
+    return !hasCheckedInToday || hasCheckedOutToday || markAttendanceLoading;
+  }, [hasCheckedInToday, hasCheckedOutToday, markAttendanceLoading]);
+
   // --- Render ---
 
   return (
@@ -776,13 +1024,14 @@ const AttendanceLeave: React.FC = () => {
                   {/* Face Check-in */}
                   <Button
                     onClick={() => {
-                      if (!todayAttendance?.check_in || (todayAttendance?.check_in && todayAttendance?.check_out)) {
+                      if (isCheckInDisabled) return;
+                      if (!hasCheckedInToday || hasCheckedOutToday) {
                         setAttendanceMode('checkin');
                         setAttendanceResult(null);
                       }
                     }}
-                    disabled={!!todayAttendance?.check_in && !todayAttendance?.check_out}
-                    className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${attendanceMode === 'checkin' && (!todayAttendance?.check_in || todayAttendance?.check_out)
+                    disabled={isCheckInDisabled}
+                    className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${attendanceMode === 'checkin' && (!hasCheckedInToday || hasCheckedOutToday)
                       ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
                       : 'bg-white text-green-700 border-2 border-green-300'
                       }`}
@@ -796,7 +1045,7 @@ const AttendanceLeave: React.FC = () => {
                   {/* Manual Check-in */}
                   <Button
                     onClick={handleManualCheckIn}
-                    disabled={markAttendanceLoading || (!!todayAttendance?.check_in && !todayAttendance?.check_out)}
+                    disabled={isCheckInDisabled}
                     className="w-40 h-14 text-sm font-semibold shadow-md bg-white text-green-700 border-2 border-green-300 hover:bg-green-50"
                   >
                     <div className="flex items-center gap-2">
@@ -808,8 +1057,8 @@ const AttendanceLeave: React.FC = () => {
                   {/* Check Out */}
                   <Button
                     onClick={() => setShowCheckoutConfirm(true)}
-                    disabled={!todayAttendance?.check_in || !!todayAttendance?.check_out}
-                    className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${todayAttendance?.check_in && !todayAttendance?.check_out
+                    disabled={isCheckOutDisabled}
+                    className={`w-40 h-14 text-sm font-semibold shadow-md transition-all ${hasCheckedInToday && !hasCheckedOutToday
                       ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
                       : 'bg-white text-blue-700 border-2 border-blue-300 opacity-50'
                       }`}
@@ -916,40 +1165,23 @@ const AttendanceLeave: React.FC = () => {
                   </DialogContent>
                 </Dialog>
 
-                {/* Calendar & History */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-                  <div className="lg:col-span-2">
-                    <AttendanceCalendar
-                      year={currentYear}
-                      month={currentMonth}
-                      attendanceData={attendanceMap}
-                      onDateClick={(date) => {
-                        const rec = timeCards.find(r => r.date === date);
-                        if (rec) { setSelectedRecord(rec); setShowDetailModal(true); }
-                      }}
-                      onMonthChange={(dir) => {
-                        if (dir === 'prev') setCurrentMonth(prev => prev === 0 ? 11 : prev - 1);
-                        else setCurrentMonth(prev => prev === 11 ? 0 : prev + 1);
-                        if (dir === 'prev' && currentMonth === 0) setCurrentYear(y => y - 1);
-                        if (dir === 'next' && currentMonth === 11) setCurrentYear(y => y + 1);
-                      }}
-                    />
-                  </div>
-                  <div className="lg:col-span-1">
-                    <Card>
-                      <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
-                      <CardContent className="space-y-3">
-                        {timeCards.slice(0, 10).map((record, i) => (
-                          <TimeCard
-                            key={`${record.id}-${i}`}
-                            data={record}
-                            onClick={() => { setSelectedRecord(record); setShowDetailModal(true); }}
-                            compact
-                          />
-                        ))}
-                      </CardContent>
-                    </Card>
-                  </div>
+                {/* Calendar */}
+                <div className="mt-8">
+                  <AttendanceCalendar
+                    year={currentYear}
+                    month={currentMonth}
+                    attendanceData={attendanceMap}
+                    onDateClick={(date) => {
+                      const rec = timeCards.find(r => r.date === date);
+                      if (rec) { setSelectedRecord(rec); setShowDetailModal(true); }
+                    }}
+                    onMonthChange={(dir) => {
+                      if (dir === 'prev') setCurrentMonth(prev => prev === 0 ? 11 : prev - 1);
+                      else setCurrentMonth(prev => prev === 11 ? 0 : prev + 1);
+                      if (dir === 'prev' && currentMonth === 0) setCurrentYear(y => y - 1);
+                      if (dir === 'next' && currentMonth === 11) setCurrentYear(y => y + 1);
+                    }}
+                  />
                 </div>
 
                 <AttendanceDetailModal
@@ -1041,8 +1273,8 @@ const AttendanceLeave: React.FC = () => {
                         <Badge
                           variant="outline"
                           className={`capitalize ${leave.status === 'APPROVED' ? 'bg-green-100 text-green-700 border-green-300' :
-                              leave.status === 'REJECTED' ? 'bg-red-100 text-red-700 border-red-300' :
-                                'bg-yellow-100 text-yellow-700 border-yellow-300'
+                            leave.status === 'REJECTED' ? 'bg-red-100 text-red-700 border-red-300' :
+                              'bg-yellow-100 text-yellow-700 border-yellow-300'
                             }`}
                         >
                           {leave.status.toLowerCase()}
