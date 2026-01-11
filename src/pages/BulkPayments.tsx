@@ -49,8 +49,22 @@ const BulkPayments: React.FC = () => {
   const loadBulkPayments = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await payrollService.listBulkPayments();
-      setBulkPayments(Array.isArray(data) ? data : []);
+      const list = await payrollService.listBulkPayments();
+      const bulkPaymentsList = Array.isArray(list) ? list : [];
+
+      // Fetch detailed data for each bulk payment to get items with employee names
+      const detailedPayments = await Promise.all(
+        bulkPaymentsList.map(async (payment) => {
+          try {
+            const details = await payrollService.getBulkPayment(payment.id);
+            return { ...payment, ...details };
+          } catch {
+            return payment; // fallback to basic data if details fetch fails
+          }
+        })
+      );
+
+      setBulkPayments(detailedPayments);
     } catch (err) {
       console.error('Failed to load bulk payments', err);
       toast({ title: 'Error', description: 'Failed to load bulk payment history', variant: 'destructive' });
@@ -181,7 +195,7 @@ const BulkPayments: React.FC = () => {
                 <thead>
                   <tr className="border-b border-border">
                     <th className="text-left p-4">Period</th>
-                    <th className="text-left p-4">Employee Count</th>
+                    <th className="text-left p-4">Employees</th>
                     <th className="text-left p-4">Total Amount</th>
                     <th className="text-left p-4">Status</th>
                     <th className="text-left p-4">Created Date</th>
@@ -189,18 +203,60 @@ const BulkPayments: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {bulkPayments.map((payment) => (
-                    <tr key={payment.id} className="border-b border-border hover:bg-muted/50">
-                      <td className="p-4">
-                        <div className="text-sm"><p className="font-medium">{payment.period_start}</p><p className="text-muted-foreground">to {payment.period_end}</p></div>
-                      </td>
-                      <td className="p-4"><div className="flex items-center gap-2"><Users className="h-4 w-4 text-muted-foreground" />{payment.created_by ? `${payment.created_by}` : `${payment.id}`} </div></td>
-                      <td className="p-4 font-semibold">₹{Number(payment.total_amount).toLocaleString()}</td>
-                      <td className="p-4"><Badge variant={getStatusVariant(String(payment.status))}>{String(payment.status)}</Badge></td>
-                      <td className="p-4">{payment.created_on ? new Date(payment.created_on).toLocaleDateString() : '-'}</td>
-                      <td className="p-4"><Button size="sm" variant="ghost" onClick={() => openDetails(payment.id)}>View Details</Button></td>
-                    </tr>
-                  ))}
+                  {bulkPayments.map((payment) => {
+                    // Extract unique employee names from items array
+                    const items = payment.items || [];
+                    const employeeNames: string[] = [];
+                    const seenNames = new Set<string>();
+
+                    items.forEach((item: any) => {
+                      const name = item.employee_name || item.employee || item.name || '';
+                      if (name && !seenNames.has(name.toLowerCase())) {
+                        seenNames.add(name.toLowerCase());
+                        employeeNames.push(name);
+                      }
+                    });
+
+                    // Also use employee_names if backend provides it
+                    if (payment.employee_names && payment.employee_names.length > 0) {
+                      payment.employee_names.forEach((name: string) => {
+                        if (name && !seenNames.has(name.toLowerCase())) {
+                          seenNames.add(name.toLowerCase());
+                          employeeNames.push(name);
+                        }
+                      });
+                    }
+
+                    const employeeCount = employeeNames.length || payment.employee_count || payment.payrolls?.length || 0;
+                    const displayNames = employeeNames.slice(0, 3).join(', ');
+                    const hasMore = employeeNames.length > 3;
+
+                    return (
+                      <tr key={payment.id} className="border-b border-border hover:bg-muted/50">
+                        <td className="p-4">
+                          <div className="text-sm"><p className="font-medium">{payment.period_start}</p><p className="text-muted-foreground">to {payment.period_end}</p></div>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <div className="text-sm">
+                              {employeeNames.length > 0 ? (
+                                <span title={employeeNames.join(', ')}>
+                                  {displayNames}{hasMore && ` +${employeeNames.length - 3} more`}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">{employeeCount} employees</span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4 font-semibold">₹{Number(payment.total_amount).toLocaleString()}</td>
+                        <td className="p-4"><Badge variant={getStatusVariant(String(payment.status))}>{String(payment.status)}</Badge></td>
+                        <td className="p-4">{payment.created_on ? new Date(payment.created_on).toLocaleDateString() : '-'}</td>
+                        <td className="p-4"><Button size="sm" variant="ghost" onClick={() => openDetails(payment.id)}>View Details</Button></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

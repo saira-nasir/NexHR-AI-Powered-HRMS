@@ -114,7 +114,6 @@ export const sidebarItems: SidebarMenuItem[] = [
       { title: 'Payroll', path: '/payroll', codename: 'payroll' },
       { title: 'Expenses', path: '/expenses', codename: 'expenses' },
       { title: 'Salary Structures', path: '/salary-structures', codename: 'salary_structures' },
-      { title: 'Tax Management', path: '/tax-management', codename: 'tax_management' },
       { title: 'Loans', path: '/loans', codename: 'loans' },
       { title: 'Bulk Payments', path: '/bulk-payments', codename: 'bulk_payments' },
     ],

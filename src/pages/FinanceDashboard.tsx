@@ -107,7 +107,11 @@ const FinanceDashboard: React.FC = () => {
   const paidCount = payrolls.filter(p => p.payment_status === 'PAID').length;
   const pending = payrolls.filter(p => p.payment_status === 'PENDING');
   const totalEmployees = new Set(payrolls.map(p => p.employee)).size;
-  const approvedEmployees = paidCount;
+
+  // Count unique employees with PAID status for approval progress
+  const uniquePaidEmployees = new Set(
+    payrolls.filter(p => p.payment_status === 'PAID').map(p => p.employee)
+  ).size;
 
   // Dynamic progress calculations
   const calculatedPayrolls = payrolls.filter(p => Number(p.net_salary || 0) > 0);
@@ -115,7 +119,7 @@ const FinanceDashboard: React.FC = () => {
 
   const salaryCalculationProgress = payrolls.length > 0 ? (calculatedPayrolls.length / payrolls.length) * 100 : 0;
   const taxDeductionProgress = payrolls.length > 0 ? (taxCalculatedPayrolls.length / payrolls.length) * 100 : 0;
-  const approvalProgress = totalEmployees > 0 ? (approvedEmployees / totalEmployees) * 100 : 0;
+  const approvalProgress = totalEmployees > 0 ? (uniquePaidEmployees / totalEmployees) * 100 : 0;
   const disbursementProgress = payrolls.length > 0 ? (paidCount / payrolls.length) * 100 : 0;
   const recentDisbursements = payrolls
     .filter(p => p.payment_status === 'PAID')
@@ -565,7 +569,7 @@ const FinanceDashboard: React.FC = () => {
                     <div className="flex justify-between text-sm">
                       <span className="text-sm">Approval Process</span>
                       <span className={`font-medium ${approvalProgress === 100 ? 'text-green-600' : 'text-yellow-600'}`}>
-                        {approvedEmployees}/{totalEmployees} ({Math.round(approvalProgress)}%)
+                        {uniquePaidEmployees}/{totalEmployees} ({Math.round(approvalProgress)}%)
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">

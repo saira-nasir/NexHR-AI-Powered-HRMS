@@ -184,6 +184,9 @@ export interface BulkPaymentLog {
   // may contain items/results field
   items?: any[];
   stripe_result?: any;
+  // Employee names for display (populated from items or separate field)
+  employee_names?: string[];
+  employee_count?: number;
 }
 
 export interface TaxBracket {
@@ -456,7 +459,7 @@ const payrollService = {
     await api.delete(`${BASE}/bank-info/${id}/`);
   },
 
-  /* ---------------- Loans & Expenses ---------------- */
+  /* ---------------- Loans & Expenses (Finance Role - All Company Data) ---------------- */
   listLoans: async () => {
     const { data } = await api.get<Loan[]>(`${BASE}/loans/`);
     return data;
@@ -471,6 +474,10 @@ const payrollService = {
   },
   approveLoan: async (id: number) => {
     const { data } = await api.patch<Loan>(`${BASE}/loans/${id}/`, { status: "APPROVED" });
+    return data;
+  },
+  rejectLoan: async (id: number) => {
+    const { data } = await api.patch<Loan>(`${BASE}/loans/${id}/`, { status: "REJECTED" });
     return data;
   },
   deleteLoan: async (id: number) => {
@@ -502,6 +509,65 @@ const payrollService = {
   },
   deleteExpense: async (id: number) => {
     await api.delete(`${BASE}/expenses/${id}/`);
+  },
+
+  /* ---------------- Employee Self-Service (My Loans & Expenses) ---------------- */
+  // List only the logged-in employee's loans
+  listMyLoans: async () => {
+    const { data } = await api.get<Loan[]>(`${BASE}/my-loans/`);
+    return data;
+  },
+  // Apply for a new loan (employee self-service)
+  createMyLoan: async (payload: { amount: string | number; installment: string | number }) => {
+    const { data } = await api.post<Loan>(`${BASE}/my-loans/`, {
+      amount: String(payload.amount),
+      installment: String(payload.installment),
+      remaining_balance: String(payload.amount),
+    });
+    return data;
+  },
+  // Get specific loan for employee
+  getMyLoan: async (id: number) => {
+    const { data } = await api.get<Loan>(`${BASE}/my-loans/${id}/`);
+    return data;
+  },
+  // Update loan (employee)
+  updateMyLoan: async (id: number, payload: Partial<Loan>) => {
+    const { data } = await api.put<Loan>(`${BASE}/my-loans/${id}/`, payload);
+    return data;
+  },
+  // Delete loan (employee)
+  deleteMyLoan: async (id: number) => {
+    await api.delete(`${BASE}/my-loans/${id}/`);
+  },
+
+  // List only the logged-in employee's expenses
+  listMyExpenses: async () => {
+    const { data } = await api.get<Expense[]>(`${BASE}/my-expenses/`);
+    return data;
+  },
+  // Submit new expense (employee self-service)
+  createMyExpense: async (payload: { title: string; amount: string | number; category: string }) => {
+    const { data } = await api.post<Expense>(`${BASE}/my-expenses/`, {
+      title: payload.title,
+      amount: String(payload.amount),
+      category: payload.category,
+    });
+    return data;
+  },
+  // Get specific expense for employee
+  getMyExpense: async (id: number) => {
+    const { data } = await api.get<Expense>(`${BASE}/my-expenses/${id}/`);
+    return data;
+  },
+  // Update expense (employee)
+  updateMyExpense: async (id: number, payload: Partial<Expense>) => {
+    const { data } = await api.put<Expense>(`${BASE}/my-expenses/${id}/`, payload);
+    return data;
+  },
+  // Delete expense (employee)
+  deleteMyExpense: async (id: number) => {
+    await api.delete(`${BASE}/my-expenses/${id}/`);
   },
 
   /* ---------------- Bulk Payments ---------------- */
