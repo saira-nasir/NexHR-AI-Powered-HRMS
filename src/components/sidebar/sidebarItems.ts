@@ -57,10 +57,10 @@ export const sidebarItems: SidebarMenuItem[] = [
     icon: Building2,
   },
   {
-    title: 'Salary Structure',
+    title: 'My Salary Structure',
     path: '/employee-salary-structure',
     icon: Receipt,
-    codename: 'salary_structures', // Matches user plural
+    codename: 'my_salary_structure',
   },
   {
     title: 'Payslips',
@@ -75,7 +75,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     codename: 'my_scheduled_interviews',
   },
   {
-    title: 'Teams Manegement',
+    title: 'Teams Management',
     path: '/teams',
     icon: Users,
     submenu: [
@@ -114,7 +114,6 @@ export const sidebarItems: SidebarMenuItem[] = [
       { title: 'Payroll', path: '/payroll', codename: 'payroll' },
       { title: 'Expenses', path: '/expenses', codename: 'expenses' },
       { title: 'Salary Structures', path: '/salary-structures', codename: 'salary_structures' },
-      { title: 'Tax Management', path: '/tax-management', codename: 'tax_management' },
       { title: 'Loans', path: '/loans', codename: 'loans' },
       { title: 'Bulk Payments', path: '/bulk-payments', codename: 'bulk_payments' },
     ],

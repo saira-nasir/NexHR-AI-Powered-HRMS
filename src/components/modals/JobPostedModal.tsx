@@ -17,15 +17,24 @@ interface JobPostedModalProps {
 const JobPostedModal: React.FC<JobPostedModalProps> = ({ open, onClose, onPostLinkedIn }) => {
   const { isConnected, isLoading, connectLinkedIn } = useLinkedInConnection();
   const [isPostedToLinkedIn, setIsPostedToLinkedIn] = React.useState(false);
+  const [isPosting, setIsPosting] = React.useState(false);
   const navigate = useNavigate();
 
   const handleLinkedInAction = async () => {
     if (!isConnected) {
       await connectLinkedIn();
     } else if (onPostLinkedIn && !isPostedToLinkedIn) {
-      await onPostLinkedIn(); // Assume this is async and handles actual API posting
-      setIsPostedToLinkedIn(true); // Mark as posted
-      navigate('/hiring/job-screening');
+      setIsPosting(true);
+      try {
+        await onPostLinkedIn(); // Assume this is async and handles actual API posting
+        setIsPostedToLinkedIn(true); // Mark as posted
+        navigate('/hiring/job-screening');
+      } catch (err: any) {
+        console.error('Error posting to LinkedIn', err);
+        toast({ title: 'Error', description: err?.message || 'Failed to post job to LinkedIn', variant: 'destructive' });
+      } finally {
+        setIsPosting(false);
+      }
     }
   };
 
@@ -103,13 +112,13 @@ const JobPostedModal: React.FC<JobPostedModalProps> = ({ open, onClose, onPostLi
             <Button
               className="w-full flex items-center justify-center gap-3 bg-[#0077b5] hover:bg-[#005983] text-white text-lg py-3 rounded-xl shadow-lg transition-all duration-300 hover:scale-[1.02]"
               onClick={handleLinkedInAction}
-              disabled={isLoading || isPostedToLinkedIn}
+              disabled={isLoading || isPostedToLinkedIn || isPosting}
               type="button"
             >
-              {isLoading ? (
+              {isLoading || isPosting ? (
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Loading...</span>
+                  <span>{isPosting ? 'Posting...' : 'Loading...'}</span>
                 </div>
               ) : isPostedToLinkedIn ? (
                 'Already Posted to LinkedIn'

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   TotalPayrollCard,
   ActiveEmployeesCard,
@@ -125,6 +126,18 @@ const FinanceDashboardContent: React.FC = () => {
     { name: 'Issues', value: 0, color: '#ef4444' },
   ];
 
+  // Additional derived metrics to match full FinanceDashboard
+  const totalEmployees = new Set(payrolls.map(p => p.employee)).size;
+  const approvedEmployees = paidCount;
+
+  const calculatedPayrolls = payrolls.filter(p => Number(p.net_salary || 0) > 0);
+  const taxCalculatedPayrolls = payrolls.filter(p => Number(p.tax_amount || 0) > 0);
+
+  const salaryCalculationProgress = payrolls.length > 0 ? (calculatedPayrolls.length / payrolls.length) * 100 : 0;
+  const taxDeductionProgress = payrolls.length > 0 ? (taxCalculatedPayrolls.length / payrolls.length) * 100 : 0;
+  const approvalProgress = totalEmployees > 0 ? (approvedEmployees / totalEmployees) * 100 : 0;
+  const disbursementProgress = payrolls.length > 0 ? (paidCount / payrolls.length) * 100 : 0;
+
   const handleExportData = async () => {
     try {
       const payrollData = payrolls.map(p => ({
@@ -236,6 +249,49 @@ const FinanceDashboardContent: React.FC = () => {
     }
   };
 
+  const handleCalculate = async () => {
+    if (payrolls.length === 0) return;
+
+    if (pending.length === 0) {
+      toast({ title: 'No pending calculations', description: 'All payrolls are already calculated/paid.' });
+      return;
+    }
+
+    try {
+      for (const pr of pending) {
+        await payrollService.calculatePayroll(pr.id);
+      }
+      toast({ title: 'Salary calculation complete' });
+      await loadData();
+    } catch (e: any) {
+      const errorMessage = e?.response?.data?.detail || e?.message || 'Please try again.';
+      if (errorMessage.includes('No SalaryStructure linked')) {
+        toast({
+          title: 'Calculation failed',
+          description: 'Some employees need salary structures before calculation. Please create them first.',
+          variant: 'destructive'
+        });
+      } else {
+        toast({ title: 'Calculation failed', description: errorMessage, variant: 'destructive' });
+      }
+    }
+  };
+
+  const handleCheckout = async () => {
+    try {
+      const firstPending = pending[0];
+      if (!firstPending) return;
+      const session = await payrollService.createCheckoutSession(firstPending.id);
+      if (session?.url) {
+        const url = new URL(session.url);
+        url.searchParams.set('payroll_id', firstPending.id.toString());
+        window.location.href = url.toString();
+      }
+    } catch (e: any) {
+      toast({ title: 'Checkout failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="flex-1 space-y-6">
       <div className="flex items-center justify-between">
@@ -270,87 +326,75 @@ const FinanceDashboardContent: React.FC = () => {
         <PendingDisbursementsCard count={pending.length} totalAmount={`$${pending.reduce((s, p) => s + Number(p.net_salary || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`} />
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 gap-2 bg-[#F3F4F6] rounded-full p-1">
-          <TabsTrigger
-            value="overview"
-            className="rounded-full px-6 py-2 text-sm font-semibold text-[#6C63FF] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-[#6C63FF] hover:bg-white/60 hover:shadow-sm transition-all duration-200"
-          >
-            Overview
-          </TabsTrigger>
-          <TabsTrigger
-            value="reports"
-            className="rounded-full px-6 py-2 text-sm font-semibold text-gray-600 data-[state=active]:bg-white data-[state=active]:text-[#6C63FF] hover:bg-white/60 hover:shadow-sm transition-all duration-200"
-          >
-            Reports
-          </TabsTrigger>
-        </TabsList>
+      <div className="space-y-6">
+        <Card className="group transition-transform transform hover:-translate-y-1 overflow-hidden rounded-lg border border-gray-100 shadow-md ring-1 ring-gray-100 hover:shadow-xl hover:ring-purple-200 hover:border-purple-200 duration-300 ease-out">
+          <div className="flex">
+            <div className="w-0.5 bg-gradient-to-b from-[#6C63FF]/60 to-[#FF6B6B]/60" />
+            <div className="flex-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  Payroll Progress
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 py-2">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-sm">Salary Calculation</span>
+                    <span className={`font-medium ${salaryCalculationProgress === 100 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {calculatedPayrolls.length}/{payrolls.length} ({Math.round(salaryCalculationProgress)}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-gradient-to-r from-purple-600 to-purple-700 h-2 rounded-full transition-all duration-300" style={{ width: `${salaryCalculationProgress}%` }}></div>
+                  </div>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            <PayrollTrendsChart data={[]} />
-            <TaxComplianceChart data={taxCompliance} />
-          </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-sm">Tax Deductions</span>
+                    <span className={`font-medium ${taxDeductionProgress === 100 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {taxCalculatedPayrolls.length}/{payrolls.length} ({Math.round(taxDeductionProgress)}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-gradient-to-r from-purple-600 to-purple-700 h-2 rounded-full transition-all duration-300" style={{ width: `${taxDeductionProgress}%` }}></div>
+                  </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <RecentDisbursementsCard disbursements={recentDisbursements} />
-            <NotificationsCard />
-          </div>
-        </TabsContent>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-sm">Approval Process</span>
+                    <span className={`font-medium ${approvalProgress === 100 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {approvedEmployees}/{totalEmployees} ({Math.round(approvalProgress)}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-gradient-to-r from-purple-600 to-purple-700 h-2 rounded-full transition-all duration-300" style={{ width: `${approvalProgress}%` }}></div>
+                  </div>
 
-        <TabsContent value="reports" className="space-y-4">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-primary/20 group cursor-pointer transform hover:-translate-y-1">
-              <div className="flex flex-col h-full">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Payroll Reports</h3>
-                  <p className="text-muted-foreground mb-6 leading-relaxed">Monthly and quarterly payroll summaries with detailed analytics</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-sm">Disbursement</span>
+                    <span className={`font-medium ${disbursementProgress === 100 ? 'text-green-600' : disbursementProgress > 0 ? 'text-yellow-600' : 'text-gray-600'}`}>
+                      {paidCount}/{payrolls.length} ({Math.round(disbursementProgress)}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-gradient-to-r from-purple-600 to-purple-700 h-2 rounded-full transition-all duration-300" style={{ width: `${disbursementProgress}%` }}></div>
+                  </div>
                 </div>
-                <Button 
-                  className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md"
-                  onClick={handleGenerateReport}
-                  disabled={isLoading}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Generate Report
-                </Button>
-              </div>
-            </div>
-            <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-primary/20 group cursor-pointer transform hover:-translate-y-1">
-              <div className="flex flex-col h-full">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Tax Reports</h3>
-                  <p className="text-muted-foreground mb-6 leading-relaxed">Tax deduction and compliance reports for regulatory filing</p>
-                </div>
-                <Button 
-                  className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md"
-                  onClick={handleGenerateReport}
-                  disabled={isLoading}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Generate Report
-                </Button>
-              </div>
-            </div>
-            <div className="bg-card border rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:border-primary/20 group cursor-pointer transform hover:-translate-y-1">
-              <div className="flex flex-col h-full">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-3 text-gray-900 group-hover:text-primary transition-colors">Financial Reports</h3>
-                  <p className="text-muted-foreground mb-6 leading-relaxed">Audit and financial analysis reports for stakeholders</p>
-                </div>
-                <Button 
-                  className="w-full bg-primary hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md"
-                  onClick={handleGenerateReport}
-                  disabled={isLoading}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Generate Report
-                </Button>
-              </div>
+              </CardContent>
             </div>
           </div>
-        </TabsContent>
-      </Tabs>
+        </Card>
+
+        <div className="grid gap-6 md:grid-cols-1">
+          <TaxComplianceChart data={taxCompliance} />
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <RecentDisbursementsCard disbursements={recentDisbursements} />
+          <NotificationsCard />
+        </div>
+
+      </div>
+
+      {/* Overview and Reports tabs intentionally removed for Admin Accounts view */}
     </div>
   );
 };

@@ -16,6 +16,7 @@ export const ExpandableInterviewWorkspace: React.FC<ExpandableInterviewWorkspace
   interview,
   isOpen,
   onClose,
+  onRefresh,
 }) => {
   if (!interview) return null;
 
@@ -73,7 +74,7 @@ export const ExpandableInterviewWorkspace: React.FC<ExpandableInterviewWorkspace
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto bg-gradient-to-br from-background to-muted/20">
-              <InterviewScoringForm 
+              <InterviewScoringForm
                 initialData={{
                   candidateName: interview.candidateName,
                   positionAppliedFor: interview.position,

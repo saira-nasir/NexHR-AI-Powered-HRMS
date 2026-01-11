@@ -8,12 +8,17 @@ import { toast } from 'sonner';
 
 interface Payslip {
   id: number;
-  period_start: string;
-  period_end: string;
-  net_salary: number;
-  payslip_pdf_url?: string;
-  payroll?: number;
-  issued_on?: string;
+  // For compatibility with older payloads we keep several optional fields
+  period_start?: string | null;
+  period_end?: string | null;
+  net_salary?: number | null;
+  payslip_pdf_url?: string | null;
+  payroll?: number | null;
+  issued_on?: string | null;
+  // New API fields
+  title?: string;
+  period?: string; // human-friendly period string returned by new endpoint
+  pdf_url?: string | null; // alias for payslip_pdf_url from new endpoint
 }
 
 interface ApiResponse {
@@ -74,102 +79,33 @@ const Payslips: React.FC = () => {
       if (isRetry) {
         setIsRetrying(true);
         setRetryCount(prev => prev + 1);
-        // console.log(`🔄 Retry attempt ${retryCount + 1}...`);
       }
 
-      let data: Payslip[] | null = null;
+      // New API: GET /payroll/payslips/user-last-12-months/
+      let payslipsData: Payslip[] = [];
       let lastError: Error | null = null;
-      
-      // Approach 1: Try payslips endpoint (backend already filters by employee/company)
       try {
-        // console.log('🔄 Fetching payslips from /payroll/payslips/...');
-        const response = await apiGet('/payroll/payslips/');
-        // console.log('✅ Payslips response:', response);
-        
-        if (response && (Array.isArray(response) || response.results || response.data)) {
-          let payslips = Array.isArray(response) ? response : (response.results || response.data || []);
-          
-          // CRITICAL: Backend returns ALL payslips (PAID + PENDING), but we only want PAID
-          // Need to fetch payrolls to check payment_status
-          if (payslips.length > 0) {
-            try {
-              const payrollsData = await apiGet('/payroll/payrolls/');
-              const payrolls = Array.isArray(payrollsData) ? payrollsData : (payrollsData.results || []);
-              
-              // Create a map of payroll ID to payment_status
-              const payrollToPaymentStatus = new Map<number, string>();
-              payrolls.forEach((payroll: any) => {
-                if (payroll.id && payroll.payment_status) {
-                  payrollToPaymentStatus.set(Number(payroll.id), String(payroll.payment_status).toUpperCase());
-                }
-              });
-              
-              // Filter payslips to only those with payment_status === 'PAID'
-              payslips = payslips.filter((payslip: any) => {
-                const payrollId = payslip.payroll || payslip.id;
-                const paymentStatus = payrollToPaymentStatus.get(Number(payrollId));
-                return paymentStatus === 'PAID';
-              });
-              
-              // console.log(`✅ Filtered to ${payslips.length} PAID payslips`);
-            } catch (payrollError) {
-              console.warn('Could not filter payslips by payment_status, showing all:', payrollError);
-              // If we can't filter, don't show any (security: only show PAID payslips)
-              payslips = [];
-            }
-          }
-          
-          data = payslips;
-        }
-      } catch (error1) {
-        // console.log('❌ Payslips endpoint failed:', error1);
-        lastError = error1 as Error;
+        const userId = getUserId();
+        const query = userId ? `?user_id=${userId}` : '';
+        const response = await apiGet(`/payroll/payslips/user-last-12-months/${query}`);
+
+        const results = response?.results || response || [];
+
+        // Map new API shape to our Payslip interface
+        payslipsData = (Array.isArray(results) ? results : []).map((r: any) => ({
+          id: r.payroll_id || r.id,
+          title: r.title,
+          period: r.period,
+          pdf_url: r.pdf_url || r.payslip_pdf_url || null,
+          payslip_pdf_url: r.pdf_url || r.payslip_pdf_url || null,
+          payroll: r.payroll_id || r.payroll || null,
+        }));
+      } catch (err) {
+        lastError = err as Error;
       }
-      
-      // Approach 2: Fallback to payrolls endpoint (backend already filters by employee/company)
-      if (!data || data.length === 0) {
-        try {
-          // console.log('🔄 Fallback: Fetching payrolls from /payroll/payrolls/...');
-          const payrollsData = await apiGet('/payroll/payrolls/');
-          // console.log('✅ Payrolls response:', payrollsData);
-          
-          // Convert payrolls to payslips format
-          if (payrollsData && (Array.isArray(payrollsData) ? payrollsData.length > 0 : payrollsData.results?.length > 0)) {
-            const payrolls = Array.isArray(payrollsData) ? payrollsData : (payrollsData.results || []);
-            
-            // CRITICAL: Only convert payrolls that have payment_status = 'PAID'
-            // Backend already filters by employee/company, so no need to filter by employee ID
-            data = payrolls
-              .filter((payroll: any) => {
-                const status = String(payroll.payment_status || '').toUpperCase();
-                return status === 'PAID';
-              })
-              .map((payroll: any) => ({
-                id: payroll.id,
-                period_start: payroll.period_start,
-                period_end: payroll.period_end,
-                net_salary: Number(payroll.net_salary) || 0,
-                payslip_pdf_url: payroll.payslip_pdf_url,
-                payroll: payroll.id,
-                issued_on: payroll.paid_on
-              }));
-            // console.log('✅ Converted PAID payrolls to payslips format:', data);
-          }
-        } catch (error2) {
-          // console.log('❌ Payrolls endpoint failed:', error2);
-          lastError = error2 as Error;
-        }
-      }
-      
-      // Validate and set data
-      const payslipsData = data || [];
-      
-      // Debug: Uncomment for development debugging
-      // console.log('🔍 Final payslips data before setting state:', payslipsData);
-      // console.log('🔍 Data type:', typeof payslipsData, 'Length:', payslipsData.length);
-      
+
       setPayslips(payslipsData);
-      
+
       if (payslipsData.length === 0) {
         if (lastError) {
           const errorMessage = `Failed to fetch payslips: ${lastError.message}`;
@@ -292,7 +228,10 @@ const Payslips: React.FC = () => {
               
               // More flexible validation - check for essential fields
               const hasId = payslip.id !== undefined && payslip.id !== null;
-              const hasPeriod = (payslip.period_start || payslip.issued_on) && (payslip.period_end || payslip.issued_on);
+              const hasPeriod = Boolean(
+                payslip.period ||
+                ((payslip.period_start || payslip.issued_on) && (payslip.period_end || payslip.issued_on))
+              );
               
               if (!hasId) {
                 console.warn('Payslip missing ID:', payslip);
@@ -304,38 +243,29 @@ const Payslips: React.FC = () => {
                 return null;
               }
 
-              // Use available date fields
-              const startDate = payslip.period_start ? new Date(payslip.period_start) : 
-                               payslip.issued_on ? new Date(payslip.issued_on) : new Date();
-              const endDate = payslip.period_end ? new Date(payslip.period_end) : 
-                            payslip.issued_on ? new Date(payslip.issued_on) : new Date();
+              // Use available date fields if provided; otherwise fallback to title/period string
+              const startDate = payslip.period_start ? new Date(payslip.period_start) :
+                               payslip.issued_on ? new Date(payslip.issued_on) : null;
+              const endDate = payslip.period_end ? new Date(payslip.period_end) :
+                             payslip.issued_on ? new Date(payslip.issued_on) : null;
               const hasNetSalary = payslip.net_salary !== undefined && payslip.net_salary !== null && !Number.isNaN(Number(payslip.net_salary));
               const netSalary = hasNetSalary ? Number(payslip.net_salary) : null;
 
-              // Format filename: payslip_{month}_{year}.pdf
-              const monthYear = startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-              const filename = `payslip_${startDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).replace(' ', '_').toLowerCase()}.pdf`;
+              // Format filename: prefer month-year when date available, otherwise fallback to id
+              const monthYear = startDate ? startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+              const filename = startDate
+                ? `payslip_${startDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).replace(' ', '_').toLowerCase()}.pdf`
+                : `payslip_${payslip.id || payslip.payroll || 'unknown'}.pdf`;
 
-              // Construct full PDF URL from payslip_pdf_url
+              // Construct full PDF URL from new `pdf_url` or legacy `payslip_pdf_url`
               const getPdfUrl = (): string | null => {
-                if (!payslip.payslip_pdf_url) {
-                  return null;
-                }
+                const pdfPath = payslip.pdf_url || payslip.payslip_pdf_url;
+                if (!pdfPath) return null;
 
                 const backendBaseUrl = getBackendBaseUrl();
-                const pdfUrl = payslip.payslip_pdf_url;
-
-                // If URL is already absolute, return as-is
-                if (pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://')) {
-                  return pdfUrl;
-                }
-
-                // If URL starts with /, append to base URL
-                if (pdfUrl.startsWith('/')) {
-                  return `${backendBaseUrl}${pdfUrl}`;
-                }
-
-                // Otherwise, append with /
+                const pdfUrl = pdfPath;
+                if (pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://')) return pdfUrl;
+                if (pdfUrl.startsWith('/')) return `${backendBaseUrl}${pdfUrl}`;
                 return `${backendBaseUrl}/${pdfUrl}`;
               };
 
@@ -361,10 +291,10 @@ const Payslips: React.FC = () => {
                         <FileText className="h-5 w-5 text-primary" />
                         <div>
                           <CardTitle className="text-lg">
-                            Payslip - {monthYear}
+                            {payslip.title || (monthYear ? `Payslip - ${monthYear}` : `Payslip ${payslip.id}`)}
                           </CardTitle>
                           <CardDescription>
-                            Period: {startDate.toLocaleDateString()} - {endDate.toLocaleDateString()}
+                            {payslip.period || (startDate && endDate ? `Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}` : 'Period information not available')}
                           </CardDescription>
                         </div>
                       </div>

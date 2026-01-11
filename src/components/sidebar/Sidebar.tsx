@@ -22,8 +22,27 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, searchQuery 
   const getVisibleItems = () => {
     const role = getUserRole(user);
 
+    // Fall back to permissions stored in localStorage if redux permissions are empty
+    const localPermissionsRaw = typeof window !== 'undefined' ? window.localStorage.getItem('permissions') : null;
+    let localPermissions: string[] = [];
+    if (localPermissionsRaw) {
+      try {
+        const parsed = JSON.parse(localPermissionsRaw);
+        if (Array.isArray(parsed)) localPermissions = parsed;
+        else if (typeof parsed === 'string') localPermissions = parsed.split(',').map(s => s.trim());
+      } catch {
+        // fallback: comma separated string
+        localPermissions = localPermissionsRaw.split(',').map(s => s.trim());
+      }
+    }
+
     return sidebarItems
       .map(item => {
+        // Prevent Admin users from seeing certain employee-facing items even if they have permissions
+        const adminHiddenCodenames = ['my_tasks', 'my_salary_structure', 'payslips', 'loan_expense', 'loans', 'expenses'];
+        if (role === 'Admin' && item.codename && adminHiddenCodenames.includes(item.codename)) {
+          return null;
+        }
         // Special handling for items with submenus
         if (item.submenu && item.submenu.length > 0) {
           // Filter submenu items based on permissions
@@ -65,7 +84,19 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, searchQuery 
 
         // 1. Strict Permission Check:
         // If item has a codename, it MUST be present in permissions list.
-        if (item.codename && !permissions.includes(item.codename)) {
+        // Fallback: also check `localStorage.permissions` when redux `permissions` is not populated.
+        const codename = item.codename;
+        let hasPermission = false;
+        if (codename) {
+          // Special-case: accept either `salary_structures`, `my_salary_structure`, or `my_salary_strcuture` (typo) interchangeably
+          if (codename === 'my_salary_structure') {
+            hasPermission = permissions.includes('my_salary_structure') || permissions.includes('salary_structures') || permissions.includes('my_salary_strcuture') || localPermissions.includes('my_salary_structure') || localPermissions.includes('salary_structures') || localPermissions.includes('my_salary_strcuture');
+          } else {
+            hasPermission = permissions.includes(codename) || localPermissions.includes(codename);
+          }
+        }
+
+        if (item.codename && !hasPermission) {
           return null;
         }
 
@@ -128,6 +159,9 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, searchQuery 
     // Custom active states for sub-pages
     if (path === '/onboarding' && location.pathname.startsWith('/onboard')) return true;
     if (path === '/assessment-interview' && location.pathname.startsWith('/job-candidates')) return true;
+
+    // Treat Admin Dashboard as active when on the main Dashboard link
+    if (path === '/dashboard' && (location.pathname === '/admin-dashboard' || location.pathname.startsWith('/admin-dashboard/'))) return true;
 
     return location.pathname === path ||
       location.pathname.startsWith(path + '/') ||
