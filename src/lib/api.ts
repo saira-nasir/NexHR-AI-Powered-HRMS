@@ -12,7 +12,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   // Added from File 1 for explicitness
-  withCredentials: false, 
+  withCredentials: false,
   // Add timeout to prevent long hanging requests (from File 2)
   timeout: 15000, // Increased timeout for slower connections
 });
@@ -27,10 +27,10 @@ api.interceptors.request.use(
       }
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     // ✅ Improved logging (combines File 1's full URL + File 2's data)
     const fullUrl = `${config.baseURL}${config.url}`;
-    
+
     // Handle FormData: remove Content-Type header so axios can set it with boundary
     if (config.data instanceof FormData) {
       if (config.headers) {
@@ -65,7 +65,7 @@ api.interceptors.request.use(
       data: config.data,
       headers: config.headers,
     });
-    
+
     return config;
   },
   (error: AxiosError) => {
@@ -79,18 +79,18 @@ api.interceptors.response.use(
     // Don't log successful responses for polling endpoints (reduces noise)
     const url = response.config.url || '';
     const isPollingEndpoint = url.includes('/notifications/') || url.includes('/payroll/notifications/');
-    
+
     if (!isPollingEndpoint) {
       console.log(`✅ API Response from ${url}:`, {
         status: response.status,
       });
     }
-    
+
     return response;
   },
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    
+
     // Log detailed error information
     console.error('❌ API Response Error:', {
       url: originalRequest?.url,
@@ -103,11 +103,11 @@ api.interceptors.response.use(
     } catch (e) {
       // ignore stringify errors
     }
-    
+
     // Network error handling
     if (!error.response) {
       console.error('Network error detected:', error);
-      
+
       // Special handling for CORS errors
       if (error.message === 'Network Error' && originalRequest?.url) {
         const requestUrl = (originalRequest.baseURL || '') + originalRequest.url;
@@ -122,7 +122,7 @@ api.interceptors.response.use(
           return Promise.reject(error);
         }
       }
-      
+
       // Removed global network error toast - let components handle their own errors
       // toast({
       //   title: "Network Error",
@@ -131,45 +131,45 @@ api.interceptors.response.use(
       // });
       return Promise.reject(error);
     }
-    
+
     // If the error is 401 and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
+
       try {
         const refreshToken = localStorage.getItem('refresh_token');
-        
+
         if (!refreshToken) {
           // No refresh token, redirect to login
-          window.location.href = '/login';
+          // window.location.href = '/login';
           return Promise.reject(error);
         }
-        
+
         // Try to refresh token
         const response = await axios.post(`${BASE_URL}/auth/token/refresh/`, {
           refresh: refreshToken
         });
-        
+
         // Update tokens
         const { access } = response.data;
         localStorage.setItem('access_token', access);
-        
+
         // Update header and retry
         api.defaults.headers.common['Authorization'] = `Bearer ${access}`;
         if (originalRequest.headers) {
           originalRequest.headers['Authorization'] = `Bearer ${access}`;
         }
-        
+
         return api(originalRequest);
       } catch (refreshError) {
         // If refresh fails, redirect to login
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        // window.location.href = '/login';
         return Promise.reject(refreshError);
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -177,7 +177,7 @@ api.interceptors.response.use(
 // Helper function to handle API errors in a consistent way
 export const handleApiError = (error: any, defaultMessage = "An unexpected error occurred") => {
   console.error('API error:', error);
-  
+
   if (!error.response) {
     // Network error
     return {
@@ -185,12 +185,12 @@ export const handleApiError = (error: any, defaultMessage = "An unexpected error
       message: "Cannot connect to the server. Please check your connection and try again."
     };
   }
-  
+
   if (error.response.data) {
     // Get the first error message from the response
     const errorData = error.response.data;
     let errorMessage = defaultMessage;
-    
+
     if (typeof errorData === 'string') {
       errorMessage = errorData;
     } else if (errorData.detail) {
@@ -205,14 +205,14 @@ export const handleApiError = (error: any, defaultMessage = "An unexpected error
         errorMessage = Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors;
       }
     }
-    
+
     return {
       success: false,
       message: errorMessage,
       errors: errorData
     };
   }
-  
+
   return {
     success: false,
     message: defaultMessage

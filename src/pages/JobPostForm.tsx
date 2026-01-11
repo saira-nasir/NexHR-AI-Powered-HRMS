@@ -9,6 +9,7 @@ import ReviewTab from '../components/job-post/ReviewTab';
 import JobPostedModal from '../components/modals/JobPostedModal';
 import { jobService, JobPostData, RequiredSkill } from '@/services/JobService';
 import { linkedinService } from '@/services/linkedinService';
+import branchDepartmentService from '@/services/branchDepartmentService';
 // import { googleAuthService } from '@/services/googleAuth';
 import { useNavigate } from 'react-router-dom';
 import { Clock, RefreshCw } from 'lucide-react';
@@ -138,9 +139,9 @@ const JobPostForm: React.FC = () => {
       { id: 'gender', label: 'Gender', type: 'radio', enabled: false },
       { id: 'address', label: 'Address', type: 'text', enabled: false },
       { id: 'DOB', label: 'Date of Birth', type: 'date', enabled: false },
-      { id: 'cover_letter', label: 'Cover Letter', type: 'textarea', enabled: false },
       { id: 'education', label: 'Education', type: 'education', enabled: false },
       { id: 'experience', label: 'Experience', type: 'experience', enabled: false },
+      { id: 'skills', label: 'Skills', type: 'dropdown', enabled: false },
     ],
     customFormAnswers: {},
     required_skills: [],
@@ -153,6 +154,7 @@ const JobPostForm: React.FC = () => {
   const [cities, setCities] = useState<OptionType[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [apiDepartments, setApiDepartments] = useState<OptionType[]>([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(true);
   const navigate = useNavigate();
 
   // --- State to Trigger Modal and Mark Review as Completed ---
@@ -195,9 +197,9 @@ const JobPostForm: React.FC = () => {
   }, []);
 
   // --- Validation Function ---
-  const validateStep = (): boolean => {
+  const getErrorsForStep = (step: number): ValidationErrors => {
     const errors: ValidationErrors = {};
-    if (currentStep === 1) {
+    if (step === 1) {
       if (!formData.jobTitle.trim()) {
         errors.jobTitle = "Job Title cannot be empty";
       }
@@ -237,12 +239,17 @@ const JobPostForm: React.FC = () => {
       if (!formData.required_skills || formData.required_skills.length === 0) {
         errors.required_skills = "At least one required skill must be selected";
       }
-    } else if (currentStep === 2) {
+    } else if (step === 2) {
       // For Application Form tab, require that Education is selected.
       if (!formData.educationLevel.trim()) {
         errors.educationLevel = "Education Level is required";
       }
     }
+    return errors;
+  };
+
+  const validateStep = (): boolean => {
+    const errors = getErrorsForStep(currentStep);
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -384,6 +391,17 @@ const JobPostForm: React.FC = () => {
   // "Post Job" is now triggered only on Step 3.
   const handlePostJob = async () => {
     if (isPosting) return; // prevent double submit
+    // run full validation for all non-review steps before posting
+    const errorsStep1 = getErrorsForStep(1);
+    const errorsStep2 = getErrorsForStep(2);
+    const mergedErrors: ValidationErrors = { ...errorsStep1, ...errorsStep2 };
+    if (Object.keys(mergedErrors).length > 0) {
+      setValidationErrors(mergedErrors);
+      // navigate user to the step containing the first error
+      if (mergedErrors.educationLevel) setCurrentStep(2);
+      else setCurrentStep(1);
+      return;
+    }
     setIsPosting(true);
     // Convert datetime-local value to ISO string format
     const formatDeadline = (deadline: string | null): string | null => {
@@ -422,7 +440,7 @@ const JobPostForm: React.FC = () => {
         dob: !!formData.customFormQuestions.find(q => q.id === 'DOB' && q.enabled),
         education: !!formData.customFormQuestions.find(q => q.id === 'education' && q.enabled),
         experience: !!formData.customFormQuestions.find(q => q.id === 'experience' && q.enabled),
-        skills: false, // Always false since we removed the skills field
+        skills: !!formData.customFormQuestions.find(q => q.id === 'skills' && q.enabled),
       },
     };
 
@@ -453,44 +471,20 @@ const JobPostForm: React.FC = () => {
     []
   );
 
-  // Fetch departments from backend and map to OptionType
+  // Fetch departments from backend using branchDepartmentService
   useEffect(() => {
     const loadDepartments = async () => {
       try {
-        const token = localStorage.getItem('access_token');
-        const headers: Record<string, string> = { Accept: 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+        setLoadingDepartments(true);
+        const data = await branchDepartmentService.getDepartments();
 
-        const baseApi = import.meta.env.VITE_API_URL
-          ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '')
-          : 'http://127.0.0.1:8000/api';
-        const url = `${baseApi}/departments/`;
-
-        const res = await fetch(url, { headers });
-        if (!res.ok) {
-          console.error(`Failed to fetch departments: ${res.status}`);
-          setApiDepartments([]);
-          return;
-        }
-        const data = await res.json();
-
-        // Handle response format: { departments: ["name1", "name2", ...] }
-        if (data.departments && Array.isArray(data.departments)) {
-          const opts = data.departments.map((deptName: string, index: number) => ({
-            value: deptName, // Use department name as value
-            label: deptName  // Use department name as label
+        if (Array.isArray(data)) {
+          const opts = data.map((dept: any) => ({
+            value: dept.id ? String(dept.id) : dept.name,
+            label: dept.name || String(dept),
           }));
           setApiDepartments(opts);
-          console.log(`Loaded ${opts.length} departments from backend`);
-        } else if (Array.isArray(data)) {
-          // Fallback: if response is directly an array
-          const opts = data.map((d: any) => {
-            const label = d.name || d.department_name || d.title || String(d);
-            const value = d.id ? String(d.id) : String(d);
-            return { value, label } as OptionType;
-          });
-          setApiDepartments(opts);
-          console.log(`Loaded ${opts.length} departments from backend`);
+          console.log(`Loaded ${opts.length} departments from branchDepartmentService`);
         } else {
           console.warn('Unexpected departments API response format:', data);
           setApiDepartments([]);
@@ -498,6 +492,8 @@ const JobPostForm: React.FC = () => {
       } catch (err) {
         console.error('Failed to load departments:', err);
         setApiDepartments([]);
+      } finally {
+        setLoadingDepartments(false);
       }
     };
 

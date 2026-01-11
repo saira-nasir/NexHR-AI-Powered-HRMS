@@ -5,11 +5,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
-import { Plus, X, Trash2, Upload, FileText } from 'lucide-react';
+import { Plus, X, Trash2, Upload, FileText, Calendar as CalendarIcon } from 'lucide-react';
 import { applicationService } from '@/services/jobPortalservice';
 import RequiredSkillsField from '@/components/job-post/RequiredSkillsField';
 import { RequiredSkill } from '@/services/JobService';
 import type { StylesConfig } from 'react-select';
+import { DateTimePicker } from '@/components/ui/datetime-picker';
+import { format } from 'date-fns';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 interface Experience {
     years_of_experience: number | '';
@@ -29,6 +41,18 @@ interface Education {
 
 const JobApplicationForm: React.FC = () => {
     const { jobId: routeJobId } = useParams<{ jobId: string }>();
+
+    // Helper to parse date string into a local Date object to avoid UTC off-by-one issues
+    const parseDateStringToLocal = (dateStr: string) => {
+        if (!dateStr) return undefined;
+        // Split YYYY-MM-DD and create local date
+        const [year, month, day] = dateStr.split('-').map(Number);
+        if (year && month && day) {
+            return new Date(year, month - 1, day);
+        }
+        return new Date(dateStr);
+    };
+
 
     const [formData, setFormData] = useState({
         candidate_fname: '',
@@ -147,8 +171,39 @@ const JobApplicationForm: React.FC = () => {
         setFormData(prev => ({ ...prev, educations: [...prev.educations, { education_level: '', institution_name: '', degree_detail: '', grades: '', start_date: '', end_date: '', description: '' }] }));
     const removeEducation = (i: number) =>
         setFormData(prev => ({ ...prev, educations: prev.educations.filter((_, idx) => idx !== i) }));
-    const updateEducation = (i: number, field: keyof Education, value: any) =>
-        setFormData(prev => ({ ...prev, educations: prev.educations.map((ed, idx) => (idx === i ? { ...ed, [field]: value } : ed)) }));
+    const getEducationDuration = (educationLevel: string): number => {
+        switch (educationLevel) {
+            case 'High School':
+                return 2;
+            case 'Associate Degree':
+                return 2;
+            case "Bachelor's Degree":
+                return 4;
+            case "Master's Degree":
+                return 2;
+            case 'Doctorate':
+                return 4;
+            default:
+                return 0;
+        }
+    };
+
+    const updateEducation = (i: number, field: keyof Education, value: any) => {
+        setFormData(prev => {
+            const updatedEducations = prev.educations.map((ed, idx) => (idx === i ? { ...ed, [field]: value } : ed));
+
+            // Clear date-related errors when dates are updated
+            if (field === 'start_date' || field === 'end_date' || field === 'education_level') {
+                setErrors(prevErrors => {
+                    const newErrors = { ...prevErrors };
+                    delete newErrors[`education_${i}_dates`];
+                    return newErrors;
+                });
+            }
+
+            return { ...prev, educations: updatedEducations };
+        });
+    };
 
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
@@ -157,21 +212,47 @@ const JobApplicationForm: React.FC = () => {
             if (!formData.candidate_fname.trim()) newErrors.candidate_fname = 'First name is required';
             if (!formData.candidate_lname.trim()) newErrors.candidate_lname = 'Last name is required';
         }
+
         if (show('email') && !formData.email.trim()) newErrors.email = 'Email is required';
-        if (show('phone') && !formData.phone.trim()) newErrors.phone = 'Phone is required';
+
+        if (show('phone')) {
+            if (!formData.phone.trim()) {
+                newErrors.phone = 'Phone is required';
+            } else {
+                // Phone validation: must be 10-15 digits, can include + and spaces
+                const phoneRegex = /^\+?[\d\s-]{10,15}$/;
+                if (!phoneRegex.test(formData.phone)) {
+                    newErrors.phone = 'Phone must be 10-15 digits (can include + and spaces)';
+                }
+            }
+        }
+
         if (show('gender') && !formData.gender) newErrors.gender = 'Gender is required';
         if (show('address') && !formData.address.trim()) newErrors.address = 'Address is required';
-        if (show('dob') && !formData.dob) newErrors.dob = 'Date of birth is required';
+
+        if (show('dob')) {
+            if (!formData.dob) {
+                newErrors.dob = 'Date of birth is required';
+            } else {
+                // Check if user is at least 18 years old
+                const today = new Date();
+                const birthDate = new Date(formData.dob);
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                if (age < 18) {
+                    newErrors.dob = 'You must be at least 18 years old';
+                }
+            }
+        }
+
         if (show('resume_url') && !formData.resume_file) newErrors.resume_file = 'Resume is required';
 
         if (formData.email) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(formData.email)) newErrors.email = 'Invalid email';
-        }
-
-        if (formData.phone) {
-            const phoneRegex = /^\+?[\d\s-]{7,}$/;
-            if (!phoneRegex.test(formData.phone)) newErrors.phone = 'Invalid phone';
         }
 
         if (show('skills')) {
@@ -180,11 +261,56 @@ const JobApplicationForm: React.FC = () => {
         }
 
         if (show('experience')) {
-            const validExp = formData.experiences.filter(e => typeof e.years_of_experience === 'number' && e.years_of_experience > 0 && e.previous_job_titles.trim() && e.company_name.trim());
+            formData.experiences.forEach((exp, index) => {
+                if (typeof exp.years_of_experience === 'number' && exp.years_of_experience < 0) {
+                    newErrors[`experience_${index}_years`] = 'Years cannot be negative';
+                }
+                if (exp.previous_job_titles && /\d/.test(exp.previous_job_titles)) {
+                    newErrors[`experience_${index}_title`] = 'Job title should not contain numbers';
+                }
+                if (exp.company_name && /\d/.test(exp.company_name)) {
+                    newErrors[`experience_${index}_company`] = 'Company name should not contain numbers';
+                }
+            });
+            const validExp = formData.experiences.filter(e => typeof e.years_of_experience === 'number' && e.years_of_experience >= 0 && e.previous_job_titles.trim() && e.company_name.trim());
             if (validExp.length === 0) newErrors.experiences = 'At least one valid experience is required';
         }
 
         if (show('education')) {
+            formData.educations.forEach((edu, index) => {
+                if (edu.institution_name && /\d/.test(edu.institution_name)) {
+                    newErrors[`education_${index}_institution`] = 'Institution name should not contain numbers';
+                }
+                if (edu.degree_detail && /\d/.test(edu.degree_detail)) {
+                    newErrors[`education_${index}_degree`] = 'Degree detail should not contain numbers';
+                }
+                if (edu.grades) {
+                    // CGPA validation: must be a number with optional decimal, between 0 and 4 or 0 and 10
+                    const cgpaRegex = /^(\d{1,2}(\.\d{1,2})?)$/;
+                    if (!cgpaRegex.test(edu.grades)) {
+                        newErrors[`education_${index}_grades`] = 'Grades must be a valid CGPA (e.g., 3.89)';
+                    } else {
+                        const cgpa = parseFloat(edu.grades);
+                        if (cgpa < 0 || cgpa > 10) {
+                            newErrors[`education_${index}_grades`] = 'CGPA must be between 0 and 10';
+                        }
+                    }
+                }
+
+                // Validate education duration based on education level
+                if (edu.education_level && edu.start_date && edu.end_date) {
+                    const startDate = new Date(edu.start_date);
+                    const endDate = new Date(edu.end_date);
+                    const yearsDiff = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+                    const minYears = getEducationDuration(edu.education_level);
+
+                    if (endDate <= startDate) {
+                        newErrors[`education_${index}_dates`] = 'End date must be after start date';
+                    } else if (minYears > 0 && yearsDiff < minYears) {
+                        newErrors[`education_${index}_dates`] = `${edu.education_level} requires minimum ${minYears} years (current: ${yearsDiff.toFixed(1)} years)`;
+                    }
+                }
+            });
             const validEdu = formData.educations.filter(e => e.education_level.trim() && e.institution_name.trim() && e.degree_detail.trim());
             if (validEdu.length === 0) newErrors.educations = 'At least one valid education is required';
         }
@@ -320,12 +446,19 @@ const JobApplicationForm: React.FC = () => {
                             {show('gender') && (
                                 <div>
                                     <Label htmlFor="gender" className="block text-sm font-medium text-gray-700">Gender *</Label>
-                                    <select id="gender" name="gender" value={formData.gender} onChange={handleChange} className={`mt-1 block w-full h-[42px]`}>
-                                        <option value="">Select gender</option>
-                                        <option value="male">Male</option>
-                                        <option value="female">Female</option>
-                                        <option value="other">Other</option>
-                                    </select>
+                                    <Select value={formData.gender} onValueChange={(value) => {
+                                        setFormData(prev => ({ ...prev, gender: value }));
+                                        if (errors.gender) setErrors(prev => ({ ...prev, gender: '' }));
+                                    }}>
+                                        <SelectTrigger className={`mt-1 ${errors.gender ? 'border-red-500' : ''}`}>
+                                            <SelectValue placeholder="Select gender" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="male">Male</SelectItem>
+                                            <SelectItem value="female">Female</SelectItem>
+                                            <SelectItem value="other">Other</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                     {errors.gender && <p className="mt-1 text-sm text-red-600">{errors.gender}</p>}
                                 </div>
                             )}
@@ -333,7 +466,50 @@ const JobApplicationForm: React.FC = () => {
                             {show('dob') && (
                                 <div>
                                     <Label htmlFor="dob" className="block text-sm font-medium text-gray-700">Date of Birth *</Label>
-                                    <Input id="dob" name="dob" type="date" value={formData.dob} onChange={handleChange} className={`mt-1 block w-full`} />
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant={"outline"}
+                                                className={cn(
+                                                    "w-full justify-start text-left font-normal mt-1",
+                                                    !formData.dob && "text-muted-foreground",
+                                                    errors.dob && "border-red-500"
+                                                )}
+                                            >
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {formData.dob ? format(parseDateStringToLocal(formData.dob)!, "PPP") : <span>Pick a date</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                                mode="single"
+                                                selected={parseDateStringToLocal(formData.dob)}
+                                                onSelect={(date) => {
+                                                    if (date) {
+                                                        const formatted = format(date, 'yyyy-MM-dd');
+                                                        setFormData(prev => ({ ...prev, dob: formatted }));
+                                                        if (errors.dob) setErrors(prev => ({ ...prev, dob: '' }));
+                                                    }
+                                                }}
+                                                disabled={(date) => {
+                                                    // Disable future dates and dates less than 18 years ago
+                                                    const today = new Date();
+                                                    const eighteenYearsAgo = new Date();
+                                                    eighteenYearsAgo.setFullYear(today.getFullYear() - 18);
+                                                    return date > eighteenYearsAgo || date > today;
+                                                }}
+                                                defaultMonth={(() => {
+                                                    const eighteenYearsAgo = new Date();
+                                                    eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
+                                                    return eighteenYearsAgo;
+                                                })()}
+                                                captionLayout="dropdown-buttons"
+                                                fromYear={1950}
+                                                toYear={new Date().getFullYear() - 18}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
                                     {errors.dob && <p className="mt-1 text-sm text-red-600">{errors.dob}</p>}
                                 </div>
                             )}
@@ -387,15 +563,81 @@ const JobApplicationForm: React.FC = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div>
                                             <Label className="block text-sm font-medium text-gray-700">Years of Experience *</Label>
-                                            <Input type="number" step="0.5" min="0" value={exp.years_of_experience === '' ? '' : exp.years_of_experience} onChange={e => updateExperience(index, 'years_of_experience', e.target.value === '' ? '' : parseFloat(e.target.value))} className="mt-1" placeholder="e.g., 3.5" />
+                                            <Input
+                                                type="number"
+                                                step="0.5"
+                                                min="0"
+                                                value={exp.years_of_experience === '' ? '' : exp.years_of_experience}
+                                                onChange={e => {
+                                                    const value = e.target.value === '' ? '' : parseFloat(e.target.value);
+                                                    updateExperience(index, 'years_of_experience', value);
+                                                    if (errors[`experience_${index}_years`]) {
+                                                        setErrors(prev => {
+                                                            const newErrors = { ...prev };
+                                                            delete newErrors[`experience_${index}_years`];
+                                                            return newErrors;
+                                                        });
+                                                    }
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (['-', 'e', 'E'].includes(e.key)) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                className={`mt-1 ${errors[`experience_${index}_years`] ? 'border-red-500' : ''}`}
+                                                placeholder="e.g., 3.5"
+                                            />
+                                            {errors[`experience_${index}_years`] && <p className="mt-1 text-sm text-red-600">{errors[`experience_${index}_years`]}</p>}
                                         </div>
                                         <div>
                                             <Label className="block text-sm font-medium text-gray-700">Job Title *</Label>
-                                            <Input value={exp.previous_job_titles} onChange={e => updateExperience(index, 'previous_job_titles', e.target.value)} className="mt-1" placeholder="e.g., Software Engineer" />
+                                            <Input
+                                                value={exp.previous_job_titles}
+                                                onChange={e => {
+                                                    updateExperience(index, 'previous_job_titles', e.target.value);
+                                                    if (errors[`experience_${index}_title`]) {
+                                                        setErrors(prev => {
+                                                            const newErrors = { ...prev };
+                                                            delete newErrors[`experience_${index}_title`];
+                                                            return newErrors;
+                                                        });
+                                                    }
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    // Prevent numbers from being typed
+                                                    if (/\d/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                className={`mt-1 ${errors[`experience_${index}_title`] ? 'border-red-500' : ''}`}
+                                                placeholder="e.g., Software Engineer"
+                                            />
+                                            {errors[`experience_${index}_title`] && <p className="mt-1 text-sm text-red-600">{errors[`experience_${index}_title`]}</p>}
                                         </div>
                                         <div>
                                             <Label className="block text-sm font-medium text-gray-700">Company Name *</Label>
-                                            <Input value={exp.company_name} onChange={e => updateExperience(index, 'company_name', e.target.value)} className="mt-1" placeholder="e.g., TechCorp" />
+                                            <Input
+                                                value={exp.company_name}
+                                                onChange={e => {
+                                                    updateExperience(index, 'company_name', e.target.value);
+                                                    if (errors[`experience_${index}_company`]) {
+                                                        setErrors(prev => {
+                                                            const newErrors = { ...prev };
+                                                            delete newErrors[`experience_${index}_company`];
+                                                            return newErrors;
+                                                        });
+                                                    }
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    // Prevent numbers from being typed
+                                                    if (/\d/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                className={`mt-1 ${errors[`experience_${index}_company`] ? 'border-red-500' : ''}`}
+                                                placeholder="e.g., TechCorp"
+                                            />
+                                            {errors[`experience_${index}_company`] && <p className="mt-1 text-sm text-red-600">{errors[`experience_${index}_company`]}</p>}
                                         </div>
                                     </div>
                                 </div>
@@ -431,27 +673,168 @@ const JobApplicationForm: React.FC = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <Label className="block text-sm font-medium text-gray-700">Education Level *</Label>
-                                            <Input value={edu.education_level} onChange={e => updateEducation(index, 'education_level', e.target.value)} className="mt-1" placeholder="e.g., Bachelor's" />
+                                            <Select
+                                                value={edu.education_level}
+                                                onValueChange={(value) => updateEducation(index, 'education_level', value)}
+                                            >
+                                                <SelectTrigger className="mt-1">
+                                                    <SelectValue placeholder="Select Education Level" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="High School">High School</SelectItem>
+                                                    <SelectItem value="Associate Degree">Associate Degree</SelectItem>
+                                                    <SelectItem value="Bachelor's Degree">Bachelor's Degree</SelectItem>
+                                                    <SelectItem value="Master's Degree">Master's Degree</SelectItem>
+                                                    <SelectItem value="Doctorate">Doctorate</SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         </div>
                                         <div>
                                             <Label className="block text-sm font-medium text-gray-700">Institution Name *</Label>
-                                            <Input value={edu.institution_name} onChange={e => updateEducation(index, 'institution_name', e.target.value)} className="mt-1" placeholder="e.g., XYZ University" />
+                                            <Input
+                                                value={edu.institution_name}
+                                                onChange={e => {
+                                                    updateEducation(index, 'institution_name', e.target.value);
+                                                    if (errors[`education_${index}_institution`]) {
+                                                        setErrors(prev => {
+                                                            const newErrors = { ...prev };
+                                                            delete newErrors[`education_${index}_institution`];
+                                                            return newErrors;
+                                                        });
+                                                    }
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    // Prevent numbers from being typed
+                                                    if (/\d/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                className={`mt-1 ${errors[`education_${index}_institution`] ? 'border-red-500' : ''}`}
+                                                placeholder="e.g., XYZ University"
+                                            />
+                                            {errors[`education_${index}_institution`] && <p className="mt-1 text-sm text-red-600">{errors[`education_${index}_institution`]}</p>}
                                         </div>
                                         <div>
                                             <Label className="block text-sm font-medium text-gray-700">Degree Detail *</Label>
-                                            <Input value={edu.degree_detail} onChange={e => updateEducation(index, 'degree_detail', e.target.value)} className="mt-1" placeholder="e.g., BS Computer Science" />
+                                            <Input
+                                                value={edu.degree_detail}
+                                                onChange={e => {
+                                                    updateEducation(index, 'degree_detail', e.target.value);
+                                                    if (errors[`education_${index}_degree`]) {
+                                                        setErrors(prev => {
+                                                            const newErrors = { ...prev };
+                                                            delete newErrors[`education_${index}_degree`];
+                                                            return newErrors;
+                                                        });
+                                                    }
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    // Prevent numbers from being typed
+                                                    if (/\d/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                className={`mt-1 ${errors[`education_${index}_degree`] ? 'border-red-500' : ''}`}
+                                                placeholder="e.g., BS Computer Science"
+                                            />
+                                            {errors[`education_${index}_degree`] && <p className="mt-1 text-sm text-red-600">{errors[`education_${index}_degree`]}</p>}
                                         </div>
                                         <div>
-                                            <Label className="block text-sm font-medium text-gray-700">Grades</Label>
-                                            <Input value={edu.grades} onChange={e => updateEducation(index, 'grades', e.target.value)} className="mt-1" placeholder="e.g., 3.7 CGPA" />
+                                            <Label className="block text-sm font-medium text-gray-700">CGPA / Grades</Label>
+                                            <Input
+                                                value={edu.grades}
+                                                onChange={e => {
+                                                    // Only allow numbers and decimal point
+                                                    const value = e.target.value.replace(/[^\d.]/g, '');
+                                                    updateEducation(index, 'grades', value);
+                                                    if (errors[`education_${index}_grades`]) {
+                                                        setErrors(prev => {
+                                                            const newErrors = { ...prev };
+                                                            delete newErrors[`education_${index}_grades`];
+                                                            return newErrors;
+                                                        });
+                                                    }
+                                                }}
+                                                className={`mt-1 ${errors[`education_${index}_grades`] ? 'border-red-500' : ''}`}
+                                                placeholder="e.g., 3.89"
+                                            />
+                                            {errors[`education_${index}_grades`] && <p className="mt-1 text-sm text-red-600">{errors[`education_${index}_grades`]}</p>}
                                         </div>
                                         <div>
                                             <Label className="block text-sm font-medium text-gray-700">Start Date</Label>
-                                            <Input type="date" value={edu.start_date} onChange={e => updateEducation(index, 'start_date', e.target.value)} className="mt-1" />
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant={"outline"}
+                                                        className={cn(
+                                                            "w-full justify-start text-left font-normal mt-1",
+                                                            !edu.start_date && "text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {edu.start_date ? format(parseDateStringToLocal(edu.start_date)!, "PPP") : <span>Pick a date</span>}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={edu.start_date ? parseDateStringToLocal(edu.start_date) : undefined}
+                                                        onSelect={(date) => {
+                                                            if (date) {
+                                                                updateEducation(index, 'start_date', format(date, 'yyyy-MM-dd'));
+                                                            }
+                                                        }}
+                                                        disabled={(date) => false}
+                                                        initialFocus
+                                                        captionLayout="dropdown-buttons"
+                                                        fromYear={1950}
+                                                        toYear={new Date().getFullYear() + 5}
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
                                         </div>
                                         <div>
                                             <Label className="block text-sm font-medium text-gray-700">End Date</Label>
-                                            <Input type="date" value={edu.end_date} onChange={e => updateEducation(index, 'end_date', e.target.value)} className="mt-1" />
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant={"outline"}
+                                                        className={cn(
+                                                            "w-full justify-start text-left font-normal mt-1",
+                                                            !edu.end_date && "text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {edu.end_date ? format(parseDateStringToLocal(edu.end_date)!, "PPP") : <span>Pick a date</span>}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={edu.end_date ? parseDateStringToLocal(edu.end_date) : undefined}
+                                                        onSelect={(date) => {
+                                                            if (date) {
+                                                                updateEducation(index, 'end_date', format(date, 'yyyy-MM-dd'));
+                                                            }
+                                                        }}
+                                                        disabled={(date) => {
+                                                            if (edu.start_date) {
+                                                                const startDate = parseDateStringToLocal(edu.start_date);
+                                                                if (startDate) {
+                                                                    const start = new Date(startDate);
+                                                                    start.setHours(0, 0, 0, 0);
+                                                                    return date < start;
+                                                                }
+                                                            }
+                                                            return false;
+                                                        }}
+                                                        initialFocus
+                                                        captionLayout="dropdown-buttons"
+                                                        fromYear={1950}
+                                                        toYear={new Date().getFullYear() + 5}
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
                                         </div>
                                     </div>
 

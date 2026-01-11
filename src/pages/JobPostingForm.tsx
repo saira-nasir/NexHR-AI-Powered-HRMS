@@ -6,6 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import { jobService } from "@/services/JobService";
+import branchDepartmentService, { Department } from '@/services/branchDepartmentService';
+import { Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const JobPostingForm: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -17,10 +20,30 @@ const JobPostingForm: React.FC = () => {
     min_salary: "",
     max_salary: "",
     application_deadline: "",
+    department: "",
   });
+
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Fetch departments on component mount
+  React.useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        setLoadingDepartments(true);
+        const data = await branchDepartmentService.getDepartments();
+        setDepartments(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Failed to fetch departments:', error);
+      } finally {
+        setLoadingDepartments(false);
+      }
+    };
+    fetchDepartments();
+  }, []);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -72,7 +95,7 @@ const JobPostingForm: React.FC = () => {
     try {
       const response = await jobService.postJob({
         job_title: formData.title,
-        department: null,
+        department: formData.department || null,
         job_type: formData.job_type,
         location_type: "onsite",
         city: formData.location,
@@ -85,6 +108,7 @@ const JobPostingForm: React.FC = () => {
         job_description: `${formData.description}\n\nRequirements:\n${formData.requirements}`,
         experience_level: 1,
         job_deadline: formData.application_deadline,
+        required_skills: [],
         job_schema: {
           name: true,
           email: true,
@@ -114,6 +138,7 @@ const JobPostingForm: React.FC = () => {
           min_salary: "",
           max_salary: "",
           application_deadline: "",
+          department: "",
         });
       } else {
         toast({
@@ -172,6 +197,45 @@ const JobPostingForm: React.FC = () => {
             />
             {errors.title && (
               <p className="text-red-500 text-sm mt-1">{errors.title}</p>
+            )}
+          </div>
+
+          {/* Department */}
+          <div>
+            <Label htmlFor="department">Department</Label>
+            {loadingDepartments ? (
+              <div className="flex items-center gap-2 p-3 border rounded-md bg-gray-50">
+                <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                <span className="text-sm text-gray-500">Loading departments...</span>
+              </div>
+            ) : (
+              <>
+                {departments.length === 0 && (
+                  <p className="text-sm text-gray-500 mb-2">
+                    No departments available. Please create a department in{' '}
+                    <a href="/branches-departments" className="text-blue-600 hover:underline">
+                      Branches & Departments
+                    </a>
+                    {' '}first.
+                  </p>
+                )}
+                <Select
+                  value={formData.department}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
+                  disabled={departments.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id.toString()}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
             )}
           </div>
 

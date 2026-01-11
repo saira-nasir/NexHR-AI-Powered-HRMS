@@ -502,7 +502,6 @@ const JobCandidatesDetail: React.FC = () => {
                             </div>
                             <div>
                               <p className="font-semibold text-gray-900">{candidate.name}</p>
-                              <p className="text-xs text-gray-500">{candidate.email}</p>
                             </div>
                           </div>
                         </TableCell>

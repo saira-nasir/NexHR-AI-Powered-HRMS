@@ -12,7 +12,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
 import { getUserRole } from '@/utils/roleUtils';
 
-const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, searchQuery = '' }) => {
   const location = useLocation();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const user = useSelector((state: RootState) => state.auth.user);
@@ -47,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
           if (filteredSub.length > 0) {
             return { ...item, submenu: filteredSub };
           }
-          
+
           // If no subtabs are visible, hide the main tab
           return null;
         }
@@ -80,7 +80,22 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
 
         return { ...item };
       })
-      .filter(Boolean) as typeof sidebarItems;
+      .filter(Boolean)
+      .filter((item: any) => {
+        // Search filter
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+
+        // Search in main item title
+        if (item.title.toLowerCase().includes(query)) return true;
+
+        // Search in submenu titles
+        if (item.submenu && item.submenu.some((sub: any) => sub.title.toLowerCase().includes(query))) {
+          return true;
+        }
+
+        return false;
+      }) as typeof sidebarItems;
   };
 
   const visibleItems = getVisibleItems();
@@ -92,10 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
 
     sidebarItems.forEach(item => {
       if (item.submenu) {
-        const isSubmenuActive = item.submenu.some(subItem =>
-          currentPath === subItem.path ||
-          currentPath.startsWith(subItem.path + '/')
-        );
+        const isSubmenuActive = item.submenu.some(subItem => isActive(subItem.path));
         if (isSubmenuActive) {
           initialOpenMenus[item.title] = true;
         }
@@ -113,8 +125,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   };
 
   const isActive = (path: string) => {
-    // Treat onboarding submenu (/onboarding) as active also when on /onboard/:applicationId
+    // Custom active states for sub-pages
     if (path === '/onboarding' && location.pathname.startsWith('/onboard')) return true;
+    if (path === '/assessment-interview' && location.pathname.startsWith('/job-candidates')) return true;
+
     return location.pathname === path ||
       location.pathname.startsWith(path + '/') ||
       (path !== '/' && location.pathname.startsWith(path));

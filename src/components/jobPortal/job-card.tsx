@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { Bookmark, BookmarkCheck } from "lucide-react"
 import type { JobListing } from "@/types/jobPortal/types"
 import { Linkedin } from 'lucide-react'
 import { Navigate, useNavigate } from 'react-router-dom';
@@ -18,8 +17,6 @@ interface JobCardProps {
 export default function JobCard({ job, isSaved, onToggleSave, onView, showLinkedIn = false, onPostLinkedIn }: JobCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const navigate = useNavigate();
-
-  // Determine background color based on department (formerly company)
   const getBgColor = () => {
     const department = job.company.toLowerCase();
 
@@ -110,18 +107,9 @@ export default function JobCard({ job, isSaved, onToggleSave, onView, showLinked
       >
         {/* Main content area */}
         <div className="p-4 flex flex-col flex-grow">
-          {/* Date and Bookmark */}
-          <div className="flex justify-between items-center mb-4">
+          {/* Date only */}
+          <div className="flex justify-start items-center mb-4">
             <div className="text-xs bg-white px-3 py-1 rounded-full text-[#5C5470]">{job.date}</div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleSave()
-              }}
-              className="text-[#5C5470] hover:text-[#2A2438] transition-colors"
-            >
-              {isSaved ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
-            </button>
           </div>
 
           {/* Job Title and department */}
@@ -140,14 +128,20 @@ export default function JobCard({ job, isSaved, onToggleSave, onView, showLinked
           {/* Tags */}
           {Array.isArray(job.tags) && job.tags.filter(Boolean).length > 0 && (
             <div className="flex flex-wrap gap-1 mb-4">
-              {job.tags.filter(Boolean).map((tag, index) => (
-                <span
-                  key={index}
-                  className="text-xs px-3 py-1 rounded-full bg-white text-[#5C5470] border border-[#DBD8E3] mb-1 mr-1"
-                >
-                  {tag}
-                </span>
-              ))}
+              {job.tags.filter(Boolean).map((tag, index) => {
+                // If tag is a plain number, treat it as years of experience
+                const isNumeric = /^\d+$/.test(String(tag));
+                const display = isNumeric ? `${tag} ${String(tag) === '1' ? 'yr' : 'yrs'}` : tag;
+
+                return (
+                  <span
+                    key={index}
+                    className="text-xs px-3 py-1 rounded-full bg-white text-[#5C5470] border border-[#DBD8E3] mb-1 mr-1"
+                  >
+                    {display}
+                  </span>
+                );
+              })}
             </div>
           )}
 

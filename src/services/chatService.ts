@@ -5,8 +5,8 @@
  * Also supports synchronous tool execution
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL 
-  ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '') 
+const API_BASE_URL = import.meta.env.VITE_API_URL
+  ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '')
   : 'http://127.0.0.1:8000/api';
 
 export interface StreamEvent {
@@ -60,14 +60,14 @@ class AuthEventSource {
     private url: string,
     private token: string | null,
     private callbacks: StreamCallbacks
-  ) {}
+  ) { }
 
   connect(query: string): void {
     try {
       // EventSource doesn't support custom headers, so we'll add token to URL if needed
       const urlWithQuery = new URL(this.url, API_BASE_URL);
       urlWithQuery.searchParams.set('q', query);
-      
+
       // If token exists, add it as a query parameter (backend must support this)
       // Alternatively, backend should handle token from cookies or session
       if (this.token) {
@@ -83,7 +83,7 @@ class AuthEventSource {
       this.eventSource.onmessage = (event) => {
         try {
           const payload: StreamEvent = JSON.parse(event.data);
-          
+
           switch (payload.type) {
             case 'connected':
               this.callbacks.onConnected?.();
@@ -143,7 +143,7 @@ export class FetchStreamClient {
     private url: string,
     private token: string | null,
     private callbacks: StreamCallbacks
-  ) {}
+  ) { }
 
   async connect(query: string, tool?: ToolRequest): Promise<void> {
     try {
@@ -277,6 +277,33 @@ export class ChatService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Fetch chat history (last 10 messages)
+   */
+  async fetchHistory(): Promise<{ messages: any[] }> {
+    const token = this.getToken();
+    const fullUrl = `${API_BASE_URL}/chat/messages/history/`;
+
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(fullUrl, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
   }
 
   /**

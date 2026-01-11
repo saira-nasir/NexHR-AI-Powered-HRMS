@@ -275,8 +275,8 @@ const AssessmentAndInterview: React.FC = () => {
               <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
                 {calendarError && (
                   <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-100 text-red-900">
-                    <strong className="block">Failed to check calendar status</strong>
-                    <p className="text-sm">{calendarError}</p>
+                    <strong className="block">Calendar connection failed</strong>
+                    <p className="text-sm">Unable to connect to Google Calendar. Please reconnect or try again later.</p>
                   </div>
                 )}
                 <div className="flex items-start gap-4 mb-6 pb-6 border-b border-gray-200">
