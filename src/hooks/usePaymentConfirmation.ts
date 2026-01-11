@@ -53,8 +53,16 @@ export const usePaymentConfirmation = () => {
             window.location.reload();
             return;
           }
-        } catch {
-          // ignore transient errors and keep polling
+        } catch (error: unknown) {
+          // Detect 404 - payroll was deleted, stop polling immediately
+          const axiosError = error as { response?: { status?: number } };
+          if (axiosError?.response?.status === 404) {
+            console.warn(`Payroll ${payrollId} not found (404). Stopping poll.`);
+            try { localStorage.removeItem('nexhr.pending_payroll'); } catch { }
+            clearUrlParams();
+            return;
+          }
+          // For other errors (network issues, 500s), continue polling
         }
         attempt += 1;
         const delays = [2000, 3000, 5000, 8000];
@@ -62,7 +70,8 @@ export const usePaymentConfirmation = () => {
         await sleep(delay);
       }
 
-      // Polling timed out - clear params silently without showing toast
+      // Polling timed out - clear localStorage and params to prevent endless loop on refresh
+      try { localStorage.removeItem('nexhr.pending_payroll'); } catch { }
       clearUrlParams();
     } finally {
       setIsConfirming(false);

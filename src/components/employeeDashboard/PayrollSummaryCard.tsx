@@ -39,10 +39,6 @@ const PayrollSummaryCard: React.FC<PayrollSummaryCardProps> = ({ payrollData, on
               <span className="text-sm text-muted-foreground">Next Pay Date</span>
               <span className="font-semibold text-gray-800">{payrollData!.nextPayDate}</span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">YTD Earnings</span>
-              <span className="font-semibold text-purple-600">{payrollData!.ytdEarnings}</span>
-            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-4 text-center">

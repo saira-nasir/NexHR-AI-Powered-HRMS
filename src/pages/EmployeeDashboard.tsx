@@ -21,11 +21,26 @@ const formatHoursMinutes = (totalHours: number): string => {
   return `${hours}h ${minutes}m`;
 };
 
+// Helper to format today's date as "Saturday, Jan 11"
+const formatTodayDate = (): string => {
+  const today = new Date();
+  return today.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric'
+  });
+};
+
 // Helper to format time from ISO string to "HH:MM AM/PM"
-const formatCheckInTime = (isoTime: string | null): string => {
-  if (!isoTime) return '--:--';
+const formatCheckInTime = (isoTime: string | null | undefined): string => {
+  // Handle null, undefined, or empty string
+  if (!isoTime || isoTime.trim() === '') return '--:--';
+
   try {
     const date = new Date(isoTime);
+    // Check if date is valid (Invalid Date has NaN for getTime())
+    if (isNaN(date.getTime())) return '--:--';
+
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
@@ -126,7 +141,7 @@ const EmployeeDashboard: React.FC = () => {
   // Derived data for Today's Status card
   const todayStatus = useMemo(() => {
     if (!workingHours?.current_week?.daily_hours) {
-      return { status: 'absent', checkInTime: '--:--', workingHours: '0h' };
+      return { status: 'absent', todayDate: formatTodayDate(), workingHours: '0h' };
     }
 
     const today = new Date().toISOString().split('T')[0];
@@ -135,14 +150,13 @@ const EmployeeDashboard: React.FC = () => {
     );
 
     if (!todayEntry) {
-      return { status: 'absent', checkInTime: '--:--', workingHours: '0h' };
+      return { status: 'absent', todayDate: formatTodayDate(), workingHours: '0h' };
     }
 
     const status = todayEntry.check_in_time ? 'checked-in' : 'absent';
-    const checkInTime = formatCheckInTime(todayEntry.check_in_time);
     const hoursWorked = formatHoursMinutes(todayEntry.hours_worked || 0);
 
-    return { status, checkInTime, workingHours: hoursWorked };
+    return { status, todayDate: formatTodayDate(), workingHours: hoursWorked };
   }, [workingHours]);
 
   // Derived data for Weekly Hours card
@@ -255,7 +269,7 @@ const EmployeeDashboard: React.FC = () => {
         ) : (
           <AttendanceStatusCard
             status={todayStatus.status}
-            checkInTime={todayStatus.checkInTime}
+            todayDate={todayStatus.todayDate}
             workingHours={todayStatus.workingHours}
           />
         )}

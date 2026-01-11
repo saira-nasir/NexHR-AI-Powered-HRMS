@@ -1,14 +1,14 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Calendar } from 'lucide-react';
 
 export interface AttendanceStatusCardProps {
   status: string;
-  checkInTime: string;
+  todayDate: string;
   workingHours: string;
 }
 
-const AttendanceStatusCard: React.FC<AttendanceStatusCardProps> = ({ status, checkInTime, workingHours }) => {
+const AttendanceStatusCard: React.FC<AttendanceStatusCardProps> = ({ status, todayDate, workingHours }) => {
   const isCheckedIn = status === 'checked-in';
 
   return (
@@ -30,8 +30,11 @@ const AttendanceStatusCard: React.FC<AttendanceStatusCardProps> = ({ status, che
             {status.replace('-', ' ')}
           </span>
         </div>
-        <p className="text-sm text-muted-foreground">Since {checkInTime}</p>
-        <p className="text-2xl font-bold mt-2 text-gray-900">{workingHours}</p>
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
+          <Calendar className="w-3.5 h-3.5" />
+          <span>{todayDate}</span>
+        </div>
+        <p className="text-2xl font-bold text-gray-900">{workingHours}</p>
         <p className="text-xs text-muted-foreground">worked today</p>
       </CardContent>
     </Card>
