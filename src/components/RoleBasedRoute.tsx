@@ -64,9 +64,31 @@ const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
 
   // Check required permission if specified
   // BYPASS permission check for Admins - they have full access
-  if (requiredPermission && !permissions.includes(requiredPermission)) {
-    const redirectPath = getDashboardPath(user);
-    return <Navigate to={redirectPath} replace />;
+  if (requiredPermission) {
+    // Fall back to localStorage permissions if Redux permissions are empty
+    const localPermissionsRaw = typeof window !== 'undefined' ? window.localStorage.getItem('permissions') : null;
+    let localPermissions: string[] = [];
+    if (localPermissionsRaw) {
+      try {
+        const parsed = JSON.parse(localPermissionsRaw);
+        if (Array.isArray(parsed)) localPermissions = parsed;
+        else if (typeof parsed === 'string') localPermissions = parsed.split(',').map(s => s.trim());
+      } catch {
+        localPermissions = localPermissionsRaw.split(',').map(s => s.trim());
+      }
+    }
+
+    let hasPermission = permissions.includes(requiredPermission) || localPermissions.includes(requiredPermission);
+    
+    // Special case: accept my_salary_structure, my_salary_strcuture (typo), or salary_structures interchangeably
+    if (requiredPermission === 'salary_structures') {
+      hasPermission = hasPermission || permissions.includes('my_salary_structure') || permissions.includes('my_salary_strcuture') || localPermissions.includes('my_salary_structure') || localPermissions.includes('my_salary_strcuture');
+    }
+    
+    if (!hasPermission) {
+      const redirectPath = getDashboardPath(user);
+      return <Navigate to={redirectPath} replace />;
+    }
   }
 
   return <>{children}</>;

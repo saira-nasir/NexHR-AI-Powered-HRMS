@@ -57,10 +57,10 @@ export const sidebarItems: SidebarMenuItem[] = [
     icon: Building2,
   },
   {
-    title: 'Salary Structure',
+    title: 'My Salary Structure',
     path: '/employee-salary-structure',
     icon: Receipt,
-    codename: 'salary_structures', // Matches user plural
+    codename: 'my_salary_structure',
   },
   {
     title: 'Payslips',
@@ -75,7 +75,7 @@ export const sidebarItems: SidebarMenuItem[] = [
     codename: 'my_scheduled_interviews',
   },
   {
-    title: 'Teams Manegement',
+    title: 'Teams Management',
     path: '/teams',
     icon: Users,
     submenu: [

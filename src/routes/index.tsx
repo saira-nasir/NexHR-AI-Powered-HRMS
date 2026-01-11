@@ -278,18 +278,22 @@ export const routes: RouteObject[] = [
           {
             path: "expenses",
             element: (
-              <RoleBasedRoute requiredPermission="expenses">
-                <Expenses />
-              </RoleBasedRoute>
+              <ExcludeAdminRoute>
+                <RoleBasedRoute requiredPermission="expenses">
+                  <Expenses />
+                </RoleBasedRoute>
+              </ExcludeAdminRoute>
             ),
           },
           { path: "invoices", element: <Navigate to="/loans" replace /> },
           {
             path: "loans",
             element: (
-              <RoleBasedRoute requiredPermission="loans">
-                <Loans />
-              </RoleBasedRoute>
+              <ExcludeAdminRoute>
+                <RoleBasedRoute requiredPermission="loans">
+                  <Loans />
+                </RoleBasedRoute>
+              </ExcludeAdminRoute>
             ),
           },
           {
@@ -303,30 +307,25 @@ export const routes: RouteObject[] = [
           {
             path: "salary-structures",
             element: (
-              <RoleBasedRoute
-                requiredPermission="salary_structures"
-              >
-                <SalaryStructures />
-              </RoleBasedRoute>
+              <ExcludeAdminRoute>
+                <RoleBasedRoute requiredPermission="salary_structures">
+                  <SalaryStructures />
+                </RoleBasedRoute>
+              </ExcludeAdminRoute>
             ),
           },
-          {
-            path: "tax-management",
-            element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
-                <Navigate to="/dashboard" replace />
-              </RoleBasedRoute>
-            ),
-          },
+          
 
 
           // Employee Routes
           {
             path: "my-tasks",
             element: (
-              <RoleBasedRoute requiredPermission="my_tasks">
-                <MyTasksDashboard />
-              </RoleBasedRoute>
+              <ExcludeAdminRoute>
+                <RoleBasedRoute requiredPermission="my_tasks">
+                  <MyTasksDashboard />
+                </RoleBasedRoute>
+              </ExcludeAdminRoute>
             ),
           },
           { path: "employee-dashboard", element: <Navigate to="/dashboard" replace /> },
@@ -349,9 +348,11 @@ export const routes: RouteObject[] = [
           {
             path: "loan-expense",
             element: (
-              <RoleBasedRoute requiredPermission="loan_expense">
-                <LoanExpense />
-              </RoleBasedRoute>
+              <ExcludeAdminRoute>
+                <RoleBasedRoute requiredPermission="loan_expense">
+                  <LoanExpense />
+                </RoleBasedRoute>
+              </ExcludeAdminRoute>
             ),
           },
           {
@@ -365,17 +366,21 @@ export const routes: RouteObject[] = [
           {
             path: "employee-salary-structure",
             element: (
-              <RoleBasedRoute requiredPermission="salary_structures">
-                <EmployeeSalaryStructure />
-              </RoleBasedRoute>
+              <ExcludeAdminRoute>
+                <RoleBasedRoute requiredPermission="salary_structures">
+                  <EmployeeSalaryStructure />
+                </RoleBasedRoute>
+              </ExcludeAdminRoute>
             ),
           },
           {
             path: "payslips",
             element: (
-              <RoleBasedRoute requiredPermission="payslips">
-                <Payslips />
-              </RoleBasedRoute>
+              <ExcludeAdminRoute>
+                <RoleBasedRoute requiredPermission="payslips">
+                  <Payslips />
+                </RoleBasedRoute>
+              </ExcludeAdminRoute>
             ),
           },
           {

@@ -20,7 +20,7 @@ interface TaxComplianceChartProps {
 
 const TaxComplianceChart: React.FC<TaxComplianceChartProps> = ({ data }) => {
   return (
-    <Card className="rounded-lg border border-gray-100 bg-white hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 group border-l-4 border-[#6C63FF]/20 overflow-hidden">
+    <Card className="group rounded-lg bg-white transform hover:-translate-y-1 transition-all duration-300 ease-out border border-gray-100 shadow-md ring-1 ring-gray-100 hover:shadow-xl hover:ring-purple-200 hover:border-purple-200 overflow-hidden">
       <CardHeader>
         <CardTitle className="group-hover:text-[#6C63FF] transition-colors text-lg">Tax Compliance Status</CardTitle>
         <CardDescription className="text-sm text-gray-500">Current tax compliance overview</CardDescription>

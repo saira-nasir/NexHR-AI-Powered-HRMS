@@ -9,7 +9,7 @@ interface TotalPayrollCardProps {
 
 const TotalPayrollCard: React.FC<TotalPayrollCardProps> = ({ amount, percentageChange }) => {
   return (
-    <Card className="transition-transform transform hover:-translate-y-1 hover:shadow-xl rounded-lg overflow-hidden border border-gray-100">
+    <Card className="group transition-transform transform hover:-translate-y-1 rounded-lg overflow-hidden border border-gray-100 shadow-md ring-1 ring-gray-100 hover:shadow-xl hover:ring-purple-200 hover:border-purple-200 duration-300 ease-out">
       <div className="flex">
         <div className="w-1 bg-gradient-to-b from-[#6C63FF] to-[#FF6B6B]" />
         <div className="flex-1">

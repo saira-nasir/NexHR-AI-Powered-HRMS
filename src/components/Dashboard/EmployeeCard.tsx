@@ -67,7 +67,9 @@ const EmployeeCard: React.FC = () => {
   }, [profilePicUrl]);
 
   return (
-    <div className="hr-card col-span-1 row-span-2 overflow-hidden flex flex-col animate-scale-in h-full">
+    <div className="group relative hr-card col-span-1 row-span-2 overflow-hidden flex flex-col animate-scale-in h-full border border-gray-100 shadow-md ring-1 ring-gray-100 hover:shadow-xl hover:ring-purple-200 hover:border-purple-200 transition-all duration-300 ease-out hover:-translate-y-1 rounded-xl">
+      {/* Gradient accent line on hover */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left z-10" />
       {/* Avatar: show profile_pic_url when available, otherwise show Lottie animation */}
       <div className="relative h-56 w-full overflow-hidden flex items-center justify-center bg-transparent">
         {profilePicUrl ? (

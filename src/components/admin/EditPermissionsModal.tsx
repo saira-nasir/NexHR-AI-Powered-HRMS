@@ -192,25 +192,35 @@ const EditPermissionsModal: React.FC<EditPermissionsModalProps> = ({
           {/* Role Selector */}
           <div className="space-y-2">
             <Label htmlFor="role-select" className="text-base font-semibold text-foreground">Select Role</Label>
-            <Select
-              value={selectedRoleId}
-              onValueChange={setSelectedRoleId}
-              disabled={loading || loadingPermissions}
-            >
-              <SelectTrigger
+            {initialRoleId ? (
+              <div
                 id="role-select"
-                className="w-full h-11 border-primary/20 focus:border-primary focus:ring-primary/20 bg-white shadow-sm hover:border-primary/40 transition-colors"
+                className="w-full h-11 border-primary/20 bg-white shadow-sm px-4 flex items-center rounded text-foreground"
+                aria-disabled="true"
               >
-                <SelectValue placeholder="Select a role..." />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={String(role.id)}>
-                    {role.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                {selectedRole ? selectedRole.name : '—'}
+              </div>
+            ) : (
+              <Select
+                value={selectedRoleId}
+                onValueChange={setSelectedRoleId}
+                disabled={loading || loadingPermissions}
+              >
+                <SelectTrigger
+                  id="role-select"
+                  className="w-full h-11 border-primary/20 focus:border-primary focus:ring-primary/20 bg-white shadow-sm hover:border-primary/40 transition-colors"
+                >
+                  <SelectValue placeholder="Select a role..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map((role) => (
+                    <SelectItem key={role.id} value={String(role.id)}>
+                      {role.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Permissions by Category */}

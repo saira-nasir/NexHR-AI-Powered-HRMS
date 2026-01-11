@@ -535,7 +535,7 @@ const FinanceDashboard: React.FC = () => {
 
         <div className="space-y-6">
           {/* Payroll Progress Card */}
-          <Card className="transition-transform transform hover:-translate-y-0.5 hover:shadow-lg overflow-hidden rounded-lg border border-gray-50">
+          <Card className="group transition-transform transform hover:-translate-y-1 overflow-hidden rounded-lg border border-gray-100 shadow-md ring-1 ring-gray-100 hover:shadow-xl hover:ring-purple-200 hover:border-purple-200 duration-300 ease-out">
             <div className="flex">
               <div className="w-0.5 bg-gradient-to-b from-[#6C63FF]/60 to-[#FF6B6B]/60" />
               <div className="flex-1">

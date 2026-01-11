@@ -28,7 +28,7 @@ const WorkingHoursCard: React.FC = () => {
 
     if (loading) {
         return (
-            <Card className="flex-1 flex items-center justify-center min-h-[200px]">
+            <Card className="flex-1 flex items-center justify-center min-h-[200px] border border-gray-100 shadow-md ring-1 ring-gray-100">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
             </Card>
         );
@@ -36,7 +36,7 @@ const WorkingHoursCard: React.FC = () => {
 
     if (error || !stats) {
         return (
-            <Card className="flex-1 flex items-center justify-center min-h-[200px] text-red-500">
+            <Card className="flex-1 flex items-center justify-center min-h-[200px] text-red-500 border border-gray-100 shadow-md ring-1 ring-gray-100">
                 {error || 'No data available'}
             </Card>
         );
@@ -56,7 +56,9 @@ const WorkingHoursCard: React.FC = () => {
     const percentageChange = "+0.5%";
 
     return (
-        <Card className="hr-card flex-1 flex flex-col shadow-lg">
+        <Card className="group relative hr-card flex-1 flex flex-col overflow-hidden border border-gray-100 shadow-md ring-1 ring-gray-100 hover:shadow-xl hover:ring-purple-200 hover:border-purple-200 transition-all duration-300 ease-out hover:-translate-y-1">
+            {/* Gradient accent line on hover */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left z-10" />
             <CardContent className="p-4 sm:p-5 flex flex-col h-full justify-between">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">

@@ -14,6 +14,7 @@ const CompanyInfoForm = () => {
     email: "",
     phone: ""
   });
+  const [errors, setErrors] = useState<{ [k: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
   const desktopAnimationContainer = useRef(null);
   const mobileAnimationContainer = useRef(null);
@@ -49,10 +50,27 @@ const CompanyInfoForm = () => {
       ...prev,
       [name]: value
     }));
+    setErrors(prev => ({ ...prev, [name]: '' }));
+  };
+
+  const validate = () => {
+    const newErrors: { [k: string]: string } = {};
+    if (!formData.name || !formData.name.trim()) newErrors.name = 'Company name is required';
+    if (!formData.industry || !formData.industry.trim()) newErrors.industry = 'Industry is required';
+    // simple email regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email || !emailRegex.test(formData.email)) newErrors.email = 'Enter a valid email address';
+    // phone: digits, allow +, -, spaces, min 7 digits
+    const digits = (formData.phone || '').replace(/[^0-9]/g, '');
+    if (!formData.phone || digits.length < 7) newErrors.phone = 'Enter a valid phone number';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validate()) return;
     setIsLoading(true);
     try {
       const result = await registerCompany(formData);
@@ -111,10 +129,11 @@ const CompanyInfoForm = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full max-w-[280px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#352f44] focus:border-transparent transition-all duration-200 bg-gray-50"
+                    className={`w-full max-w-[280px] px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#352f44] focus:border-transparent transition-all duration-200 bg-gray-50 ${errors.name ? 'border-red-500' : 'border-gray-300'}`}
                   placeholder="Enter your company name"
                   required
                 />
+                  {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
               </div>
 
               <div className="space-y-1">
@@ -127,10 +146,11 @@ const CompanyInfoForm = () => {
                   name="industry"
                   value={formData.industry}
                   onChange={handleChange}
-                  className="w-full max-w-[280px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#352f44] focus:border-transparent transition-all duration-200 bg-gray-50"
+                  className={`w-full max-w-[280px] px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#352f44] focus:border-transparent transition-all duration-200 bg-gray-50 ${errors.industry ? 'border-red-500' : 'border-gray-300'}`}
                   placeholder="Enter your industry"
                   required
                 />
+                {errors.industry && <p className="text-red-600 text-sm mt-1">{errors.industry}</p>}
               </div>
 
               <div className="space-y-1">
@@ -143,10 +163,11 @@ const CompanyInfoForm = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full max-w-[280px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#352f44] focus:border-transparent transition-all duration-200 bg-gray-50"
+                  className={`w-full max-w-[280px] px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#352f44] focus:border-transparent transition-all duration-200 bg-gray-50 ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
                   placeholder="Enter your company email"
                   required
                 />
+                {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email}</p>}
               </div>
 
               <div className="space-y-1">
@@ -159,10 +180,11 @@ const CompanyInfoForm = () => {
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  className="w-full max-w-[280px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#352f44] focus:border-transparent transition-all duration-200 bg-gray-50"
+                  className={`w-full max-w-[280px] px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#352f44] focus:border-transparent transition-all duration-200 bg-gray-50 ${errors.phone ? 'border-red-500' : 'border-gray-300'}`}
                   placeholder="Enter your phone number"
                   required
                 />
+                {errors.phone && <p className="text-red-600 text-sm mt-1">{errors.phone}</p>}
               </div>
             </div>
             
