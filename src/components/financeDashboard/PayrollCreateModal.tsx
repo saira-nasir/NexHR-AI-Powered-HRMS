@@ -522,9 +522,17 @@ const PayrollCreateModal: React.FC<PayrollCreateModalProps> = ({
     const structure = salaryStructures.find(struct => struct.id === parseInt(structureId));
     if (!structure) return 'Select Salary Structure';
 
-    // Try multiple possible name fields
-    const name = structure.name || structure.title || (structure as any).structure_name || (structure as any).salary_name;
+    // User requested to show exact employee name for the structure
+    if (structure.employee) {
+      const empName = getEmployeeName(structure.employee.toString());
+      // Check if getEmployeeName returned generic 'Unknown' or 'Select', if so rely on structure
+      if (empName && !empName.includes('Unknown') && !empName.includes('Select')) {
+        return empName;
+      }
+    }
 
+    // Fallback logic
+    const name = structure.name || structure.title || (structure as any).structure_name || (structure as any).salary_name;
     if (name) {
       return name;
     }

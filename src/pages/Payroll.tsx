@@ -69,6 +69,15 @@ const PayrollPage: React.FC = () => {
   const approvedEmployees = paidPayrolls.length;
   const totalPayroll = payrolls.reduce((sum, p) => sum + Number(p.net_salary || 0), 0);
 
+  // Dynamic progress calculations
+  const calculatedPayrolls = useMemo(() => payrolls.filter(p => Number(p.net_salary || 0) > 0), [payrolls]);
+  const taxCalculatedPayrolls = useMemo(() => payrolls.filter(p => Number(p.tax_amount || 0) > 0), [payrolls]);
+
+  const salaryCalculationProgress = payrolls.length > 0 ? (calculatedPayrolls.length / payrolls.length) * 100 : 0;
+  const taxDeductionProgress = payrolls.length > 0 ? (taxCalculatedPayrolls.length / payrolls.length) * 100 : 0;
+  const approvalProgress = totalEmployees > 0 ? (approvedEmployees / totalEmployees) * 100 : 0;
+  const disbursementProgress = payrolls.length > 0 ? (paidPayrolls.length / payrolls.length) * 100 : 0;
+
 
 
 
@@ -141,6 +150,10 @@ const PayrollPage: React.FC = () => {
 
   const handlePreparePayroll = async () => {
     try {
+      if (pendingPayrolls.length === 0) {
+        toast({ title: 'No pending payrolls', description: 'There are no pending payrolls to calculate.' });
+        return;
+      }
       for (const p of pendingPayrolls) {
         await payrollService.calculatePayroll(p.id);
       }
@@ -283,7 +296,7 @@ const PayrollPage: React.FC = () => {
         return;
       }
 
-      toast({ title: 'Bulk generation started', description: `Generating payslips for ${allPayrolls.length} employees...` });
+
 
       for (const p of allPayrolls) {
         try {
@@ -755,60 +768,13 @@ const PayrollPage: React.FC = () => {
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
+        <Tabs defaultValue="employees" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="employees">Payrolls</TabsTrigger>
             <TabsTrigger value="employee-list">Employees</TabsTrigger>
             <TabsTrigger value="payslips">Payslips</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-1 gap-6">
-              {/* Payroll Progress */}
-              <Card className="transition-transform transform hover:-translate-y-0.5 hover:shadow-lg overflow-hidden rounded-lg border border-gray-50">
-                <div className="flex">
-                  <div className="w-0.5 bg-gradient-to-b from-[#6C63FF]/60 to-[#FF6B6B]/60" />
-                  <div className="flex-1">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Calculator className="w-5 h-5" />
-                        Payroll Progress
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3 px-4 py-2">
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-sm">Salary Calculation</span>
-                          <span className="text-green-600 font-medium">Completed</span>
-                        </div>
-                        <Progress value={100} className="h-2" />
-
-                        <div className="flex justify-between text-sm">
-                          <span className="text-sm">Tax Deductions</span>
-                          <span className="text-green-600 font-medium">Completed</span>
-                        </div>
-                        <Progress value={100} className="h-2" />
-
-                        <div className="flex justify-between text-sm">
-                          <span className="text-sm">Approval Process</span>
-                          <span className="text-yellow-600 font-medium">{approvedEmployees}/{totalEmployees}</span>
-                        </div>
-                        <Progress value={(approvedEmployees / totalEmployees) * 100 || 0} className="h-2" />
-
-                        <div className="flex justify-between text-sm">
-                          <span className="text-sm">Disbursement</span>
-                          <span className="text-gray-600 font-medium">Pending</span>
-                        </div>
-                        <Progress value={0} className="h-2" />
-                      </div>
-                    </CardContent>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          </TabsContent>
 
           <TabsContent value="employees" className="space-y-4">
             <Card>
@@ -1002,17 +968,6 @@ const PayrollPage: React.FC = () => {
                                       <Eye className="w-3 h-3" />
                                     </Button>
 
-                                    {/* Inspect JSON button removed */}
-
-                                    <Button
-                                      size="sm"
-                                      className="h-7 px-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
-                                      onClick={() => handleCalculatePayroll(p.id)}
-                                    >
-                                      <Calculator className="w-3 h-3 mr-1" />
-                                      Calc
-                                    </Button>
-
                                     {p.payment_status === 'PENDING' ? (
                                       (() => {
                                         const netNum = Number(p.net_salary || 0);
@@ -1042,22 +997,14 @@ const PayrollPage: React.FC = () => {
                                           </Button>
                                         );
                                       })()
-                                    ) : slip?.payslip_pdf_url ? (
+                                    ) : (
                                       <Button
                                         size="sm"
-                                        variant="outline"
-                                        className="h-7 px-2 text-blue-600 hover:text-blue-700 border-blue-200 text-xs font-medium bg-transparent flex-shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
-                                        onClick={() => window.open(slip.payslip_pdf_url, '_blank')}
+                                        className="h-7 px-2 bg-gray-300 text-gray-700 cursor-not-allowed text-xs font-medium flex-shrink-0"
+                                        disabled={true}
                                       >
-                                        PDF
+                                        Pay
                                       </Button>
-                                    ) : (
-                                      <Badge
-                                        variant="secondary"
-                                        className="h-7 px-2 bg-green-100 text-green-800 text-xs font-medium flex-shrink-0"
-                                      >
-                                        Paid
-                                      </Badge>
                                     )}
 
                                     {p.payment_status === 'PENDING' && (
@@ -1293,19 +1240,19 @@ const PayrollPage: React.FC = () => {
 
                                       // If no payslip exists or no PDF URL, show error
                                       if (!payslip) {
-                                        toast({ 
-                                          title: 'Payslip not found', 
+                                        toast({
+                                          title: 'Payslip not found',
                                           description: 'Please confirm payment first to generate the payslip.',
-                                          variant: 'destructive' 
+                                          variant: 'destructive'
                                         });
                                         return;
                                       }
 
                                       if (!payslip.payslip_pdf_url) {
-                                        toast({ 
-                                          title: 'PDF not available', 
+                                        toast({
+                                          title: 'PDF not available',
                                           description: 'Payslip PDF has not been generated yet.',
-                                          variant: 'destructive' 
+                                          variant: 'destructive'
                                         });
                                         return;
                                       }
