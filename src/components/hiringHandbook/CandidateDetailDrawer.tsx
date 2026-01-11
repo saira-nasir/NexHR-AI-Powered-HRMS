@@ -123,12 +123,7 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">{candidate.name}</h2>
-                <div className="flex items-center gap-3 mt-1">
-                  <Badge className="bg-blue-100 text-blue-800 border-blue-200">
-                    {candidate.appliedFor}
-                  </Badge>
-                  {getStageBadge(candidate.stage)}
-                </div>
+                {/* Removed position and status pills as requested */}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -334,39 +329,7 @@ const CandidateDetailDrawer: React.FC<CandidateDetailDrawerProps> = ({
             </Card>
           )}
 
-          {/* Attachments */}
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-orange-50">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-orange-600" />
-                Attachments
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="text-center py-8 text-gray-500">
-                <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No attachments available</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200">
-            <Button variant="outline" className="flex-1">
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Send Message
-            </Button>
-            <Button
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => {
-                onClose();
-                navigate('/assessment-interview');
-              }}
-            >
-              <Calendar className="w-4 h-4 mr-2" />
-              Schedule Interviews
-            </Button>
-          </div>
+          {/* Attachments and action buttons removed per request */}
         </div>
       </div>
     </div>

@@ -150,34 +150,10 @@ export const routes: RouteObject[] = [
             ),
           },
           {
-            path: "calendar",
-            element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
-                <Calendar />
-              </RoleBasedRoute>
-            ),
-          },
-          {
             path: "team",
             element: (
               <RoleBasedRoute requiredPermission="teams">
                 <Team />
-              </RoleBasedRoute>
-            ),
-          },
-          {
-            path: "projects",
-            element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
-                <Projects />
-              </RoleBasedRoute>
-            ),
-          },
-          {
-            path: "documents",
-            element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
-                <Documents />
               </RoleBasedRoute>
             ),
           },
@@ -192,7 +168,7 @@ export const routes: RouteObject[] = [
           {
             path: "hiring-handbook",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="screening_console">
                 <HiringHandbook />
               </RoleBasedRoute>
             ),
@@ -232,7 +208,7 @@ export const routes: RouteObject[] = [
           {
             path: "job-candidates/:jobId",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="interview_scheduling">
                 <JobCandidatesDetail />
               </RoleBasedRoute>
             ),
@@ -248,7 +224,7 @@ export const routes: RouteObject[] = [
           {
             path: "onboard/:applicationId",
             element: (
-              <RoleBasedRoute allowedRoles={["HR", "Admin"]}>
+              <RoleBasedRoute requiredPermission="onboarding">
                 <OnboardCandidate />
               </RoleBasedRoute>
             ),
@@ -302,7 +278,7 @@ export const routes: RouteObject[] = [
           {
             path: "expenses",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
+              <RoleBasedRoute requiredPermission="expenses">
                 <Expenses />
               </RoleBasedRoute>
             ),
@@ -311,7 +287,7 @@ export const routes: RouteObject[] = [
           {
             path: "loans",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
+              <RoleBasedRoute requiredPermission="loans">
                 <Loans />
               </RoleBasedRoute>
             ),
@@ -319,7 +295,7 @@ export const routes: RouteObject[] = [
           {
             path: "bulk-payments",
             element: (
-              <RoleBasedRoute allowedRoles={["Finance Manager", "Admin"]}>
+              <RoleBasedRoute requiredPermission="bulk_payments">
                 <BulkPayments />
               </RoleBasedRoute>
             ),
@@ -328,7 +304,6 @@ export const routes: RouteObject[] = [
             path: "salary-structures",
             element: (
               <RoleBasedRoute
-                allowedRoles={["Finance Manager", "Admin"]}
                 requiredPermission="salary_structures"
               >
                 <SalaryStructures />
@@ -349,7 +324,7 @@ export const routes: RouteObject[] = [
           {
             path: "my-tasks",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]}>
+              <RoleBasedRoute requiredPermission="my_tasks">
                 <MyTasksDashboard />
               </RoleBasedRoute>
             ),
@@ -390,7 +365,7 @@ export const routes: RouteObject[] = [
           {
             path: "employee-salary-structure",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee"]} requiredPermission="salary_structures">
+              <RoleBasedRoute requiredPermission="salary_structures">
                 <EmployeeSalaryStructure />
               </RoleBasedRoute>
             ),
@@ -416,7 +391,7 @@ export const routes: RouteObject[] = [
           {
             path: "settings",
             element: (
-              <RoleBasedRoute allowedRoles={["Employee", "HR", "Admin", "Finance Manager"]} requiredPermission="settings">
+              <RoleBasedRoute requiredPermission="settings">
                 <Settings />
               </RoleBasedRoute>
             )

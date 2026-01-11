@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -54,7 +55,7 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
   // Company users for interviewer dropdown
   const [companyUsers, setCompanyUsers] = useState<Array<{ id: number; fname: string; lname: string; email: string }>>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  
+
   // Scheduling state
   const [selectedInterviewers, setSelectedInterviewers] = useState<number[]>([]);
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
@@ -64,7 +65,8 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
   const [roundMode, setRoundMode] = useState<string>((round && (round as any).type) ? 'online' : 'online');
   const [meetingLink, setMeetingLink] = useState<string>("");
   const [schedulingInProgress, setSchedulingInProgress] = useState(false);
-  
+  const [dateTimeError, setDateTimeError] = useState<string | null>(null);
+
   const lottieContainer = useRef<HTMLDivElement | null>(null);
   const lottieAnimRef = useRef<any | null>(null);
 
@@ -234,7 +236,7 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     setSchedulingInProgress(true);
 
     try {
-  await onSave(candidate.id, selectedInterviewers, scheduleDate, scheduleTime, { id: round?.id, name: roundName, type: roundType, mode: roundMode, meeting_link: meetingLink || null });
+      await onSave(candidate.id, selectedInterviewers, scheduleDate, scheduleTime, { id: round?.id, name: roundName, type: roundType, mode: roundMode, meeting_link: meetingLink || null });
       // Brief success delay then close
       await new Promise((res) => setTimeout(res, 400));
       handleClose();
@@ -244,10 +246,66 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     }
   };
 
+  // Build combined datetime-local string from scheduleDate and scheduleTime
+  const getDateTimeValue = () => {
+    if (!scheduleDate || !scheduleTime) return "";
+    const d = new Date(scheduleDate);
+    const [hh, mm] = scheduleTime.split(":");
+    d.setHours(Number(hh || "0"), Number(mm || "0"), 0, 0);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hour = String(d.getHours()).padStart(2, '0');
+    const minute = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hour}:${minute}`;
+  };
+
+  const handleDateTimeChange = (val: string) => {
+    if (!val) {
+      setScheduleDate(undefined);
+      setScheduleTime("");
+      setDateTimeError(null);
+      return;
+    }
+    const d = new Date(val);
+    if (isNaN(d.getTime())) {
+      setScheduleDate(undefined);
+      setScheduleTime("");
+      setDateTimeError(null);
+      return;
+    }
+    setScheduleDate(d);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    setScheduleTime(`${hh}:${mm}`);
+
+    // Validate: date must not be in the past; if same day, time must not be earlier than now
+    const now = new Date();
+    if (d.getTime() < now.getTime()) {
+      setDateTimeError('Please select a future date and time');
+    } else {
+      setDateTimeError(null);
+    }
+  };
+
+  const formatScheduleTimeDisplay = () => {
+    if (!scheduleTime) return "";
+    try {
+      const parts = scheduleTime.split(":");
+      const hh = Number(parts[0] || 0);
+      const mm = Number(parts[1] || 0);
+      const d = scheduleDate ? new Date(scheduleDate) : new Date();
+      d.setHours(hh, mm, 0, 0);
+      return format(d, 'p');
+    } catch (err) {
+      return scheduleTime;
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
-      <DialogContent 
-        className="max-w-3xl max-h-[90vh] overflow-y-auto z-[80]" 
+      <DialogContent
+        className="max-w-3xl max-h-[90vh] overflow-y-auto z-[80]"
         overlayClassName="z-[75]"
       >
         <DialogHeader>
@@ -259,17 +317,17 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
 
         {/* Lottie Animation */}
         <div className="flex justify-center py-4">
-          <div 
-            ref={lottieContainer} 
+          <div
+            ref={lottieContainer}
             className="w-full h-full"
-            style={{ 
-              minHeight: '200px', 
+            style={{
+              minHeight: '200px',
               maxHeight: '200px',
               minWidth: '200px',
               maxWidth: '400px',
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center' 
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
           />
         </div>
@@ -295,15 +353,17 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
             <div className="space-y-2">
               <Label htmlFor="roundMode" className="text-sm font-semibold text-gray-700">Round Mode</Label>
-              <select id="roundMode" value={roundMode} onChange={(e) => setRoundMode(e.target.value)} className="w-full h-10 rounded-md border border-gray-200 px-3">
+              <select id="roundMode" value={roundMode} onChange={(e) => { const v = e.target.value; setRoundMode(v); if (v === 'onsite') setMeetingLink(''); }} className="w-full h-10 rounded-md border border-gray-200 px-3">
                 <option value="online">Online</option>
                 <option value="onsite">Onsite</option>
               </select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="meetingLink" className="text-sm font-semibold text-gray-700">Meeting Link (optional)</Label>
-              <Input id="meetingLink" value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="https://zoom.us/..." />
-            </div>
+            {roundMode !== 'onsite' && (
+              <div className="space-y-2">
+                <Label htmlFor="meetingLink" className="text-sm font-semibold text-gray-700">Meeting Link (optional)</Label>
+                <Input id="meetingLink" value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="https://zoom.us/..." />
+              </div>
+            )}
           </div>
           {/* Interviewer Selection */}
           <div className="space-y-2">
@@ -318,9 +378,9 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             ) : (
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button 
+                  <Button
                     id="interviewers"
-                    variant="outline" 
+                    variant="outline"
                     className="w-full justify-start min-h-[2.5rem] h-auto text-left"
                   >
                     {selectedInterviewers.length > 0 ? (
@@ -328,8 +388,8 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                         {selectedInterviewers.map(id => {
                           const u = companyUsers.find(x => x.id === id);
                           return u ? (
-                            <span 
-                              key={id} 
+                            <span
+                              key={id}
                               className="inline-flex items-center bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-full text-xs font-medium"
                             >
                               {u.fname} {u.lname}
@@ -342,21 +402,21 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-96 p-0 z-[90]" align="start">
+                <PopoverContent className="w-96 p-0 z-[120]" align="start">
                   <div className="p-3 border-b">
-                    <Input 
-                      placeholder="Search by name or email..." 
+                    <Input
+                      placeholder="Search by name or email..."
                       className="h-9"
                       onChange={(e) => {
                         const q = e.target.value.toLowerCase();
                         setCompanyUsers(prev => prev.map(u => ({
-                          ...u, 
+                          ...u,
                           __visible: q === '' || (u.fname + ' ' + u.lname + ' ' + u.email).toLowerCase().includes(q)
                         })));
-                      }} 
+                      }}
                     />
                   </div>
-                  <div className="max-h-64 overflow-auto p-2">
+                  <div className="max-h-64 overflow-auto p-2" onWheel={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
                     {companyUsers.filter(u => (u as any).__visible !== false).length === 0 ? (
                       <div className="text-center py-6 text-sm text-gray-500">
                         No interviewers found
@@ -364,17 +424,17 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                     ) : (
                       companyUsers.map((user) => (
                         (user as any).__visible === false ? null : (
-                          <label 
-                            key={user.id} 
+                          <label
+                            key={user.id}
                             className="flex items-start gap-3 p-2.5 rounded-md hover:bg-gray-50 cursor-pointer transition-colors"
                           >
                             <Checkbox
                               checked={selectedInterviewers.includes(user.id)}
                               onCheckedChange={(val) => {
                                 const checked = Boolean(val);
-                                setSelectedInterviewers(prev => 
-                                  checked 
-                                    ? Array.from(new Set([...prev, user.id])) 
+                                setSelectedInterviewers(prev =>
+                                  checked
+                                    ? Array.from(new Set([...prev, user.id]))
                                     : prev.filter(id => id !== user.id)
                                 );
                               }}
@@ -403,50 +463,14 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             )}
           </div>
 
-          {/* Date and Time Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Date Picker */}
+          {/* Date & Time Picker */}
+          <div className="grid grid-cols-1 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="date" className="text-sm font-semibold text-gray-700">
-                Interview Date *
-              </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="date"
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal h-10"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {scheduleDate ? format(scheduleDate, "PPP") : <span className="text-gray-500">Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 z-[90]" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={scheduleDate}
-                    onSelect={setScheduleDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Time Picker */}
-            <div className="space-y-2">
-              <Label htmlFor="time" className="text-sm font-semibold text-gray-700">
-                Interview Time *
-              </Label>
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="time"
-                  type="time"
-                  value={scheduleTime}
-                  onChange={(e) => setScheduleTime(e.target.value)}
-                  className="h-10 pl-10"
-                />
-              </div>
+              <Label className="text-sm font-semibold text-gray-700">Interview Date & Time *</Label>
+              <DateTimePicker value={getDateTimeValue()} onChange={handleDateTimeChange} placeholder="Pick a date and time" minDate={new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())} />
+              {dateTimeError && (
+                <p className="text-sm text-red-600 mt-2">{dateTimeError}</p>
+              )}
             </div>
           </div>
 
@@ -475,7 +499,7 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                 {scheduleTime && (
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-indigo-600" />
-                    <span>{scheduleTime}</span>
+                    <span>{formatScheduleTimeDisplay()}</span>
                   </div>
                 )}
               </div>
@@ -484,18 +508,18 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
         </div>
 
         <DialogFooter className="flex gap-3 pt-6 border-t">
-          <Button 
-            variant="outline" 
-            onClick={handleClose} 
+          <Button
+            variant="outline"
+            onClick={handleClose}
             disabled={schedulingInProgress}
             className="flex-1 sm:flex-none"
           >
             Cancel
           </Button>
-          <Button 
-            onClick={handleScheduleSave} 
+          <Button
+            onClick={handleScheduleSave}
             className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 flex-1 sm:flex-none"
-            disabled={schedulingInProgress || selectedInterviewers.length === 0 || !scheduleDate || !scheduleTime}
+            disabled={schedulingInProgress || selectedInterviewers.length === 0 || !scheduleDate || !scheduleTime || !!dateTimeError}
           >
             {schedulingInProgress ? (
               <>

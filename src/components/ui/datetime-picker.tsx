@@ -62,14 +62,14 @@ export function DateTimePicker({
 
     const updatedDate = new Date(currentDate);
     updatedDate.setHours(parseInt(currentHours) || 0, parseInt(currentMinutes) || 0, 0, 0);
-    
+
     // Format as datetime-local: YYYY-MM-DDTHH:mm
     const year = updatedDate.getFullYear();
     const month = String(updatedDate.getMonth() + 1).padStart(2, '0');
     const day = String(updatedDate.getDate()).padStart(2, '0');
     const hour = String(updatedDate.getHours()).padStart(2, '0');
     const minute = String(updatedDate.getMinutes()).padStart(2, '0');
-    
+
     onChange?.(`${year}-${month}-${day}T${hour}:${minute}`);
   };
 
@@ -94,76 +94,112 @@ export function DateTimePicker({
     updateDateTime(date, hours, value);
   };
 
+  // Check if selected date is today
+  const isToday = React.useMemo(() => {
+    if (!date) return false;
+    const now = new Date();
+    return (
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear()
+    );
+  }, [date]);
+
   // Generate hours (00-23) and minutes (00-59)
   const hourOptions = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
   const minuteOptions = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 
+  const isHourDisabled = (hour: string) => {
+    if (!isToday) return false;
+    const now = new Date();
+    return parseInt(hour) < now.getHours();
+  };
+
+  const isMinuteDisabled = (minute: string) => {
+    if (!isToday) return false;
+    const now = new Date();
+    const selectedHour = parseInt(hours);
+    if (selectedHour > now.getHours()) return false;
+    return parseInt(minute) <= now.getMinutes();
+  };
+
   return (
     <div className="flex gap-2">
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant={"outline"}
-            className={cn(
-              "flex-1 justify-start text-left font-normal",
-              !date && "text-muted-foreground",
-              error && "border-red-500"
-            )}
-            disabled={disabled}
+      <div className="pt-4 flex-1">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={"outline"}
+              className={cn(
+                "flex-1 justify-start text-left font-normal h-10",
+                !date && "text-muted-foreground",
+                error && "border-red-500"
+              )}
+              disabled={disabled}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {date ? format(date, "PPP") : <span className="text-gray-500">{placeholder}</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0 z-[100]" align="start">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={handleDateSelect}
+              disabled={(date) => {
+                if (minDate) {
+                  return date < minDate;
+                }
+                return false;
+              }}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="relative pt-4">
+          <span className="absolute left-1/2 -translate-x-1/2 -top-5 text-xs text-gray-500 pointer-events-none">Hours</span>
+          <Select
+            value={hours}
+            onValueChange={handleHoursChange}
+            disabled={disabled || !date}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {date ? format(date, "PPP") : <span>{placeholder}</span>}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            selected={date}
-            onSelect={handleDateSelect}
-            disabled={(date) => {
-              if (minDate) {
-                return date < minDate;
-              }
-              return false;
-            }}
-            initialFocus
-          />
-        </PopoverContent>
-      </Popover>
-      <div className="flex gap-1 items-center">
-        <Select
-          value={hours}
-          onValueChange={handleHoursChange}
-          disabled={disabled || !date}
-        >
-          <SelectTrigger className={cn("w-[70px]", error && "border-red-500")}>
-            <SelectValue placeholder="HH" />
-          </SelectTrigger>
-          <SelectContent className="max-h-[200px]">
-            {hourOptions.map((hour) => (
-              <SelectItem key={hour} value={hour}>
-                {hour}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <SelectTrigger className={cn("w-[70px] h-10", error && "border-red-500")}>
+              <SelectValue placeholder="HH" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[200px] z-[100]">
+              {hourOptions.map((hour) => (
+                <SelectItem key={hour} value={hour} disabled={isHourDisabled(hour)}>
+                  {hour}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <span className="text-muted-foreground">:</span>
-        <Select
-          value={minutes}
-          onValueChange={handleMinutesChange}
-          disabled={disabled || !date}
-        >
-          <SelectTrigger className={cn("w-[70px]", error && "border-red-500")}>
-            <SelectValue placeholder="MM" />
-          </SelectTrigger>
-          <SelectContent className="max-h-[200px]">
-            {minuteOptions.map((minute) => (
-              <SelectItem key={minute} value={minute}>
-                {minute}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+        <div className="relative pt-4">
+          <span className="absolute left-1/2 -translate-x-1/2 -top-5 text-xs text-gray-500 pointer-events-none">Mins</span>
+          <Select
+            value={minutes}
+            onValueChange={handleMinutesChange}
+            disabled={disabled || !date}
+          >
+            <SelectTrigger className={cn("w-[70px] h-10", error && "border-red-500")}>
+              <SelectValue placeholder="MM" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[200px] z-[100]">
+              {minuteOptions.map((minute) => (
+                <SelectItem key={minute} value={minute} disabled={isMinuteDisabled(minute)}>
+                  {minute}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <Clock className="ml-1 h-4 w-4 text-muted-foreground" />
       </div>
     </div>

@@ -107,10 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, searchQuery 
 
     sidebarItems.forEach(item => {
       if (item.submenu) {
-        const isSubmenuActive = item.submenu.some(subItem =>
-          currentPath === subItem.path ||
-          currentPath.startsWith(subItem.path + '/')
-        );
+        const isSubmenuActive = item.submenu.some(subItem => isActive(subItem.path));
         if (isSubmenuActive) {
           initialOpenMenus[item.title] = true;
         }
@@ -128,8 +125,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, searchQuery 
   };
 
   const isActive = (path: string) => {
-    // Treat onboarding submenu (/onboarding) as active also when on /onboard/:applicationId
+    // Custom active states for sub-pages
     if (path === '/onboarding' && location.pathname.startsWith('/onboard')) return true;
+    if (path === '/assessment-interview' && location.pathname.startsWith('/job-candidates')) return true;
+
     return location.pathname === path ||
       location.pathname.startsWith(path + '/') ||
       (path !== '/' && location.pathname.startsWith(path));

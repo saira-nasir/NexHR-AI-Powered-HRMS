@@ -29,18 +29,10 @@ interface Message {
 
 export const Chatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  // Single message stream state (no chat sessions)
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "msg-1",
-      sender: "bot",
-      text: "👋 Hi, I'm NexHR Assistant! How can I help you today?",
-      timestamp: new Date(),
-      isStreaming: false,
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
@@ -63,14 +55,42 @@ export const Chatbot: React.FC = () => {
     }
   }, [isOpen]);
 
-  // Load chatbot lottie when modal opens (same pattern as ScheduleInterviewModal)
+  // Load chatbot lottie when modal opens
   useEffect(() => {
     if (!isOpen) return;
 
     let mounted = true;
 
-    const loadLottie = async () => {
+    // Fetch chat history
+    const loadHistoryAndLottie = async () => {
+      setIsLoadingHistory(true);
       try {
+        const history = await chatService.fetchHistory();
+        if (mounted) {
+          if (history.messages && history.messages.length > 0) {
+            const mappedMessages: Message[] = history.messages.map((msg: any) => ({
+              id: String(msg.id),
+              sender: msg.role === 'assistant' ? 'bot' : 'user',
+              text: msg.content,
+              timestamp: new Date(msg.created_at || Date.now()),
+              isStreaming: false
+            }));
+            setMessages(mappedMessages);
+          } else {
+            // If no history, show welcome message
+            setMessages([
+              {
+                id: "msg-welcome",
+                sender: "bot",
+                text: "👋 Hi, I'm NexHR Assistant! How can I help you today?",
+                timestamp: new Date(),
+                isStreaming: false,
+              },
+            ]);
+          }
+        }
+
+        // Also load lottie
         const lottieModule = await import('lottie-web');
         const lottie = (lottieModule as any).default || lottieModule;
 
@@ -85,11 +105,13 @@ export const Chatbot: React.FC = () => {
           lottieChatAnimRef.current = anim;
         }
       } catch (err) {
-        console.error('Failed to load chatbot lottie:', err);
+        console.error('Failed to load history or lottie:', err);
+      } finally {
+        if (mounted) setIsLoadingHistory(false);
       }
     };
 
-    loadLottie();
+    loadHistoryAndLottie();
 
     return () => {
       mounted = false;
@@ -138,18 +160,18 @@ export const Chatbot: React.FC = () => {
         prev.map((msg) =>
           msg.id === botMessageId
             ? {
-                ...msg,
-                text: response.content,
-                toolExecution: {
-                  toolName,
-                  isExecuting: false,
-                  result: response.tool_calls,
-                },
-                messageIds: {
-                  userMessageId: response.user_message_id,
-                  assistantMessageId: response.assistant_message_id,
-                },
-              }
+              ...msg,
+              text: response.content,
+              toolExecution: {
+                toolName,
+                isExecuting: false,
+                result: response.tool_calls,
+              },
+              messageIds: {
+                userMessageId: response.user_message_id,
+                assistantMessageId: response.assistant_message_id,
+              },
+            }
             : msg
         )
       );
@@ -159,14 +181,14 @@ export const Chatbot: React.FC = () => {
         prev.map((msg) =>
           msg.id === botMessageId
             ? {
-                ...msg,
-                text: `❌ Tool execution failed: ${error.message}`,
-                error: true,
-                toolExecution: {
-                  toolName,
-                  isExecuting: false,
-                },
-              }
+              ...msg,
+              text: `❌ Tool execution failed: ${error.message}`,
+              error: true,
+              toolExecution: {
+                toolName,
+                isExecuting: false,
+              },
+            }
             : msg
         )
       );
@@ -225,8 +247,8 @@ export const Chatbot: React.FC = () => {
           streamingMessageIdRef.current = null;
 
           // Mark message as complete and store message IDs
-          setMessages((prev) => prev.map((m) => (m.id === botMessageId ? { 
-            ...m, 
+          setMessages((prev) => prev.map((m) => (m.id === botMessageId ? {
+            ...m,
             isStreaming: false,
             messageIds: {
               ...m.messageIds,
@@ -398,6 +420,16 @@ export const Chatbot: React.FC = () => {
 
                 {/* Chat Messages */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-white to-gray-50/30">
+                  {isLoadingHistory && messages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full space-y-3">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full"
+                      />
+                      <p className="text-sm text-gray-500">Loading chat history...</p>
+                    </div>
+                  )}
                   {messages.map((msg) => (
                     <motion.div
                       key={msg.id}
@@ -415,10 +447,10 @@ export const Chatbot: React.FC = () => {
                           msg.sender === "user"
                             ? "bg-gradient-to-br from-[#2A2438] to-[#3d3358] text-white"
                             : msg.error
-                            ? "bg-red-50 border border-red-200 text-red-800"
-                            : msg.toolExecution
-                            ? "bg-blue-50 border border-blue-200 text-gray-800"
-                            : "bg-white border border-gray-200/80 text-gray-800"
+                              ? "bg-red-50 border border-red-200 text-red-800"
+                              : msg.toolExecution
+                                ? "bg-blue-50 border border-blue-200 text-gray-800"
+                                : "bg-white border border-gray-200/80 text-gray-800"
                         )}
                       >
                         {msg.sender === "bot" && !msg.error ? (

@@ -213,43 +213,7 @@ const Interview: React.FC = () => {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="sticky top-0 z-20 bg-white border-b shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Search by position..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-11 bg-gray-50 border-gray-200 focus:bg-white"
-                />
-              </div>
-              <div className="w-full sm:w-48">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-11 bg-gray-50 border-gray-200">
-                    <SelectValue placeholder="All Statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="pending">Upcoming</SelectItem>
-                    <SelectItem value="in-progress">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {filteredInterviews.length > 0 && (
-              <div className="mt-3">
-                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
-                  {filteredInterviews.length} interview{filteredInterviews.length !== 1 ? 's' : ''} found
-                </Badge>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Filters removed */}
 
         {/* Interview Cards Grid */}
         <div className="px-4 py-8 sm:px-6 lg:px-8">

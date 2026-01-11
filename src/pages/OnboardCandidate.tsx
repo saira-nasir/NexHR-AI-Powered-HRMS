@@ -153,7 +153,11 @@ const OnboardCandidatePage: React.FC = () => {
       if (salaryData.startDate <= today) newErrors.startDate = 'Must be in the future';
     }
 
-    if (salaryData.allowances && Number(salaryData.allowances) < 0) newErrors.allowances = 'Invalid amount';
+    // Normalize allowances: empty -> '0'
+    if (!salaryData.allowances || salaryData.allowances.trim() === '') {
+      salaryData.allowances = '0';
+    }
+    if (isNaN(Number(salaryData.allowances)) || Number(salaryData.allowances) < 0) newErrors.allowances = 'Invalid amount';
     if (!salaryData.justification.trim()) newErrors.justification = 'Required';
 
     setErrors(newErrors);
@@ -184,8 +188,8 @@ const OnboardCandidatePage: React.FC = () => {
 
     // Construct the nested payload as required
     const salaryDetails = {
-      base_salary: Number(salaryData.baseSalary),
-      allowances: salaryData.allowances ? Number(salaryData.allowances) : 0,
+      base_salary: Number(salaryData.baseSalary) || 0,
+      allowances: Number(salaryData.allowances) || 0,
       effective_from: salaryData.startDate ? format(salaryData.startDate, 'yyyy-MM-dd') : '',
       hiring_justification: salaryData.justification,
     };
@@ -249,6 +253,20 @@ const OnboardCandidatePage: React.FC = () => {
                       <Input
                         value={salaryData.baseSalary}
                         onChange={(e) => updateSalaryField('baseSalary', e.target.value)}
+                        onKeyDown={(e) => {
+                          const allowed = ['Backspace','Tab','Enter','ArrowLeft','ArrowRight','Delete'];
+                          if (allowed.includes(e.key)) return;
+                          if (!/^[0-9.]$/.test(e.key)) e.preventDefault();
+                          if (e.key === '.' && (e.currentTarget as HTMLInputElement).value.includes('.')) e.preventDefault();
+                        }}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (!v) updateSalaryField('baseSalary', '0');
+                          else {
+                            const num = Number(v.replace(/[^0-9.]/g, '')) || 0;
+                            updateSalaryField('baseSalary', String(num));
+                          }
+                        }}
                         className="pl-10 h-11 text-lg"
                         placeholder="0.00"
                       />
@@ -291,6 +309,20 @@ const OnboardCandidatePage: React.FC = () => {
                       <Input
                         value={salaryData.allowances}
                         onChange={(e) => updateSalaryField('allowances', e.target.value)}
+                        onKeyDown={(e) => {
+                          const allowed = ['Backspace','Tab','Enter','ArrowLeft','ArrowRight','Delete'];
+                          if (allowed.includes(e.key)) return;
+                          if (!/^[0-9.]$/.test(e.key)) e.preventDefault();
+                          if (e.key === '.' && (e.currentTarget as HTMLInputElement).value.includes('.')) e.preventDefault();
+                        }}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (!v) updateSalaryField('allowances', '0');
+                          else {
+                            const num = Number(v.replace(/[^0-9.]/g, '')) || 0;
+                            updateSalaryField('allowances', String(num));
+                          }
+                        }}
                         className="pl-10 h-11 text-lg"
                         placeholder="0.00"
                       />
